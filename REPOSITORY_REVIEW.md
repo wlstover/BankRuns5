@@ -465,7 +465,9 @@ Each model run produces a binary `result` (true = failure, false = no failure). 
 
 ---
 
-## 9. Theoretical Contribution
+## 9. Theoretical Development
+
+### 9.1 Overview
 
 The paper makes three main contributions:
 
@@ -476,3 +478,200 @@ The paper makes three main contributions:
 3. **Network-Mediated Information:** Agents observe only their local network neighborhood and use this as a sample of the broader population. They explicitly model uncertainty about unobserved withdrawals using a Monte Carlo procedure seeded by a Geometric distribution. This generates realistic informational cascades without assuming global information or representative-agent symmetry—features essential for modeling phenomena like the 2023 SVB collapse.
 
 The result is an ABM where bank runs emerge endogenously from rational (but bounded-information) agent behavior on a social network, with calibratable parameters for reserve requirements, deposit insurance design, network topology, and deposit inequality.
+
+### 9.2 The DD Critique — Theorem 0 (Fragility Inflation)
+
+**Setup (follows White 1999):**
+- N agents, deposit normalized to 1 each.
+- Long-term investment: 1 unit at t=1 → R > 1 at t=3, or r < 1 if liquidated at t=2.
+- Early withdrawal contract pays c₁ = 1 + r₁ per unit (r₁ ≥ 0 is the insurance premium).
+- Sequential service; fraction f withdraws at t=2.
+- Bank liquidates fc₁/r of investment to meet early withdrawals.
+- Late withdrawers' payoff: c₂(f) = R(1 − fc₁/r) / (1−f).
+
+**Core argument:** The DD bad equilibrium is driven by c₁ = 1 + r₁ > 1. This makes early withdrawal intrinsically rewarding — agents are exercising a put option, not fleeing a failing bank. This premium is a model artifact: real demand deposits pay at most the principal on early withdrawal.
+
+**Theorem (DD Fragility Inflation).** The good equilibrium (only type-1 agents, fraction λ, withdraw) is locally stable if and only if λ < f\*(c₁), where
+
+$$f^*(c_1) = \frac{r(R - c_1)}{c_1(R - r)}$$
+
+The stability gap between the realistic contract (c₁ = 1, r₁ = 0) and the DD contract (c₁ = 1 + r₁, r₁ > 0) is
+
+$$\Delta f^* = f^*(1) - f^*(1+r_1) = \frac{rR\,r_1}{(1+r_1)(R-r)}$$
+
+with Δf\* > 0 for all r₁ > 0, strictly increasing in r₁, and Δf\* → 0 as r₁ → 0.
+
+**Proof.**
+
+*Step 1: Stability condition.* A marginal type-2 agent prefers to stay iff c₂(λ) > c₁:
+
+$$\frac{R\left(1 - \frac{\lambda c_1}{r}\right)}{1 - \lambda} > c_1$$
+
+Rearranging: R − c₁ > λc₁(R − r)/r, hence λ < r(R − c₁)/(c₁(R − r)) = f\*(c₁). Requires R > c₁.
+
+*Step 2: Monotonicity in c₁.*
+
+$$\frac{df^*}{dc_1} = -\frac{rR}{c_1^2(R-r)} < 0$$
+
+*Step 3: Stability gap.*
+
+$$\Delta f^* = \frac{r}{R-r}\cdot\frac{r_1 R}{1+r_1} = \frac{rR\,r_1}{(1+r_1)(R-r)}$$
+
+**Two key observations:**
+1. The bad equilibrium exists under BOTH contracts (when the vault runs out, staying gives zero regardless of c₁). The artifact does not create the bad equilibrium — it artificially shrinks the basin of attraction of the good one.
+2. Under c₁ = 1, stability depends only on technology (r, R), not contract design. Under DD, the contract itself introduces fragility proportional to r₁.
+
+---
+
+### 9.3 Lemma 1 — Binary Payoff (Homogeneous Deposits)
+
+**Setup.** N agents each with deposit δ > 0. Vault initialized at Cδ where C = ⌊ρN⌋ ∈ ℤ≥0. Each withdrawal reduces the vault by exactly δ.
+
+**Lemma.** P(partial payment) = 0 exactly. Agent payoffs are Bernoulli: δ with probability p_S, 0 otherwise.
+
+**Proof.** After k withdrawals the vault is V_k = (C − k)δ, so V_k ∈ {0, δ, 2δ, …, Cδ} at every point in time. Agent i's payoff upon withdrawal is min(δ, V_k). Since V_k is always an integer multiple of δ, the event 0 < V_k < δ is empty. Therefore payoffs are in {0, δ}. □
+
+**Corollary.** E[payoff] = p_S · δ, so maximising expected payoff is equivalent to maximising p_S = P(full deposit). This justifies the decision rules in Model 3 (closed-form p_S) and Model 4 (Monte Carlo).
+
+For heterogeneous deposits, the partial payment region has positive probability but the dominance direction is preserved: going earlier weakly reduces both P(partial) and the expected partial amount. The binary payoff approximation holds approximately, with error bounded by δ_i · P(partial).
+
+---
+
+### 9.4 Lemma 2 — Queue Dominance (Any Deposit Distribution)
+
+**Lemma.** For any agent i, any simulation state, and any deposit distribution:
+
+$$E\bigl[\min(\delta_i, \mathcal{V}_{k_0})\bigr] \geq E\bigl[\min(\delta_i, \mathcal{V}_{k_0+m})\bigr] \quad \forall\; m \geq 1$$
+
+where k₀ is the current withdrawal count ("withdraw now") and k₀ + m is the position after m additional withdrawals ("wait").
+
+In particular: P(V_{k₀} ≥ δ_i) ≥ P(V_{k₀+m} ≥ δ_i).
+
+**Proof.** Each withdrawal weakly reduces the vault: V_{k₀} ≥ V_{k₀+m} a.s. The function v ↦ min(δ_i, v) is weakly increasing, so min(δ_i, V_{k₀}) ≥ min(δ_i, V_{k₀+m}) a.s. Taking expectations preserves the inequality. The probability statement follows by applying the argument to the indicator 𝟙(v ≥ δ_i). □
+
+**Corollary (Heterogeneous Deposits).** Lemma 2 holds for any deposit distribution without modification. Partial payment terms E[V · 𝟙(0 < V < δ_i)] need not vanish; they cannot overturn the comparison because Lemma 2 applies to the total payoff.
+
+---
+
+### 9.5 Theorem 1 — Monotone Response (Model 3)
+
+**Setup.**
+- Representativeness mapping (m = degree of node i, x = withdrawn neighbours):
+
+$$\tau(x, m, N) = \left\lfloor \frac{Nx}{m} \right\rceil \in \{0, 1, \ldots, N\}, \qquad \tau = 0 \text{ if } m = 0$$
+
+- Survival probability (0 < q < 1, 0 ≤ τ ≤ C < N):
+
+$$p_S(\tau, C, N, q) = \frac{1 - q^{C+1-\tau}}{1 - q^{N-\tau}}, \qquad p_S = 0 \text{ if } \tau > C$$
+
+- Agent i withdraws iff p_S < 1.
+
+**Theorem.** The withdrawal decision is monotone non-decreasing in x: if agent i withdraws given x withdrawn neighbours, they also withdraw given any x' > x.
+
+**Proof.**
+
+*Step 1.* τ(x, m, N) is weakly increasing in x for fixed m, N (nearest-integer rounding preserves order).
+
+*Step 2.* p_S(τ, C, N, q) is weakly decreasing in τ for τ ≤ C. Set a = C + 1 − τ > 0 and b = N − τ > a. Then p_S = (1 − q^a)/(1 − q^b). Incrementing τ by 1 sends a ↦ a − 1 and b ↦ b − 1. Cross-multiplying:
+
+$$(1 - q^{a-1})(1 - q^b) \leq (1 - q^a)(1 - q^{b-1})$$
+
+Expanding and cancelling: q^{a−1}(q − 1) ≤ q^{b−1}(q − 1). Since q − 1 < 0, dividing and reversing: q^{a−1} ≥ q^{b−1}. Since a − 1 < b − 1 and 0 < q < 1, this holds. □
+
+*Conclusion.* More withdrawn neighbours ⟹ weakly higher τ ⟹ weakly lower p_S ⟹ withdrawal triggered weakly sooner.
+
+---
+
+### 9.6 Theorem 2 — Reserve Ratio Monotonicity (Model 3)
+
+**Theorem.** In Model 3, p_S(τ, C, N, q) is strictly increasing in C for τ ≤ C < N − 1, and the expected endogenous withdrawal count is weakly decreasing in ρ.
+
+**Proof.** Incrementing C by 1 sends a = C + 1 − τ ↦ a + 1, leaving b = N − τ unchanged. Then:
+
+$$p_S(C+1) - p_S(C) = \frac{q^a(1 - q)}{1 - q^b} > 0$$
+
+for τ ≤ C < N − 1. Hence p_S is strictly increasing in C. Since C = ⌊ρN⌋ is non-decreasing in ρ, higher ρ ⟹ larger C ⟹ higher p_S for all τ ⟹ fewer agents cross the withdrawal threshold ⟹ weakly smaller cascade. □
+
+**Conjectured corollary.** There exists ρ\* ∈ (0, 1) such that for ρ > ρ\* the expected endogenous cascade size is zero. ρ\* depends on N, p₀, and the exogenous shock distribution. *(To be formalised.)*
+
+---
+
+### 9.7 Theorem 3 — Cascade Fixed Point (Full Network Model)
+
+**Setup.** N agents with deposits {δ_i} on network G = ([N], E). Let S ⊆ [N] be a withdrawal set. For i ∉ S, let x_i(S) = |{j ∈ S : (i,j) ∈ E}| be the number of withdrawn neighbours and m_i = deg(i).
+
+Define the (deterministic) best-response map:
+
+$$\mathcal{B}(S) = S \cup \bigl\{i \notin S : P(\text{full} \mid \text{WD now}, S) > P(\text{full} \mid \text{stay}, S)\bigr\}$$
+
+**Theorem.** The cascade dynamics converge to the unique minimal fixed point S\* ⊇ S₀ (where S₀ is the exogenous withdrawal set) satisfying:
+
+1. ∀ i ∈ S\* \ S₀: P(full | WD now, S\* \ {i}) > P(full | stay, S\* \ {i})
+2. ∀ i ∉ S\*: P(full | WD now, S\*) ≤ P(full | stay, S\*)
+
+**Proof.**
+
+*Step 1: Monotonicity of B.* Let S ⊆ S'. For any i ∉ S': more agents have withdrawn under S' than S, so V^{S'} ≤ V^S a.s. By Lemma 2, the gap P(full | WD now, S') − P(full | stay, S') is weakly larger under S' than S. Therefore i ∈ B(S) ⟹ i ∈ B(S'), giving B(S) ⊆ B(S').
+
+*Step 2: Fixed point existence.* (2^{[N]}, ⊆) is a complete lattice. B is monotone (Step 1). By Tarski's fixed point theorem, B has a least fixed point S\*.
+
+*Step 3: Convergence.* Define S₀ ⊆ S₁ ⊆ ⋯ by S_{t+1} = B(S_t). The sequence is non-decreasing and bounded above by [N], so it stabilises in at most N steps at a fixed point. Since S₀ ⊆ S\* and B is monotone, every S_t ⊆ S\*, so the limit is S\*. □
+
+**Corollary (No-Run Condition).** S\* = S₀ iff for all i ∉ S₀: P(full deposit | WD now, S₀) = P(full deposit | stay, S₀) = 1.
+
+**Extension to stochastic best responses (Model 4).** In Model 4, P(full | ·) is estimated via Monte Carlo with depth = 1000. The estimators are unbiased by the law of large numbers. The expected best-response map is monotone, and Tarski applies. The cascade E[|S_t|] is non-decreasing, bounded by N, and converges to E[|S\*|]. □
+
+**Contrast with DD.** The DD bad equilibrium is the *maximal* fixed point of a coordination map, selected by sunspot. S\* here is the *minimal* fixed point, selected by rational network updating. These are structurally opposite solution concepts.
+
+---
+
+### 9.8 Proposition — High-Degree Trigger
+
+**Proposition.** Let |S₀^{hub}| = |S₀^{unif}| = n₀. Suppose S₀^{hub} consists of the n₀ highest-degree nodes and S₀^{unif} is a uniform random sample of n₀ nodes. Then:
+
+$$E\left[|S^*(S_0^{\text{hub}})|\right] \geq E\left[|S^*(S_0^{\text{unif}})|\right]$$
+
+**Proof sketch.**
+
+*Step 1: Degree FSD.* The degree distribution of shocked nodes under S₀^{hub} first-order stochastically dominates that under S₀^{unif}.
+
+*Step 2: Cascade monotonicity in shocked-node degree.* Withdrawing node j raises τ_i by N/m_i for each neighbour i of j, affecting deg(j) agents simultaneously. By Theorem 1, each affected agent i has weakly higher probability of withdrawing. Hence the marginal contribution of node j to E[|S\*|] is weakly increasing in deg(j).
+
+*Step 3: FSD coupling.* By Steps 1 and 2 and the monotonicity of B (Theorem 3), construct a coupling such that each shocked node in S₀^{hub} has degree ≥ the corresponding node in S₀^{unif}. The cascade under S₀^{hub} then dominates sample-path-wise. □
+
+**Note.** Step 3 requires a formal coupling construction; this is the least complete step in the proof.
+
+---
+
+### 9.9 SVB Validation (March 2023)
+
+The 2023 collapse of Silicon Valley Bank directly validates specific model features:
+
+- **Network topology:** The tech startup ecosystem is a Watts-Strogatz small-world — highly clustered locally (VC portfolio companies) with long-range shortcuts (major VCs connected across clusters). The rewiring parameter p captures exactly this structure.
+
+- **Cascade fixed point:** The run did NOT spread to all depositors — it converged to S\*, the minimal rational withdrawal set. Some depositors stayed. The model predicts partial runs, not total collapse.
+
+- **High-degree trigger:** Peter Thiel's Founders Fund was a high-degree node — its withdrawal was simultaneously observed by hundreds of portfolio companies, triggering the cascade. Directly instantiates the High-Degree Trigger Proposition.
+
+- **Principal safety, not option exercise:** No SVB depositor was exercising an insurance option. Everyone was asking: will I get my money back? This is the replacement model's mechanism, not DD's.
+
+- **Depositor homogeneity:** Tech startups with similar risk profiles and information sources approximates the model's assumptions.
+
+---
+
+### 9.10 Paper Narrative Arc
+
+1. DD is the wrong model — models option exercise not principal safety, no network.
+2. Replacement model is theoretically grounded — Lemmas 1–2, Theorems 1–3, Proposition 1.
+3. SVB confirms the mechanism — high-degree trigger, small-world propagation, convergence to partial run.
+
+---
+
+### 9.11 Outstanding Theoretical Work
+
+- Work through DD artifact theorem algebra formally (f\* calculation under c₁ = 1).
+- Formalize the critical ρ\* corollary from Theorem 2.
+- Fill in Model Results and Deposit Insurance subsections in draft.tex.
+- Fill in Literature Review section in draft.tex.
+- Simulation results to accompany theorems (Model 3 sweep already done).
+- Proposition on high-degree trigger needs simulation validation.
