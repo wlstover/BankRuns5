@@ -1,5 +1,11 @@
 # initialization functions
 
+# Concentration parameter for within-type Beta distributions of individualism λ.
+# Each agent draws λ ~ Beta(mean×κ, (1-mean)×κ) from their type's distribution.
+# κ = 20 → σ ≈ 0.09 for a type mean of 0.5, providing within-type heterogeneity
+# while keeping the distribution tightly peaked near λ_I or λ_C.
+const LAMBDA_CONC = 20.0
+
 
 function modelGen(key::String,
                   seed1::Int64,
@@ -10,17 +16,60 @@ function modelGen(key::String,
                   depositDistribution::Distribution,
                   reserveRatio::Float64,
                   depositInsurance::Float64,
-                  exogProb::Distribution)
-    # generate the deposits
+                  exogProb::Distribution,
+                  warmupAlpha::Float64,
+                  fracIndividualists::Float64,
+                  lambdaI::Float64,
+                  lambdaC::Float64)
+    # ---- Warm-up phase ----
+    # Run Flache-Macy cultural dynamics; produces a continuous λ score per agent
+    # reflecting resistance to social influence (higher = more individualist).
+    # Uses seed1 internally; RNG is reset below so deposit draws are unaffected.
+    lambdas_warmup = warmup(agtCnt, network, seed1; alpha=warmupAlpha)
+
+    # ---- Type assignment ----
+    # Rank agents by warm-up λ (descending). The top fracIndividualists (μ)
+    # fraction → type I; the rest → type C.  Warm-up cultural position
+    # determines who belongs to which type; μ controls how many.
+    nI = round(Int, fracIndividualists * agtCnt)
+    sortIdx = sortperm(lambdas_warmup, rev=true)
+    isI = falses(agtCnt)
+    nI > 0 && (isI[sortIdx[1:nI]] .= true)
+
+    # ---- Per-agent λ draws ----
+    # Each agent draws a continuous λ from a Beta distribution centred on
+    # their type mean (λ_I or λ_C), with shared concentration LAMBDA_CONC:
+    #   Type I: Beta(λ_I·κ,  (1−λ_I)·κ)  — peaks near λ_I, E[λ] = λ_I
+    #   Type C: Beta(λ_C·κ,  (1−λ_C)·κ)  — peaks near λ_C, E[λ] = λ_C
+    # Clamp means away from {0,1} to keep Beta parameters valid.
+    # seed1+1 gives a reproducible stream independent of both warm-up and deposits.
+    Random.seed!(seed1 + 1)
+    distI = Beta(clamp(lambdaI, 0.01, 0.99) * LAMBDA_CONC,
+                 clamp(1.0 - lambdaI, 0.01, 0.99) * LAMBDA_CONC)
+    distC = Beta(clamp(lambdaC, 0.01, 0.99) * LAMBDA_CONC,
+                 clamp(1.0 - lambdaC, 0.01, 0.99) * LAMBDA_CONC)
+    agentLambdas = [isI[i] ? rand(distI) : rand(distC) for i in 1:agtCnt]
+    agentTypes   = [isI[i] ? "I" : "C"                 for i in 1:agtCnt]
+
+    # ---- Deposits ----
+    # Reset to seed1 so deposit draws are unaffected by warm-up or λ draws.
     Random.seed!(seed1)
     deposits=rand(depositDistribution,agtCnt)
-    # generate the agents
+
+    # ---- Agent construction ----
+    # individualism holds the agent's drawn λ (continuous, from Beta).
     agtList::Array{Agent}=Agent[]
     for i in 1:agtCnt
-        push!(agtList,Agent(i,deposits[i],true))
+        push!(agtList,Agent(i,deposits[i],true,agentLambdas[i]))
     end
 
-    agtDF=DataFrame(key=key,idx=1:agtCnt,deposit=deposits)
+    # Log: deposit, drawn λ, raw warm-up score, and type label.
+    # warmupLambda captures the cultural formation history;
+    # individualism is the signal weight actually used in bank-run decisions.
+    agtDF=DataFrame(key=key,idx=1:agtCnt,deposit=deposits,
+                    individualism=agentLambdas,
+                    warmupLambda=lambdas_warmup,
+                    agentType=agentTypes)
 
     CSV.write(dataDir*"/"*"agents"*string(workerCore)*".csv",agtDF,writeheader=false,append=true)
 
@@ -74,7 +123,7 @@ function clone(mod::Model)
     # clone the model
    cloneAgtList::Array{simAgent}=simAgent[]
     for agt in mod.agtList
-        push!(cloneAgtList,simAgent(agt.idx,agt.deposit,agt.banked))
+        push!(cloneAgtList,simAgent(agt.idx,agt.deposit,agt.banked,agt.individualism))
     end
 
     theBank=simBank(
@@ -101,7 +150,7 @@ function clone(mod::simModel)
     # clone the model
     cloneAgtList::Array{simAgent}=simAgent[]
     for agt in mod.agtList
-        push!(cloneAgtList,simAgent(agt.idx,agt.deposit,agt.banked))
+        push!(cloneAgtList,simAgent(agt.idx,agt.deposit,agt.banked,agt.individualism))
     end
 
     theBank=simBank(
@@ -327,11 +376,19 @@ function modelRun(mod::Model)
                     " propWithdrawn=", propWithdrawn
                 )
             end
-            newGeometric=truncated(mod.exogProb,totalWithdrawn,length(mod.agtList)-1)
-            totalWithdrawn=rand(newGeometric,depth)
-
-            additionalWithdrawals=totalWithdrawn.-length(withdrawnNeighbors)
-            additionalWithdrawals=map(x -> max(0, x), additionalWithdrawals)
+            totalWithdrawnPoint = totalWithdrawn  # clamped neighbor-signal point estimate
+            # Draw from the untruncated exogenous distribution — the agent's own prior
+            # belief about total population withdrawals, independent of local observation.
+            # Blend with the neighbor-signal point estimate via individualism λ:
+            #   λ=0 (individualist): ignores neighbor signal, relies on own MC prior.
+            #   λ=1 (collectivist):  follows neighbor signal, ignores own MC prior.
+            # Low λ_I (0.1–0.3) → individualists weight social signal weakly → self-reliant.
+            # High λ_C (0.5–0.9) → collectivists weight social signal heavily → herd behavior.
+            mcDraws = rand(mod.exogProb, depth)
+            λ = agt.individualism
+            blendedTotal = round.(Int64, (1.0 .- λ) .* Float64.(mcDraws) .+ λ .* Float64(totalWithdrawnPoint))
+            blendedTotal = clamp.(blendedTotal, 0, length(mod.agtList)-1)
+            additionalWithdrawals=max.(0, blendedTotal .- length(withdrawnNeighbors))
             # Monte Carlo: compare outcomes if the agent withdraws now vs. stays.
             subModResults=[]
             initWithdrawResults=[]
@@ -344,15 +401,11 @@ function modelRun(mod::Model)
                 currAgt=filter(x->x.idx==agt.idx,baseMod.agtList)[1]
                 push!(initWithdrawResults,withdraw(baseMod,currAgt))
             end
-            # Compute P(full deposit | withdraw now) and P(full deposit | stay).
-            # resultsStay[k] is true when the agent got less than their deposit in sub-model k
-            # (i.e. they lost money by waiting), so 1 - mean gives P(full deposit | stay).
+            # now, have the agent calculate its probability of getting less than its deposit
             resultsStay::Array{Bool}=Bool[]
             for el in subModResults
                 push!(resultsStay,el[2])
             end
-            # resultsWD[k] is true when the agent got less than their deposit by withdrawing
-            # immediately in run k, so 1 - mean gives P(full deposit | withdraw now).
             resultsWD::Array{Bool}=Bool[]
             for el in initWithdrawResults
                 push!(resultsWD,el < agt.deposit)
@@ -360,27 +413,23 @@ function modelRun(mod::Model)
             #println("submodel results for agent ",agt.idx," are ",subModResults)
             #println("initial withdrawal results for agent ",agt.idx," are ",initWithdrawResults)
 
-            # P(full deposit | stay): agent waits while neighbors and additional anticipated
-            # withdrawals clear first, then collects. Vault only decreases, so this is weakly
-            # dominated by withdrawing now.
-            probFullDepositStay=1-mean(resultsStay)
-            # P(full deposit | withdraw now): agent goes to the front of the queue immediately.
-            probFullDepositWD=1-mean(resultsWD)
-            # Withdraw if immediate withdrawal is strictly safer, or if the bank has already
-            # failed (probFullDepositWD == 0.0 implies probFullDepositStay == 0.0 by dominance,
-            # so the agent withdraws to claim whatever vault or deposit insurance remains).
+            # now calculate the probability of getting less than its deposit
+            # should this be 1-?
+            probLessThanDepositStay=1-mean(resultsStay)
+            probLessThanDepositWD=1-mean(resultsWD)
+            # now if the probability is greater than the threshold, withdraw
             global dataDir
-            if probFullDepositWD > probFullDepositStay || probFullDepositWD==0.0
-                #println("Endogenous Withdawal Agent ",agt.idx," at p(WD)=",probFullDepositWD, " where deposit was ",agt.deposit," and vault was ",mod.theBank.vault," and P(Stay)=",probFullDepositStay, " at tick=",t)
+            if probLessThanDepositWD > probLessThanDepositStay || probLessThanDepositWD==0.0
+                #println("Endogenous Withdawal Agent ",agt.idx," at p(WD)=",probLessThanDepositWD, " where deposit was ",agt.deposit," and vault was ",mod.theBank.vault," and P(Stay)=",probLessThanDepositStay, " at tick=",t)
                 withdraw(mod,agt)
                 reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=true,deposit=agt.deposit,
-                tick=t,vault=mod.theBank.vault,wdProb=probFullDepositWD,stayProb=probFullDepositStay)
+                tick=t,vault=mod.theBank.vault,wdProb=probLessThanDepositWD,stayProb=probLessThanDepositStay)
                 CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
                 halt=false
             else
-                #println("No Endogenous Withdawal Agent ",agt.idx," at p(WD)=",probFullDepositWD, " where deposit was ",agt.deposit," and vault was ",mod.theBank.vault," and P(Stay)=",probFullDepositStay, " at tick=",t)
+                #println("No Endogenous Withdawal Agent ",agt.idx," at p(WD)=",probLessThanDepositWD, " where deposit was ",agt.deposit," and vault was ",mod.theBank.vault," and P(Stay)=",probLessThanDepositStay, " at tick=",t)
                 reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=false,deposit=agt.deposit,
-                tick=t,vault=mod.theBank.vault,wdProb=probFullDepositWD,stayProb=probFullDepositStay)
+                tick=t,vault=mod.theBank.vault,wdProb=probLessThanDepositWD,stayProb=probLessThanDepositStay)
                 CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
             end
 
@@ -456,7 +505,11 @@ function modelCall()
                                 startIndex[:depositDist],
                                 startIndex[:reserveRatio],
                                 startIndex[:depositInsuranceQuantile],
-                                startIndex[:withdrawRV])
+                                startIndex[:withdrawRV],
+                                startIndex[:warmupAlpha],
+                                startIndex[:fracIndividualists],
+                                startIndex[:lambdaI],
+                                startIndex[:lambdaC])
                 rMod=modelRun(mod)
                 proc2=@spawnat 1 checkOff(currentIndex)
                 while !isReady(proc2)

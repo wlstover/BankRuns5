@@ -37,6 +37,7 @@
 \usepackage{listings}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\newcommand{\LogNormal}{\mathrm{LogNormal}}
 % If you want to generate a toc for each chapter (use with book)
 \usepackage{minitoc}
 
@@ -193,16 +194,131 @@ withdrawal exceeds their probability of getting it.
 % agent deposits are distributed log-normally. 
 
 \subsubsection{The Agents}
-The model contains 1000 agents. Each agent has a deposit drawn from a log-normal
-distribution. The agents are connected in a Watts-Strogatz small world network. 
-Each agent has a withdrawal threshold probability
+The model contains 1,000 agents. Each agent $i$ holds a deposit $d_i$ drawn
+from a log-normal distribution $\LogNormal(\mu_d, \sigma_d)$. Agents are
+connected on a Watts--Strogatz small-world network parameterized by mean
+degree $k$ and rewiring probability $p$. The bank's vault is initialized at
+$v_0 = \rho \sum_i d_i$, where $\rho$ is the reserve ratio.
+
+\subsubsection{Individualism and the Cultural Warm-Up Phase}
+
+A central feature of the model is agent heterogeneity in \emph{individualism}:
+the degree to which an agent weights its own private inference about bank
+conditions relative to the social signal received from its network neighbors.
+This heterogeneity is generated endogenously through a cultural formation
+process prior to the bank-run phase, following \citet{flache2011small}.
+
+In the warm-up phase, agents hold opinions on $F=5$ cultural dimensions
+$a_{if} \in [-1,1]$, initialised uniformly at random. At each step, agent
+$i$ selects a random neighbor $j$ and computes the influence weight
+$$w_{ij} = \frac{1}{F}\sum_{f=1}^{F} a_{if}\,a_{jf} \in [-1,1].$$
+When $w_{ij}>0$ (culturally similar dyad), the agent moves \emph{toward}
+$j$'s opinions; when $w_{ij}\leq 0$ (culturally dissimilar), it moves
+\emph{away}. This produces stable cultural polarisation into clusters rather
+than full consensus. An agent's individualism score is then
+$$\lambda_i = \frac{\text{resistCount}_i}{\text{adoptCount}_i + \text{resistCount}_i},$$
+where resistCount tallies interactions with $w_{ij}\leq 0$ (neighbour
+repulsion, cultural bridge positions) and adoptCount tallies $w_{ij}>0$
+(convergent interactions within a cluster). Agents in homogeneous cultural
+clusters accumulate high adoptCount and thus low $\lambda$ (collectivists),
+while agents straddling cultural boundaries accumulate high resistCount and
+thus high $\lambda$ (individualists).
+
+\subsubsection{Two-Type Population}
+
+After the warm-up phase, agents are sorted by their warm-up $\lambda$ score.
+The top fraction $\mu$ by score are assigned type~I (individualists); the
+remaining $1-\mu$ are type~C (collectivists). Each agent then draws a
+continuous signal-weight parameter from a Beta distribution centred on its
+type mean:
+\begin{align*}
+\text{Type I}: &\quad \lambda_i \sim \mathrm{Beta}(\lambda_I\kappa,\,(1-\lambda_I)\kappa),
+    \quad E[\lambda_i] = \lambda_I,\\
+\text{Type C}: &\quad \lambda_i \sim \mathrm{Beta}(\lambda_C\kappa,\,(1-\lambda_C)\kappa),
+    \quad E[\lambda_i] = \lambda_C,
+\end{align*}
+with concentration $\kappa=20$ providing within-type heterogeneity while
+keeping the distribution tightly peaked near the type mean.
+The constraint $\lambda_I < \lambda_C$ is maintained throughout the parameter
+sweep, ensuring that individualists consistently place less weight on the
+social signal than collectivists.
+
+\subsubsection{Withdrawal Decisions}
+
+Withdrawals occur in two phases. In \emph{Phase~1 (exogenous)}, a random
+count drawn from $\mathrm{Geometric}(0.1)$ truncated to $[0,N]$ agents
+withdraw unconditionally, seeding the initial signal.
+
+In \emph{Phase~2 (endogenous)}, each remaining agent $i$ observes the
+fraction of its network neighbors that have withdrawn, infers a point
+estimate of total population withdrawals $\hat{w}$, and blends this with
+its own Monte Carlo prior. Specifically, agent $i$ draws $M=1000$ samples
+$\{m_k\}$ from the exogenous withdrawal distribution as a prior over total
+withdrawals and forms blended estimates
+$$\tilde{w}_k = (1-\lambda_i)\,m_k + \lambda_i\,\hat{w}, \quad k=1,\ldots,M.$$
+When $\lambda_i=0$ the agent ignores the social signal entirely and relies
+on its own prior (pure individualist); when $\lambda_i=1$ it adopts the
+neighbor signal as its sole estimate (pure collectivist). For each blended
+draw, the agent runs a sub-simulation to estimate $P(\text{full deposit}
+\mid \text{withdraw now})$ and $P(\text{full deposit} \mid \text{stay})$.
+It withdraws if the former exceeds the latter.
+
+This formulation implies that individualists ($\lambda_I$ small) rely
+primarily on the exogenous distribution as their prior and are therefore
+less susceptible to panic propagation through the network. Collectivists
+($\lambda_C$ large) amplify observed neighbor withdrawals into their
+own withdrawal decisions, providing a social contagion mechanism.
+Phase~2 repeats until no agent changes state (stable) or the vault reaches
+zero (bank failure).
 
 % withdrawals
 % some agents withdraw exogenously. This is governed by a truncated geometric
-% distribution. Thus, it is approximately memoryless. 
+% distribution. Thus, it is approximately memoryless.
 
 
 \subsection{Model Results}
+
+\subsubsection{Effect of Individualism on Bank-Run Probability}
+
+Preliminary simulation results confirm the theoretical prediction that
+individualism stabilises the banking system. Table~\ref{tab:testrun} reports
+bank-run probabilities from a small-scale validation sweep ($N=200$ agents,
+$M=50$ Monte Carlo trials, 20 replications per cell) across three $(\lambda_I,
+\lambda_C)$ pairs and five values of the individualist fraction $\mu$.
+
+\begin{table}[H]
+\centering
+\caption{Bank-run probability $P(\text{run})$ by individualist fraction $\mu$
+and signal-weight pair $(\lambda_I, \lambda_C)$.
+Parameters: $N=200$, reserve ratio $\rho=0.2$, $\sigma_d=0.5$,
+Watts--Strogatz $k=6$, $p=0.05$, warm-up $\alpha=0.3$.}
+\label{tab:testrun}
+\begin{tabular}{lrrrrr}
+\toprule
+$(\lambda_I,\,\lambda_C)$ & $\mu=0.00$ & $\mu=0.25$ & $\mu=0.50$ & $\mu=0.75$ & $\mu=1.00$ \\
+\midrule
+$(0.1,\;0.9)$ & 0.850 & 0.850 & 0.550 & 0.500 & 0.400 \\
+$(0.2,\;0.8)$ & 0.750 & 0.600 & 0.600 & 0.400 & 0.400 \\
+$(0.3,\;0.5)$ & 0.500 & 0.450 & 0.450 & 0.400 & 0.400 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two patterns stand out. First, $P(\text{run})$ is monotonically
+non-increasing in $\mu$ across all $(\lambda_I,\lambda_C)$ pairs: replacing
+collectivists with individualists weakly reduces the run probability, consistent
+with the fixed-point prediction that individualists require a stronger signal
+before withdrawing. Second, the effect of $\mu$ is amplified by the
+$\lambda$-gap $(\lambda_C - \lambda_I)$: the wide-gap pair $(0.1,\,0.9)$
+exhibits a decline of 0.45 from $\mu=0$ to $\mu=1$, while the narrow-gap
+pair $(0.3,\,0.5)$ declines by only 0.10. This is intuitive: when the two
+types weight the social signal similarly, the population-composition
+effect is small.
+
+The full parameter sweep will vary the reserve ratio, deposit-insurance
+quantile, log-normal dispersion $\sigma_d$, network parameters $(k,p)$, and
+warm-up learning rate $\alpha$ to characterise the bank-run surface across
+the entire relevant parameter space.
 
 \subsection{Deposit Insurance and Policy Implications}
 

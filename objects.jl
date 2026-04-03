@@ -10,6 +10,7 @@ mutable struct Agent
     idx::Int64
     deposit::Float64
     banked::Bool
+    individualism::Float64   # λ ∈ [0,1]: weight on neighbor signal; 0=individualist (own MC), 1=collectivist (social signal)
 end
 
 # and a simAgent. They are not
@@ -19,6 +20,7 @@ mutable struct simAgent
     idx::Int64
     deposit::Float64
     banked::Bool
+    individualism::Float64
 end
 
 mutable struct Bank

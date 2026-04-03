@@ -60,6 +60,22 @@ depQuantile=parse(Float64, CLI_ARGS[4])
 ws_k=parse(Int, CLI_ARGS[8])
 ws_p=parse(Float64, CLI_ARGS[9])
 
+# Warm-up learning rate (α): controls how quickly agents adopt neighbor opinions.
+# High α → fast cultural homogenisation → collectivist λ distribution.
+# Low α  → slow convergence → individualist λ distribution.
+warmupAlpha=parse(Float64, CLI_ARGS[10])
+
+# Two-type population parameters for the {μ, λ_I, λ_C} framework.
+# fracIndividualists (μ): fraction of agents assigned type I.
+#   Top-μ fraction by warm-up λ score → type I; rest → type C.
+# lambdaI (λ_I): signal weight for individualists  (lower → relies on own MC).
+# lambdaC (λ_C): signal weight for collectivists   (higher → follows social signal).
+# Theoretical prediction: λ_I < λ_C → s*_I > s*_C (individualists withdraw only
+#   at a stronger signal; collectivists are tipped more easily by aggregate runs).
+fracIndividualists=parse(Float64, CLI_ARGS[11])
+lambdaI=parse(Float64, CLI_ARGS[12])
+lambdaC=parse(Float64, CLI_ARGS[13])
+
 function paretoGen(alpha)
     return Pareto(alpha,10)
 end
@@ -100,8 +116,12 @@ graphFrame=DataFrame(network=graphTypes,graphParams1=graphParams1,graphParams2=g
 exogProbFrame=DataFrame(withdrawRV=exogenousProb)
 reserveFrame=DataFrame(reserveRatio=reserveRatio)
 depositInsuranceFrame=DataFrame(depositInsuranceQuantile=depositInsuranceQuantile)
+warmupAlphaFrame=DataFrame(warmupAlpha=[warmupAlpha])
+twoTypeFrame=DataFrame(fracIndividualists=[fracIndividualists],
+                       lambdaI=[lambdaI],
+                       lambdaC=[lambdaC])
 # Full parameter grid for the sweep.
-jointFrame=crossjoin(seedFrame,seedIterations,depFrame,graphFrame,exogProbFrame,reserveFrame,depositInsuranceFrame)
+jointFrame=crossjoin(seedFrame,seedIterations,depFrame,graphFrame,exogProbFrame,reserveFrame,depositInsuranceFrame,warmupAlphaFrame,twoTypeFrame)
 
 # now we need to generate the parameters
 jointFrame.seed2=sample(1:1000000,size(jointFrame,1),replace=false)
@@ -112,7 +132,7 @@ save_object(dataDir*"/key"*string(genSeed)*string(Dates.now())*".jld2", jointFra
 println(jointFrame)
 # subset to 16 rows
 #jointFrame=jointFrame[1:30,:]
-CSV.write(dataDir*"/"*"bankRunParametersInit.csv",jointFrame[:,[:seed1,:iteration,:graphParams1,:graphParams2,:reserveRatio,:depositInsuranceQuantile,:seed2,:key]],writeheader=false,append=true)
+CSV.write(dataDir*"/"*"bankRunParametersInit.csv",jointFrame[:,[:seed1,:iteration,:graphParams1,:graphParams2,:reserveRatio,:depositInsuranceQuantile,:warmupAlpha,:fracIndividualists,:lambdaI,:lambdaC,:seed2,:key]],writeheader=false,append=true)
 logNormal=DataFrame(params.(jointFrame.depositDist))
 rename!(logNormal,:1 => :mu,:2 => :sigma)
 CSV.write(dataDir*"/"*"bankRunlogNormal.csv",logNormal,writeheader=false,append=true)

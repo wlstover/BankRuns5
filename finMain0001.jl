@@ -13,14 +13,15 @@ const SYSIMAGE_PATH = joinpath(@__DIR__, "sysimage.so")
 cores=16
 if nprocs() < cores
     exeflags = isfile(SYSIMAGE_PATH) ?
-        "--project=$(Base.active_project()) -J $(SYSIMAGE_PATH)" :
-        "--project=$(Base.active_project())"
+        ["--project=$(Base.active_project())", "-J", SYSIMAGE_PATH] :
+        ["--project=$(Base.active_project())"]
     addprocs(cores - nprocs(); exeflags=exeflags)
 end
 cores = nprocs()
 # Load packages on all workers after they are added.
 @everywhere using Distributions
 @everywhere using Random
+@everywhere using LinearAlgebra
 
 @everywhere using CSV
 @everywhere using DataFrames
@@ -39,6 +40,8 @@ const CLI_ARGS = copy(ARGS)
 @everywhere depth::Int64=1000
 
 @everywhere include("objects.jl")
+
+@everywhere include("warmup.jl")
 
 @everywhere include("functions4.jl")
 
