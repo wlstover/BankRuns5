@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=bankrun
 #SBATCH --partition=normal
-#SBATCH --array=2-12960%50        # submit all remaining 12,959 tasks, max 50 running at once
+#SBATCH --array=1-2160%50        # submit all 2,160 tasks, max 50 running at once
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16        # 1 master + 15 workers (matches cores=16)
 #SBATCH --mem=32G
@@ -13,7 +13,7 @@
 module load julia/1.8.0
 
 PROJECT_DIR=/projects/tstratma/BankRuns5
-PARAMS_FILE=$PROJECT_DIR/params.txt
+PARAMS_FILE=$PROJECT_DIR/params_focused.txt
 
 # Each task gets its own output directory to avoid filename collisions
 # (finMain0001.jl writes per-worker CSVs like bankRunResults2.csv, agents2.csv, etc.)
