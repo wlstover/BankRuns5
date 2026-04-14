@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16        # 1 master + 15 workers (matches cores=16)
 #SBATCH --mem=32G
-#SBATCH --time=0-03:00:00         # 3 hours per task; adjust if needed
+#SBATCH --time=0-08:00:00         # 8 hours per task; increased for higher reserve ratios where bank survives longer
 #SBATCH --output=/projects/tstratma/BankRuns5/logs/slurm_%A_%a.out
 #SBATCH --error=/projects/tstratma/BankRuns5/logs/slurm_%A_%a.err
 
