@@ -17,6 +17,7 @@
    - [Infrastructure and Configuration](#infrastructure-and-configuration)
 4. [Model Description](#4-model-description)
    - [Agents and Network](#agents-and-network)
+   - [Cultural Heterogeneity: Individualism and Collectivism](#cultural-heterogeneity-individualism-and-collectivism)
    - [The Bank](#the-bank)
    - [Model Dynamics: Exogenous Withdrawals](#model-dynamics-exogenous-withdrawals)
    - [Model Dynamics: Endogenous Decision-Making](#model-dynamics-endogenous-decision-making)
@@ -26,7 +27,7 @@
 6. [Distributed Computing Architecture](#6-distributed-computing-architecture)
 7. [Data Pipeline](#7-data-pipeline)
 8. [Analysis and Results](#8-analysis-and-results)
-9. [Theoretical Contribution](#9-theoretical-contribution)
+9. [Theoretical Development](#9-theoretical-development)
 
 ---
 
@@ -52,9 +53,12 @@ BankRuns5/
 ├── Simulation (Julia)
 │   ├── objects.jl          # Data structure definitions
 │   ├── functions4.jl       # Model logic, agent decisions, parallelism helpers
+│   ├── warmup.jl           # Flache-Macy cultural dynamics warm-up phase
 │   ├── parameterGen.jl     # Parameter sweep grid construction
 │   ├── finMain0001.jl      # Main entry point; distributed execution controller
+│   ├── test_run.jl         # Small-scale sanity-check sweep for individualism params
 │   ├── modelStep.jl        # Minimal stub for running one model
+│   ├── model3_ws_homogeneous.jl  # Model 3: closed-form, homogeneous deposits
 │   ├── restart.jl          # Resume logic for interrupted sweeps
 │   ├── jld2CSV.jl          # Convert JLD2 data files to CSV
 │   ├── dataTools.jl        # Simple JLD2 loader utility
@@ -66,7 +70,9 @@ BankRuns5/
 │   └── workingAnalysis.R   # Extended analysis: vault percentages, run histories
 │   └── finAnalysis.R       # (Legacy/other project — anti-trust model analysis)
 │
-├── Paper (LaTeX/Sweave)
+├── Paper and Documentation
+│   ├── paper_draft.md      # Main paper draft (Markdown, findings-oriented)
+│   ├── REPOSITORY_REVIEW.md # Repository overview, model structure, theoretical development
 │   ├── draft.Rnw           # Main paper source (R Sweave / LaTeX)
 │   ├── draft.tex           # Compiled LaTeX
 │   ├── draft.pdf           # Compiled PDF
@@ -74,7 +80,9 @@ BankRuns5/
 │   └── banking.bib         # BibTeX references
 │
 └── Infrastructure
-    ├── run_sweep.sh        # Bash script to execute the full parameter sweep
+    ├── run_sweep.sh        # Bash script to execute the full parameter sweep (local)
+    ├── sweep.slurm         # SLURM batch script for HPC parameter sweep
+    ├── params.txt          # Pre-generated parameter grid (12,960 combinations)
     ├── BankRuns5.Rproj     # RStudio project file
     └── .gitignore
 ```
@@ -92,28 +100,40 @@ Defines the core mutable structs used throughout the simulation. There are two p
 
 | Type | Fields | Purpose |
 |------|--------|---------|
-| `Agent` | `idx`, `deposit`, `banked` | Real agent in the main model |
-| `simAgent` | `idx`, `deposit`, `banked` | Clone agent used in sub-simulations |
+| `Agent` | `idx`, `deposit`, `banked`, `individualism` | Real agent in the main model |
+| `simAgent` | `idx`, `deposit`, `banked`, `individualism` | Clone agent used in sub-simulations |
 | `Bank` | `vault`, `bankingList`, `withdrawHistory` | Main bank state |
 | `simBank` | `vault`, `bankingList`, `withdrawHistory` | Clone bank for sub-simulations |
 | `Model` | `key`, `agtList`, `reserveRatio`, `theBank`, `depositInsurance`, `seed1`, `seed2`, `depositDistribution`, `network`, `probThresh`, `exogProb` | Full main model |
 | `simModel` | `agtList`, `theBank`, `depositInsurance`, `depositDistribution` | Lightweight clone for sub-simulations |
+
+The `individualism` field (λ ∈ [0,1]) controls the weight each agent places on the neighbor signal versus their own Monte Carlo prior during endogenous decision-making (see Section 4 for details).
 
 The dual type hierarchy prevents agents from confusing their sub-simulation clones with the real model state.
 
 ---
 
 #### `functions4.jl`
-The heart of the simulation. Contains all model logic in ~475 lines.
+The heart of the simulation. Contains all model logic in ~536 lines.
+
+**`LAMBDA_CONC` (constant)**
+Concentration parameter (κ = 20) for the within-type Beta distributions used to draw each agent's individualism λ. At κ = 20, σ ≈ 0.09 for a type mean of 0.5, providing within-type heterogeneity while keeping the distribution tightly peaked near each type's mean.
 
 **`modelGen(...)`**
-Initializes a model from parameters. Seeds the RNG (`seed1`), draws deposits from `depositDistribution`, constructs all agents, initializes the bank vault as `reserveRatio × total_deposits`, and writes agent data to CSV.
+Initializes a model from parameters. The function now takes four additional cultural heterogeneity parameters (`warmupAlpha`, `fracIndividualists`, `lambdaI`, `lambdaC`) and proceeds as follows:
+
+1. **Warm-up phase:** Runs the Flache-Macy cultural dynamics (via `warmup()` from `warmup.jl`) on the Watts-Strogatz network, producing a per-agent warm-up λ score reflecting cultural position.
+2. **Type assignment:** Ranks agents by warm-up λ (descending). The top `fracIndividualists` (μ) fraction becomes type I (individualist); the rest become type C (collectivist).
+3. **Per-agent λ draws:** Each agent draws a continuous λ from a Beta distribution centred on their type mean — `Beta(λ_I·κ, (1−λ_I)·κ)` for type I, `Beta(λ_C·κ, (1−λ_C)·κ)` for type C — with `LAMBDA_CONC` as the shared concentration.
+4. **Deposits:** Seeds the RNG to `seed1` (so deposit draws are unaffected by warm-up or λ draws) and draws deposits from `depositDistribution`.
+5. **Agent construction and logging:** Creates `Agent` structs with the drawn λ as `individualism`. Writes to CSV with columns: `key`, `idx`, `deposit`, `individualism`, `warmupLambda`, `agentType`.
+6. **Bank initialization:** Sets vault = `reserveRatio × sum(deposits)`.
 
 **`neighborList(mod, agt)`**
 Returns the neighbors of `agt` in the model's social network graph.
 
 **`clone(mod::Model)` / `clone(mod::simModel)`**
-Deep-copies the model state into a `simModel`. Used extensively before each Monte Carlo sub-simulation to avoid mutating the true model state.
+Deep-copies the model state into a `simModel`, including the `individualism` field. Used extensively before each Monte Carlo sub-simulation to avoid mutating the true model state.
 
 **`withdraw(mod, agt)`**
 Executes one withdrawal. Determines the deposit insurance cap, removes the agent from the banking list, and debits the vault. If the vault balance is insufficient to pay the full deposit, the agent receives the lesser of their deposit or the deposit insurance maximum (or the vault balance if even that is unavailable).
@@ -130,7 +150,10 @@ The main simulation loop:
 2. Clone the model for sub-simulation reference.
 3. Loop over still-banking agents (shuffled each tick):
    - Observe what fraction of network neighbors have withdrawn.
-   - Infer total expected withdrawals across the population.
+   - Infer total expected withdrawals across the population (`totalWithdrawnPoint`).
+   - **Blended belief formation:** Draw `depth` samples from the untruncated exogenous distribution (agent's own MC prior). Blend each draw with the neighbor-signal point estimate using the agent's λ: `blendedTotal = (1−λ) × mcDraw + λ × totalWithdrawnPoint`. This yields per-agent heterogeneous additional withdrawal estimates:
+     - λ near 0 (individualist): ignores neighbor signal, relies on own MC prior.
+     - λ near 1 (collectivist): follows neighbor signal, ignores own MC prior.
    - Run `depth=1000` Monte Carlo trials for both the "withdraw now" and "stay" strategies.
    - If P(get full deposit | withdraw now) > P(get full deposit | stay) **or** P(withdraw) == 0, withdraw.
    - Log the decision to CSV.
@@ -138,7 +161,7 @@ The main simulation loop:
 4. Repeat until no agent changes their decision (stable state) or failure. Returns `false` if no failure.
 
 **Parallelism helpers: `rowPull`, `checkOff`, `modelCall`**
-Implement a shared work queue pattern. `rowPull` (running on process 1, protected by a `ReentrantLock`) atomically grabs the next unstarted parameter row. `modelCall` (running on each worker) pulls a row, runs the full model, and writes results. `checkOff` marks a row complete on the master.
+Implement a shared work queue pattern. `rowPull` (running on process 1, protected by a `ReentrantLock`) atomically grabs the next unstarted parameter row. `modelCall` (running on each worker) pulls a row, runs the full model, and writes results — now passing `warmupAlpha`, `fracIndividualists`, `lambdaI`, `lambdaC` to `modelGen`. `checkOff` marks a row complete on the master.
 
 **`myCore(c)`**
 Sets a worker-local global `workerCore` so each process writes its CSV output to separate files (avoiding write conflicts).
@@ -156,20 +179,28 @@ Reads CLI arguments and constructs the full parameter grid (`jointFrame`) as a `
 - `withdrawRV` (truncated Geometric distribution)
 - `reserveRatio`
 - `depositInsuranceQuantile`
+- `warmupAlpha` (Flache-Macy learning rate α)
+- `fracIndividualists` (μ: fraction of agents assigned type I)
+- `lambdaI` (mean of individualist Beta distribution)
+- `lambdaC` (mean of collectivist Beta distribution)
 
-The grid is serialized as a `.jld2` file and the parameter metadata written to CSVs. A unique string `key` (timestamp + seed pair) identifies each run for later data joining.
+The grid is serialized as a `.jld2` file and the parameter metadata written to CSVs. A unique string `key` (timestamp + seed pair) identifies each run for later data joining. The `bankRunParametersInit.csv` output now includes columns for all cultural heterogeneity parameters.
 
 CLI arguments consumed:
 ```
-ARGS[1] = data directory
-ARGS[2] = generation seed
-ARGS[3] = reserve ratio
-ARGS[4] = deposit insurance quantile
-ARGS[5] = distribution name ("Pareto" or "LogNormal")
-ARGS[6] = distribution param 1 (alpha or mu)
-ARGS[7] = distribution param 2 (theta or sigma)  [LogNormal only]
-ARGS[8] = Watts-Strogatz k
-ARGS[9] = Watts-Strogatz p
+ARGS[1]  = data directory
+ARGS[2]  = generation seed
+ARGS[3]  = reserve ratio
+ARGS[4]  = deposit insurance quantile
+ARGS[5]  = distribution name ("Pareto" or "LogNormal")
+ARGS[6]  = distribution param 1 (alpha or mu)
+ARGS[7]  = distribution param 2 (theta or sigma)  [LogNormal only]
+ARGS[8]  = Watts-Strogatz k
+ARGS[9]  = Watts-Strogatz p
+ARGS[10] = warmupAlpha (Flache-Macy learning rate)
+ARGS[11] = fracIndividualists (μ: fraction type I)
+ARGS[12] = lambdaI (individualist signal weight mean)
+ARGS[13] = lambdaC (collectivist signal weight mean)
 ```
 
 ---
@@ -179,9 +210,9 @@ The main controller script. Responsibilities:
 
 1. Start 16 Julia worker processes (using a precompiled sysimage if available for faster startup).
 2. Load all packages on all workers with `@everywhere`.
-3. Broadcast CLI arguments to all workers.
+3. Broadcast CLI arguments (now 13 args including cultural heterogeneity parameters) to all workers.
 4. Set `depth = 1000` (Monte Carlo trials per agent decision) globally on all workers.
-5. Include `objects.jl` and `functions4.jl` on all workers.
+5. Include `objects.jl`, `warmup.jl`, and `functions4.jl` on all workers.
 6. Assign each worker its core ID via `myCore`.
 7. Run `parameterGen.jl` on process 1 to populate `jointFrame`.
 8. Execute the distributed work queue: loop until all rows are `completed`, dispatching `modelCall()` to each free worker core.
@@ -206,6 +237,39 @@ A one-off conversion script that reads a JLD2 archive, extracts deposit distribu
 
 #### `dataTools.jl`
 Two-line stub: loads a `data.jld2` file. Appears to be a development utility.
+
+---
+
+#### `warmup.jl`
+Implements the **Flache & Macy (2011) social influence model with negative influence** as a cultural warm-up phase. This module runs *before* the bank-run simulation and produces per-agent individualism scores that feed into the endogenous decision-making.
+
+**Constants:**
+- `WARMUP_FEATURES = 5` — cultural opinion dimensions.
+- `WARMUP_MAX_TICKS = 500` — hard cap on warm-up iterations.
+- `WARMUP_EPS = 1e-6` — convergence threshold (mean |Δopinion| per agent per tick).
+
+**`CulturalAgent` struct:** Holds `idx`, `opinions` (Vector{Float64} in [-1, 1]), `adoptCount` (culturally aligned interactions), and `resistCount` (culturally opposed interactions).
+
+**`influenceWeight(a, b)`:** Computes w_ij = (1/F) × Σ_f(a_if × a_jf) ∈ [-1, 1]. Positive for correlated opinion profiles (convergence), negative for anti-correlated (repulsion).
+
+**`warmupInit(agtCnt, network, seed)`:** Creates cultural agents with opinions drawn uniformly from [-1, 1].
+
+**`warmupRun!(agents, network; alpha)`:** Iterates Flache-Macy dynamics. Each tick, agents are visited in random order. Each agent selects one random neighbour, computes influence weight w_ij, and updates opinions: Δa = α × w_ij × (a_j − a_i), clamped to [-1, 1]. If w_ij > 0, adoptCount increments; otherwise resistCount increments. Converges when opinions reach ±1 extremes (full cultural polarisation).
+
+**`computeLambda(agents)`:** Returns λ_i = resistCount_i / (adoptCount_i + resistCount_i) for each agent. Agents in homogeneous clusters accumulate high adoptCount → low λ (collectivist). Agents at cultural boundaries accumulate high resistCount → high λ (individualist). Isolated nodes receive λ = 0.5.
+
+**`warmup(agtCnt, network, seed; alpha)`:** Full pipeline: initialise, run dynamics, return per-agent λ values.
+
+The learning-rate parameter α (`warmupAlpha` in the sweep) controls how quickly cultural polarisation occurs; different α values yield different cluster assignments and λ distributions, making α a meaningful sweep parameter.
+
+---
+
+#### `test_run.jl`
+A self-contained small-scale sanity-check sweep for the individualism/collectivism parameters. Runs with `julia --project=. test_run.jl` (no distributed workers, no CLI args). Sweeps over μ × (λ_I, λ_C) combinations with reduced scale (N=200 agents, depth=50 MC trials, 20 replications per cell). Prints a summary table of bank-run probabilities by parameter combination and writes `test_results.csv`. Key checks:
+
+1. Higher λ gap (λ_C − λ_I) → stronger non-monotonicity in μ.
+2. μ = 0 (all collectivist) vs μ = 1 (all individualist) set the floor/ceiling.
+3. Within-type λ draws are continuous (validates Beta distribution centering).
 
 ---
 
@@ -285,8 +349,28 @@ The top-level shell script to execute the full parameter sweep. It iterates over
 | `LOGN_SIGMAS` | 2.0, 3.0 |
 | `WS_KS` | 6, 10, 50 |
 | `WS_PS` | 0.05, 0.15 |
+| `WARMUP_ALPHAS` | 0.1, 0.3, 0.5 |
+| `MU_VALUES` (μ) | 0.0, 0.25, 0.5, 0.75, 1.0 |
+| `LAMBDA_I_VALUES` (λ_I) | 0.1, 0.2, 0.3 |
+| `LAMBDA_C_VALUES` (λ_C) | 0.5, 0.7, 0.9 |
 
-This yields **2 × 4 × 2 × 3 × 2 = 96 jobs**, each launching a full Julia process with 16 worker cores. Each job runs `finMain0001.jl` with a unique generation seed (starting at 1001, incrementing per job). Within each job, the parameter grid produces 5 seed repeats × 10 iterations = **50 simulation runs per job**, for a total of **4,800 model runs**.
+This yields **2 × 4 × 2 × 3 × 2 × 3 × 5 × 3 × 3 = 38,880 jobs**, each launching a full Julia process with 16 worker cores. Each job runs `finMain0001.jl` with a unique generation seed (starting at 1001, incrementing per job) and 13 CLI arguments. Within each job, the parameter grid produces 5 seed repeats × 10 iterations = **50 simulation runs per job**, for a total of **1,944,000 model runs**.
+
+---
+
+#### `sweep.slurm`
+SLURM batch submission script for running the full parameter sweep on an HPC cluster. Key configuration:
+
+- `--array=2-12960%50` — submits 12,959 tasks (one per parameter combination, skipping line 1 as header), with at most 50 running concurrently.
+- `--cpus-per-task=16` — matches the 16-process Julia setup (1 master + 15 workers).
+- `--mem=32G`, `--time=0-03:00:00` — 32 GB RAM and 3-hour wall clock per task.
+
+Each task reads its parameter combination from `params.txt` (line number = `SLURM_ARRAY_TASK_ID`), creates an isolated output directory `outputs/task_${SLURM_ARRAY_TASK_ID}/` to avoid per-worker CSV filename collisions, and launches `finMain0001.jl` with all 13 CLI arguments.
+
+---
+
+#### `params.txt`
+Pre-generated file with 12,960 lines (one header + 12,959 parameter combinations). Each line contains space-separated values: `reserve depq sigma k p alpha mu lambdaI lambdaC`. Generated from the full factorial cross of the sweep parameters. Referenced by `sweep.slurm` to map SLURM array task IDs to parameter combinations.
 
 ---
 
@@ -302,8 +386,57 @@ Standard RStudio project configuration file. Sets the working directory and basi
 The model contains **1,000 agents** (hardcoded in `finMain0001.jl`). Each agent has:
 - A **deposit** drawn from a LogNormal or Pareto distribution.
 - A **`banked` flag** (initially `true`).
+- An **`individualism` score** (λ ∈ [0,1]) controlling the weight placed on the neighbor signal vs. own Monte Carlo prior during endogenous decision-making.
 
-Agents are connected in a **Newman–Watts–Strogatz small-world network** with parameters `k` (baseline degree) and `p` (rewiring probability). This network represents the information network: an agent only observes whether its direct neighbors are banking or have withdrawn.
+Agents are connected in a **Newman–Watts–Strogatz small-world network** with parameters `k` (baseline degree) and `p` (rewiring probability). This network serves dual roles: (1) it determines each agent's information set during the bank-run phase (an agent only observes whether its direct neighbors are banking or have withdrawn), and (2) it is the substrate for the Flache-Macy cultural warm-up dynamics that produce the individualism scores.
+
+---
+
+### Cultural Heterogeneity: Individualism and Collectivism
+
+Agents are heterogeneous not only in deposit size but in their susceptibility to social influence during withdrawal decisions. This is implemented via a three-stage pipeline:
+
+#### Stage 1: Flache-Macy Cultural Warm-Up (`warmup.jl`)
+
+Before the bank-run simulation begins, agents undergo a cultural formation phase based on the Flache & Macy (2011) social influence model with negative influence. Each agent holds opinions on F = 5 cultural dimensions ∈ [-1, 1], initialised uniformly at random.
+
+At each warm-up tick, agents interact with a random neighbour on the same Watts-Strogatz network used for the bank-run phase:
+- **Influence weight:** w_ij = (1/F) × Σ_f(a_if × a_jf) ∈ [-1, 1]. Positive for culturally similar dyads (convergence), negative for dissimilar (repulsion).
+- **Opinion update:** Δa_if = α × w_ij × (a_jf − a_if), clamped to [-1, 1]. The learning rate α (`warmupAlpha`) is a swept parameter.
+- **Tally:** w_ij > 0 → `adoptCount++` (culturally aligned); w_ij ≤ 0 → `resistCount++` (culturally opposed).
+
+The dynamics converge when opinions reach ±1 extremes (full cultural polarisation), producing stable cultural clusters. The raw warm-up λ is computed as:
+
+$$\lambda_i^{\text{warmup}} = \frac{\text{resistCount}_i}{\text{adoptCount}_i + \text{resistCount}_i}$$
+
+Agents embedded in homogeneous clusters accumulate high adoptCount → low λ (collectivist). Agents at cultural boundaries accumulate high resistCount → high λ (individualist).
+
+#### Stage 2: Two-Type Assignment
+
+Agents are ranked by their warm-up λ (descending). The top μ fraction (the `fracIndividualists` parameter) is assigned **type I** (individualist); the remainder is assigned **type C** (collectivist). The warm-up score determines *who* belongs to which type; μ controls *how many*.
+
+#### Stage 3: Per-Agent λ Draws from Beta Distributions
+
+Each agent draws a continuous λ from a Beta distribution centred on their type mean, with shared concentration κ (`LAMBDA_CONC = 20`):
+- **Type I:** λ ~ Beta(λ_I·κ, (1−λ_I)·κ), with E[λ] = λ_I
+- **Type C:** λ ~ Beta(λ_C·κ, (1−λ_C)·κ), with E[λ] = λ_C
+
+The swept parameters λ_I and λ_C are constrained so that λ_I < λ_C (individualists are less susceptible to social signals than collectivists). The concentration κ = 20 yields σ ≈ 0.09 at a mean of 0.5, providing within-type heterogeneity while keeping the distribution tightly peaked.
+
+#### Role in Endogenous Decision-Making
+
+During the bank-run phase, each agent's λ controls belief formation about total population withdrawals. The agent draws `depth` samples from the untruncated exogenous Geometric distribution (its own MC prior), then blends each with the neighbor-signal point estimate:
+
+$$\text{blendedTotal}_k = (1 - \lambda) \times \text{mcDraw}_k + \lambda \times \text{totalWithdrawnPoint}$$
+
+- **λ near 0 (individualist):** Relies on own MC prior, ignores neighbor signal. Self-reliant; withdraws only when its independent estimate of risk is high.
+- **λ near 1 (collectivist):** Follows neighbor signal, ignores own MC prior. Signal-driven; easily tipped by aggregate withdrawal information.
+
+This produces a theoretical prediction for the fixed-point withdrawal thresholds:
+$$s^*_I = \theta - \lambda_I \cdot f(\mu \cdot \Phi(s^*_I) + (1-\mu) \cdot \Phi(s^*_C))$$
+$$s^*_C = \theta - \lambda_C \cdot f(\mu \cdot \Phi(s^*_I) + (1-\mu) \cdot \Phi(s^*_C))$$
+
+Since λ_I < λ_C, individualists have a higher withdrawal threshold (s\*_I > s\*_C) — they require a stronger signal before withdrawing. The bank-run probability is predicted to be non-monotonic in μ: neither all-individualist nor all-collectivist populations necessarily minimise run risk; the interaction between types matters.
 
 ---
 
@@ -330,9 +463,9 @@ After exogenous withdrawals, the remaining banked agents iteratively reconsider 
 1. The still-banking list is **shuffled** (random service order).
 2. For each agent:
    a. **Observe neighbors:** Count how many network neighbors have withdrawn (`withdrawnNeighbors`).
-   b. **Infer population state:** Scale to estimate total withdrawals population-wide as `propWithdrawn × N`.
-   c. **Sample future withdrawals:** Draw `depth = 1000` samples from a truncated Geometric, conditioned on being ≥ the observed count. These represent uncertain future withdrawals.
-   d. **Monte Carlo: "withdraw now" strategy:** For each of the 1,000 samples, clone the current model state and simulate the focal agent withdrawing immediately. Record whether the payout equals the full deposit.
+   b. **Infer population state:** Scale to estimate total withdrawals population-wide as `propWithdrawn × N` (`totalWithdrawnPoint`), clamped to [0, N−1].
+   c. **Blended belief formation:** Draw `depth = 1000` samples from the untruncated exogenous Geometric distribution (the agent's own MC prior). Blend each draw with the neighbor-signal point estimate using the agent's individualism λ: `blendedTotal = (1−λ) × mcDraw + λ × totalWithdrawnPoint`. Compute additional withdrawals as `max(0, blendedTotal − withdrawnNeighborCount)`. Individualists (low λ) rely on their own prior; collectivists (high λ) follow the neighbor signal.
+   d. **Monte Carlo: "withdraw now" strategy:** For each of the 1,000 blended samples, clone the current model state and simulate the focal agent withdrawing immediately. Record whether the payout equals the full deposit.
    e. **Monte Carlo: "stay" strategy:** For each sample, additionally force the sampled additional agents to withdraw, then simulate the focal agent withdrawing. Record whether the payout equals the full deposit.
    f. **Decision rule:** If `P(full payout | withdraw now) > P(full payout | stay)` or if `P(full payout | withdraw now) == 0`, **withdraw**. Otherwise, stay.
    g. Log both probabilities and the decision to CSV.
@@ -373,8 +506,16 @@ Each model run is uniquely identified by a `key` string (timestamp + two random 
 | `sigma` (LogNormal) | Deposit inequality | 2.0, 3.0 |
 | `k` (Watts-Strogatz) | Network connectivity | 6, 10, 50 |
 | `p` (Watts-Strogatz) | Network randomness | 0.05, 0.15 |
+| `warmupAlpha` | Flache-Macy learning rate | 0.1, 0.3, 0.5 |
+| `fracIndividualists` (μ) | Fraction type I (individualist) | 0.0, 0.25, 0.5, 0.75, 1.0 |
+| `lambdaI` (λ_I) | Individualist signal weight mean | 0.1, 0.2, 0.3 |
+| `lambdaC` (λ_C) | Collectivist signal weight mean | 0.5, 0.7, 0.9 |
 | `seed1` | Deposit draw randomness | 5 random seeds |
 | `iteration` | Run replication | 10 per seed |
+
+The λ_I and λ_C ranges are non-overlapping (max λ_I = 0.3 < min λ_C = 0.5) so that λ_I < λ_C holds for every combination. This ensures individualists are always less susceptible to the neighbor signal than collectivists.
+
+This yields **2 × 4 × 2 × 3 × 2 × 3 × 5 × 3 × 3 = 12,960 jobs**, each launching a full Julia process with 16 worker cores. Each job runs `finMain0001.jl` with a unique generation seed (starting at 1001, incrementing per job) and 13 CLI arguments. Within each job, the parameter grid produces 5 seed repeats × 10 iterations = **50 simulation runs per job**, for a total of **648,000 model runs**.
 
 **Fixed parameters:**
 - Agent count: 1,000
@@ -382,6 +523,8 @@ Each model run is uniquely identified by a `key` string (timestamp + two random 
 - Exogenous withdrawal distribution: truncated Geometric(p=0.1)
 - Monte Carlo depth: 1,000 trials per agent decision
 - Decision threshold: implied by the comparison of withdrawal vs. stay probabilities
+- Warm-up hyperparameters: F = 5 cultural dimensions, max 500 ticks, ε = 1e-6 convergence
+- Within-type Beta concentration: κ = 20
 
 ---
 
@@ -415,13 +558,14 @@ A precompiled Julia system image (`sysimage.so`, built by `sysImage.jl`) is used
 
 ```
 run_sweep.sh
-    └── finMain0001.jl (×96 jobs)
+    └── finMain0001.jl (×38,880 jobs)
+            ├── warmup.jl          (cultural warm-up on each worker)
             ├── parameterGen.jl → bankRunParametersInit.csv
             │                     bankRunlogNormal.csv
             │                     bankRunGeometric.csv
             │                     key*.jld2
             └── modelCall() × N_runs
-                    ├── agents{core}.csv          (agent deposits per run)
+                    ├── agents{core}.csv          (deposit, λ, warmupLambda, agentType per agent)
                     ├── bankRunExogenous{core}.csv (exogenous withdrawal events)
                     ├── bankRunEndogenous{core}.csv (endogenous decision events)
                     └── bankRunResults{core}.csv   (per-run failure outcome)
@@ -437,6 +581,13 @@ R Analysis
     ├── analysis2.R        → failure by parameters, withdrawal scatter plots
     └── workingAnalysis.R  → vault-percentage analysis, run history reconstruction
 ```
+
+**New columns in output files (vs. base model):**
+
+| File | New Columns | Description |
+|------|-------------|-------------|
+| `bankRunParametersInit.csv` | `warmupAlpha`, `fracIndividualists`, `lambdaI`, `lambdaC` | Cultural heterogeneity parameters per run |
+| `agents{core}.csv` | `individualism`, `warmupLambda`, `agentType` | Per-agent drawn λ, raw warm-up score, and type label (I/C) |
 
 ---
 
