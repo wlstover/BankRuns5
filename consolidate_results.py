@@ -31,8 +31,13 @@ def consolidate():
     # 4: depositInsurance, 5: exogProb, 6: warmupAlpha,
     # 7: mu (fracIndividualists), 8: lambdaI, 9: lambdaC, 10: seed, 11: key
 
-    # bankRunParametersFin (no header, 3 cols):
-    # 0: key, 1: completed, 2: bankRun
+    # bankRunParametersFin (no header, 3 cols): key, started, completed.
+    # Both started and completed are the literal string "true" once the sim
+    # has run; this file is a completion-marker only, not an outcome record.
+
+    # bankRunResults*.csv (no header, 2 cols, one file per worker core):
+    # 0: key, 1: runState (true if vault depleted, false if survived).
+    # The actual bank-run outcome lives here, NOT in bankRunParametersFin.
 
     header = [
         'paramSeed', 'replication', 'agtCnt', 'reserveRatio',
@@ -47,7 +52,9 @@ def consolidate():
 
     total_rows = 0
     missing_fin = 0
-    unmatched = 0
+    missing_results = 0
+    unmatched_completed = 0
+    unmatched_outcome = 0
 
     with open(out_path, 'w', newline='') as out_f:
         writer = csv.writer(out_f)
@@ -68,23 +75,37 @@ def consolidate():
                         key = row[11]
                         params[key] = row[:12]
 
-            # Read fin results, keyed by simulation key (col 0)
-            fin = {}
+            # Read fin file as a completion-marker set (key in fin => completed)
+            completed_keys = set()
             if fin_file.exists():
                 with open(fin_file) as f:
                     for row in csv.reader(f):
-                        if len(row) >= 3:
-                            fin[row[0]] = (row[1], row[2])
+                        if len(row) >= 1:
+                            completed_keys.add(row[0])
             else:
                 missing_fin += 1
 
-            # Join
+            # Read all per-worker bankRunResults*.csv files for the actual
+            # bankRun outcome. Each file is (key, runState).
+            outcomes = {}
+            results_files = list(task_dir.glob('bankRunResults*.csv'))
+            if not results_files:
+                missing_results += 1
+            for rf in results_files:
+                with open(rf) as f:
+                    for row in csv.reader(f):
+                        if len(row) >= 2:
+                            outcomes[row[0]] = row[1]
+
+            # Join init params with completion marker and bankRun outcome
             for key, p in params.items():
-                if key in fin:
-                    completed, bank_run = fin[key]
-                else:
-                    completed, bank_run = '', ''
-                    unmatched += 1
+                completed = 'true' if key in completed_keys else ''
+                if not completed:
+                    unmatched_completed += 1
+
+                bank_run = outcomes.get(key, '')
+                if not bank_run:
+                    unmatched_outcome += 1
 
                 writer.writerow(p + [completed, bank_run])
                 total_rows += 1
@@ -93,8 +114,10 @@ def consolidate():
                 print(f"  Processed {i+1}/{len(task_dirs)} dirs, {total_rows:,} rows...")
 
     print(f"\nDone. {total_rows:,} rows written to {out_path}")
-    print(f"  Missing fin files: {missing_fin}")
-    print(f"  Unmatched keys: {unmatched}")
+    print(f"  Missing fin files:                 {missing_fin}")
+    print(f"  Missing bankRunResults*.csv files: {missing_results}")
+    print(f"  Init keys with no completion mark: {unmatched_completed}")
+    print(f"  Init keys with no outcome record:  {unmatched_outcome}")
 
     return out_path
 
@@ -111,10 +134,12 @@ def analyze(csv_path):
         for row in reader:
             key = (row['mu'], row['lambdaI'], row['lambdaC'])
             groups[key]['total'] += 1
-            if row['completed'] == 'true':
+            # A row counts toward the denominator only if the sim both
+            # finished (completed marker present) AND emitted an outcome.
+            if row['completed'] == 'true' and row['bankRun'] in ('true', 'false'):
                 groups[key]['completed'] += 1
-            if row['bankRun'] == 'true':
-                groups[key]['runs'] += 1
+                if row['bankRun'] == 'true':
+                    groups[key]['runs'] += 1
 
     print(f"\n{'mu':>6s} {'lI':>6s} {'lC':>6s} {'N':>8s} {'Compl':>8s} {'Runs':>8s} {'Fail%':>8s}")
     print('-' * 55)
@@ -148,10 +173,10 @@ def analyze(csv_path):
         reader = csv.DictReader(f)
         for row in reader:
             key = (row['mu'], row['reserveRatio'])
-            if row['completed'] == 'true':
+            if row['completed'] == 'true' and row['bankRun'] in ('true', 'false'):
                 mr_groups[key]['completed'] += 1
-            if row['bankRun'] == 'true':
-                mr_groups[key]['runs'] += 1
+                if row['bankRun'] == 'true':
+                    mr_groups[key]['runs'] += 1
 
     print(f"{'mu':>6s} {'reserve':>8s} {'Completed':>10s} {'Runs':>8s} {'Fail%':>8s}")
     print('-' * 45)
