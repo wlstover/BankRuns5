@@ -6,68 +6,38 @@ Created 2026-08-13._
 
 ---
 
-## ⏸️ SESSION PAUSED 2026-08-13 (laptop power cycle) — READ THIS FIRST
+## ✅ RESOLVED 2026-08-13 pm — committed, and HPC reconciled
 
-**Nothing is committed.** All of today's work is written to disk and survives the reboot,
-but it is a single working tree with no checkpoint. `git status` in `BankRuns5/` should
-show:
+The morning's work is committed (`accff7d`, `3c2889f`, `889b871`, `a9f97eb`,
+`4fb48bd`) and pushed. Hopper is current for the first time since April.
+Narrative in `Daily Notes/2026-08-13.md`; what carries forward:
 
-```
- M .gitignore  consolidate_results.py  finMain0001.jl  functions4.jl
- M parameterGen.jl  test_run.jl  sweep.slurm  scripts/analysis_p6.R  scripts/README.md
- M abm_chapter.tex  banking.bib  paper_draft.md        # pre-existing, not from today
- D gen_params.sh  gen_params_focused.sh  run_sweep.sh  # retired, superseded
- ?? next_steps.md  future_work.md
- ?? scripts/{run_all.sh,sweep_task.slurm,gen_params.sh,check_sweep_run.py}
- ?? test/{test_assignment_rules.jl,test_runsize.jl}
-```
-Plus `celsius/CLAUDE.md` and the top-level `CLAUDE.md` modified, and
-`Daily Notes/2026-08-13.md` written (225 lines — that note is the evidence for
-everything below).
+**Julia/Manifest mismatch — was fatal, now guarded.** The repo's Manifest was
+resolved under Julia 1.12.5 while `sweep_task.slurm` loads `julia/1.8.0`; its
+JLD2 stack requires Julia ≥ 1.10 and could not resolve on hopper. Hopper's own
+Manifest was the working one *and* the environment that produced the 2026-04
+sweep, so it is now what's committed (`7e8410e`). `sweep_task.slurm` fails at
+task startup on any mismatch. **The smoke run would have died on this
+regardless of code correctness, and it would have looked like a code failure.**
 
-**First move on resume: decide whether to commit.** A single commit covering the
-orchestrator + recording fixes is the natural checkpoint, and it should happen before
-anything touches HPC, so a smoke-run failure can be diffed against a known state.
+**git is now the only code path to HPC.** Five rsync-delivered files were
+sitting untracked on hopper, three of them months behind the repo with nothing
+in `git status` to show it — hopper was still running the pre-fix positional
+`consolidate_results.py`. ⚠️ **No consolidated artifact produced on hopper
+before 2026-08-13 should be trusted until regenerated.** `outputs/` is now
+gitignored in full and chapter figures live in `figures/`.
 
-### What was done today
+**⚠️ CRLF trap, unfixed.** Schuler's four files (`functions4.jl`,
+`finMain0001.jl`, `parameterGen.jl`, `objects.jl`) are CRLF; ours are LF. The
+morning's edits silently flipped three of them, inflating `functions4.jl`'s diff
+from 62 lines to 1,122. Restored before staging, but there is no
+`.gitattributes`, so **any future edit strips CRLF again**. Check
+`git diff --stat -w` against `git diff --stat` before committing anything that
+touches his files — item 12 is sending exactly these diffs to Schuler.
 
-1. **Axelrod → Flache–Macy** in `celsius/CLAUDE.md:302-310` (it loads every session, so
-   the error was propagating). Also corrected the same sentence's claim that the warm-up
-   crystallizes religiosity — the ABM has no religiosity channel.
-2. **New HPC pipeline**, ported from `celsius/scripts/run_all.sh`: `scripts/run_all.sh`
-   (orchestrator), `scripts/sweep_task.slurm` (payload), `scripts/gen_params.sh` (merged
-   generator), `scripts/check_sweep_run.py` (verifier). Arms isolate to `outputs/<tag>/`;
-   a manifest written at submission time is what kills the positional-parsing bug class.
-3. **`consolidate_results.py` rewritten** — corrected mapping, manifest join, legacy
-   fallback with warnings, carries σ / \|S*\| / mcDepth.
-4. **Julia recording fixes**: σ + assignRule + mcDepth into the params dump (now **16
-   columns**, was 12); `runSize()` → \|S*\| in the results row (now **4 columns**, was 2);
-   `ASSIGN_RULE` switch for the placebo arms.
-5. **MC depth is now a run parameter, default 1000 → 100** (`--depth N`).
-6. **Parallelism surveyed**, nothing changed — see the Performance section below.
-
-### Verification status
-
-All local gates passed: shell/Python/Julia syntax; grid generator byte-identical to the
-retired one; four arms dry-run to distinct roots and array ranges; guards reject bad
-input; verifier fires on every synthetic defect; consolidator round-trips both paths;
-P6a reproduced from the existing CSV (84.38 / 68.37 / 16.0 pp).
-
-`test/test_assignment_rules.jl` and `test/test_runsize.jl` are preserved regression tests
-— they extract blocks out of `functions4.jl` by text marker and eval them, so they test
-the shipped source without needing project dependencies. Run from the repo root:
-`julia test/test_assignment_rules.jl`.
-
-**Untested anywhere:** the live model. Local Julia cannot run it (JLD2 absent, Manifest
-pins unmatched, `~/.julia` unwritable in-sandbox). That is what the smoke run below is for.
-
-### ❓ Open question put to WS, not yet answered
-
-**Whether to delete the ~200 GB of legacy `outputs/task_*` on HPC.** Recommendation was
-**no, not yet** — full reasoning in the boxed section below. Short version: it is not in
-the way (arms are isolated), it is the only regression oracle for the rebuilt pipeline,
-and σ is retroactively recoverable from it. If space is the constraint, extract first,
-then delete.
+**Legacy `outputs/task_*` on HPC: still keep.** Question answered in the
+negative for now — see the boxed section below. Untracked, so git never touches
+it; `git clean -fd` on hopper would destroy it.
 
 ---
 
@@ -77,41 +47,24 @@ The HPC pipeline was rebuilt today (see `Daily Notes/2026-08-13.md`). Everything
 verified locally and `--dry-run`-tested; **nothing has run on HPC yet.** The one job
 before anything else is a smoke run.
 
-### ▶ THE ONE JOB LEFT — smoke run on HPC
+### ▶ IN FLIGHT — smoke run submitted 2026-08-13 16:43
 
-Enough changed today (new orchestrator, new payload, rewritten consolidator, three
-Julia edits, depth default 1000 → 100) that the next thing to happen must be a
-single-cell run, not a sweep.
+Job `9363073_1`, arm `smoke`: one cell, 50 runs, depth 100, 2h walltime, three
+chasers held on dependency. Startup confirmed the guard plus both new run
+parameters *as seen by Julia* (not merely by the shell, which is where the
+empty-export bug class lives):
 
-```bash
-# 1. push code (outputs/ excluded — nothing local should overwrite HPC results)
-rsync -av --exclude outputs/ ~/papers/bank_run_dissertation/BankRuns5/ \
-          wstover2@hopper:/projects/tstratma/BankRuns5/
-
-# 2. on HPC, dry-run FIRST — it prints every sbatch and submits none
-ssh wstover2@hopper
-cd /projects/tstratma/BankRuns5
-./scripts/run_all.sh --dry-run
-
-# 3. one cell, 50 runs, short walltime (depth=100 should be ~10x faster than the
-#    depth-1000 sweep that needed 8h; 2h is generous)
-./scripts/run_all.sh --tag smoke \
-    --reserve 0.25 --depq 0.0 --sigma 2.0 --p 0.05 --alpha 0.1 --mu 0.5 \
-    --lambda-i 0.1 --lambda-c 0.9 \
-    --time 0-02:00:00
+```
+julia 1.8.0 matches Manifest pin
+assignment rule: warmup
+Monte Carlo depth: 100
 ```
 
-**Then check, in this order — do not skip to the sweep:**
-
-| # | Check | Expected |
-|---|---|---|
-| 1 | `awk -F, '{print NF; exit}' outputs/smoke/task_1/bankRunParametersInit.csv` | **16** (was 12; +lognMu, lognSigma, assignRule, mcDepth) |
-| 2 | `awk -F, '{print NF; exit}' outputs/smoke/task_1/bankRunResults*.csv` | **4** (was 2; +nWithdrawn, depositWithdrawn) |
-| 3 | `grep -c . outputs/smoke/task_1/bankRunResults*.csv` | **50** (5 seeds × 10 iterations) |
-| 4 | slurm log carries `Monte Carlo depth: 100` and `assignment rule: warmup` | both printed at startup |
-| 5 | `check_sweep_run.py` chaser | `RESULT: OK` |
-| 6 | `consolidated_results.csv` | `sigma`, `mcDepth`, `nWithdrawn`, `depositWithdrawn` all populated |
-| 7 | `nWithdrawn` values | in `[0, 1000]`, and `> 0` on any row with `bankRun == true` |
+**Awaiting the 7-item check table** (16 param cols, 4 result cols, 50 rows,
+startup lines, verifier `RESULT: OK`, consolidated CSV populated, `nWithdrawn`
+in range). The one to watch is `bankRun == true ⇒ nWithdrawn > 0` — the only
+check that tests whether `runSize()` reads the right state rather than merely
+returning plausible numbers. If it fails, \|S*\| is wrong everywhere downstream.
 
 **Then the placebo smoke**, which exercises the only remaining untested code path:
 
