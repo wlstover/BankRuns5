@@ -8,6 +8,12 @@ sysimage.so
 # figures the chapter compiles against are curated into figures/ deliberately.
 outputs/
 
+# Legacy artifacts of the retired sweep.slurm path, still present on HPC.
+# The current pipeline writes params to outputs/<tag>/params.txt and sends
+# SLURM logs to /scratch/%u/, so neither of these is regenerated.
+logs/
+/params.txt
+
 # Python bytecode
 __pycache__/
 *.pyc

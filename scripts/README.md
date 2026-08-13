@@ -146,11 +146,34 @@ rsync -av wstover2@hopper:/projects/tstratma/BankRuns5/outputs/production/consol
 rsync -av wstover2@hopper:/projects/tstratma/BankRuns5/outputs/production/analysis/ ./outputs/production/analysis/
 ```
 
-## Pushing code to HPC
+## Pushing code to HPC — use git, not rsync
 
 ```bash
-rsync -av --exclude outputs/ ~/papers/bank_run_dissertation/BankRuns5/ \
-          wstover2@hopper:/projects/tstratma/BankRuns5/
+# local
+git push origin individualism
+
+# hopper
+cd /projects/tstratma/BankRuns5 && git pull
+```
+
+⚠️ **Do not rsync code to hopper.** Both paths were in use until 2026-08-13 and
+they collided: files delivered by rsync arrive *untracked*, so git neither
+updates them on pull nor reports them as stale. Hopper spent months running an
+`analysis_p6.R` and a `consolidate_results.py` that had drifted from the repo —
+including the pre-fix positional consolidator — with nothing in `git status` to
+show for it. Recovering from it meant hand-diffing five untracked files against
+their incoming versions before a pull would even proceed.
+
+`outputs/` is gitignored in full, so a pull never touches simulation results and
+the ~200 GB of `task_*` dirs stay invisible to git. Figures the chapter compiles
+against are curated in `figures/`, deliberately, rather than being whatever
+`analysis_p6.R` wrote into `outputs/` last.
+
+Results still come back by rsync — that direction is fine, since nothing on the
+local side is tracked:
+
+```bash
+rsync -av wstover2@hopper:/projects/tstratma/BankRuns5/outputs/<tag>/consolidated_results.csv ./outputs/<tag>/
 ```
 
 ## R module on hopper
