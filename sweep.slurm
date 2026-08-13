@@ -1,4 +1,16 @@
 #!/bin/bash
+# =============================================================================
+# ⚠️ DEPRECATED 2026-08-13 — superseded by scripts/run_all.sh.
+#
+# This file hardcodes --array=1-2160, params_focused.txt, and
+# outputs/task_<N>/, so every arm it launches writes into the same namespace
+# and overwrites the previous one. scripts/run_all.sh + scripts/sweep_task.slurm
+# replace it: the array range comes from the params file, and each arm gets its
+# own outputs/<tag>/ root.
+#
+# Kept ONLY until the new path has run clean on HPC once. Do not submit it.
+#   Replacement:  ./scripts/run_all.sh --dry-run     # then drop --dry-run
+# =============================================================================
 #SBATCH --job-name=bankrun
 #SBATCH --partition=normal
 #SBATCH --array=1-2160%50        # submit all 2,160 tasks, max 50 running at once

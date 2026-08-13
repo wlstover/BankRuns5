@@ -20,7 +20,8 @@ include("functions4.jl")
 
 # ── Test parameters ──────────────────────────────────────────────────────────
 const N_AGENTS  = 200       # agents per run  (original: 1000)
-const DEPTH_MC  = 50        # Monte Carlo trials per decision  (original: 1000)
+const DEPTH_MC  = 50        # Monte Carlo trials per decision
+                            # (sweep default 100 since 2026-08-13; model's original 1000)
 const REPS      = 20        # seeds per (μ, λ_I, λ_C) cell
 const WARMUP_A  = 0.3       # fixed warm-up α for this test
 const RESERVE   = 0.2

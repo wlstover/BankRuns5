@@ -35,9 +35,52 @@ cores = nprocs()
 const CLI_ARGS = copy(ARGS)
 @everywhere const CLI_ARGS = $CLI_ARGS
 
+# Type-assignment rule for the cultural warm-up, set by scripts/run_all.sh
+# --assignment. "warmup" is the model as published; "random" and "reverse" are
+# placebo arms that decouple cultural type from network position. Broadcast the
+# same way as CLI_ARGS because workers do not inherit ENV modifications made
+# after addprocs. See functions4.jl modelGen for what each rule does.
+const ASSIGN_RULE = let r = strip(get(ENV, "BANKRUN_ASSIGN_RULE", ""))
+    isempty(r) ? "warmup" : String(r)     # empty export == absent; see MC_DEPTH
+end
+if !(ASSIGN_RULE in ("warmup", "random", "reverse"))
+    error("BANKRUN_ASSIGN_RULE must be warmup|random|reverse, got \"$ASSIGN_RULE\"")
+end
+@everywhere const ASSIGN_RULE = $ASSIGN_RULE
+println("assignment rule: ", ASSIGN_RULE)
+
 
 # major parameters
-@everywhere depth::Int64=1000
+#
+# Monte Carlo depth: the number of clone-and-resimulate draws each agent runs
+# per decision (functions4.jl:423,433). Set by scripts/run_all.sh --depth.
+#
+# ⚠️ DEFAULT LOWERED 1000 -> 100 on 2026-08-13. This is a modelling change, not
+# just a speed knob. The decision rule is P̂_WD > P̂_stay, and both sides are
+# means of `depth` Bernoulli draws, so the Monte Carlo standard error scales as
+# 1/sqrt(depth): ~0.016 at depth=1000 against ~0.050 at depth=100, i.e. ~3.2x
+# noisier. Agents whose two probabilities are close will flip decisions more
+# often, which injects noise into the cascade itself. The sign of the effect on
+# aggregate P(run) is not obvious a priori and should be measured, not assumed.
+#
+# ⚠️ The 2026-04 production sweep ran at depth=1000. Results produced at a
+# different depth are NOT directly comparable to it. `depth` is recorded in the
+# manifest and in the parameter dump so any comparison can condition on it.
+# Parsed once on the master and broadcast, rather than each worker reading ENV
+# for itself — same pattern as ASSIGN_RULE below. If workers resolved it
+# independently, a divergent environment on one node would give that node's
+# agents a different decision precision, silently and unrecoverably.
+# `get(ENV, k, default)` returns "" for a SET-BUT-EMPTY variable, not the
+# default — and SLURM --export=ALL,FOO= propagates exactly that. Treat empty as
+# absent so an empty export falls back instead of killing the job.
+const MC_DEPTH = let d = strip(get(ENV, "BANKRUN_MC_DEPTH", ""))
+    isempty(d) && (d = "100")
+    n = tryparse(Int, d)
+    (n === nothing || n < 1) && error("BANKRUN_MC_DEPTH must be a positive integer, got \"$d\"")
+    n
+end
+@everywhere depth::Int64 = $MC_DEPTH
+println("Monte Carlo depth: ", MC_DEPTH)
 
 @everywhere include("objects.jl")
 

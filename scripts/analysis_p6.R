@@ -28,6 +28,19 @@
 # Path resolution: uses BANKRUN_PROJECT_ROOT env var if set, otherwise
 # defaults to the script's parent directory's parent (BankRuns5/).
 
+# ⚠️ COLUMN SEMANTICS CHANGED 2026-08-13 — read before touching this file.
+# consolidate_results.py used to name the parameter columns positionally, and
+# the positions were wrong: what it called `reserveRatio` was the Watts-Strogatz
+# rewiring probability p, and what it called `depositInsurance` was the reserve
+# ratio. Every figure this script produced inherited that mislabelling — the
+# "reserve null" in the chapter is a p-null (1.6 pp), while the true reserve
+# axis spans 99.5% -> 46.8% failure.
+#
+# The consolidated CSV now carries corrected names: `reserveRatio` genuinely
+# holds the reserve ratio, `p` and `k` are their own columns, `depositInsurance`
+# is now `depQuantile`, and `sigma` exists. Any figure regenerated before this
+# date is mislabelled at the axis level and must be redrawn, not relabelled.
+
 suppressPackageStartupMessages({
     library(data.table)
     library(ggplot2)
@@ -43,17 +56,23 @@ if (!dir.exists(project_root)) {
     project_root <- getwd()
 }
 
-input_csv <- file.path(project_root, "outputs", "consolidated_results.csv")
-out_dir   <- file.path(project_root, "outputs", "analysis")
+# Arm-aware: run_all.sh exports BANKRUN_ARM_DIR so each arm's figures land
+# beside that arm's data instead of overwriting the previous arm's. Falls back
+# to outputs/ so the legacy 2026-04 sweep still resolves.
+arm_dir <- Sys.getenv("BANKRUN_ARM_DIR", unset = file.path(project_root, "outputs"))
+
+input_csv <- file.path(arm_dir, "consolidated_results.csv")
+out_dir   <- file.path(arm_dir, "analysis")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 cat("project_root:", project_root, "\n")
+cat("arm_dir:     ", arm_dir, "\n")
 cat("input_csv:   ", input_csv, "\n")
 cat("out_dir:     ", out_dir, "\n\n")
 
 if (!file.exists(input_csv)) {
     stop("consolidated_results.csv not found at ", input_csv,
-         " — run scripts/run_consolidate.slurm first.")
+         " — run ./scripts/run_all.sh --consolidate --tag <arm> first.")
 }
 
 # ── Load + clean ─────────────────────────────────────────────────────────────
@@ -61,7 +80,7 @@ dt <- fread(input_csv)
 cat("Loaded", nrow(dt), "rows.\n")
 
 # Coerce the relevant columns. consolidate_results.py writes them as strings.
-numeric_cols <- c("reserveRatio", "depositInsurance", "warmupAlpha",
+numeric_cols <- c("reserveRatio", "depQuantile", "warmupAlpha",
                   "mu", "lambdaI", "lambdaC")
 for (c in numeric_cols) dt[[c]] <- as.numeric(dt[[c]])
 dt[, bankRun := bankRun == "true"]
@@ -110,7 +129,7 @@ fwrite(agg_p6, file.path(out_dir, "p6_mu_lambdagap.csv"))
 cat("\nWrote p6_mu_lambdagap.png + .csv\n")
 
 # ── 2. Marginal failure rates by each baseline parameter ────────────────────
-for (param in c("reserveRatio", "depositInsurance", "warmupAlpha",
+for (param in c("reserveRatio", "depQuantile", "warmupAlpha",
                 "mu", "lambdaI", "lambdaC")) {
     agg <- dt_c[, .(failRate = mean(bankRun), N = .N), by = param]
     setnames(agg, param, "param_value")
@@ -135,9 +154,9 @@ cat("Wrote marginal_*.png for 6 parameters.\n")
 cell_summary <- dt_c[, .(N = .N,
                           bankRuns = sum(bankRun),
                           failRate = mean(bankRun)),
-                      by = .(reserveRatio, depositInsurance, mu, lambdaI, lambdaC,
+                      by = .(reserveRatio, depQuantile, mu, lambdaI, lambdaC,
                              warmupAlpha, graphParams1 = NA, graphParams2 = NA)][
-                       , .(reserveRatio, depositInsurance, mu, lambdaI, lambdaC,
+                       , .(reserveRatio, depQuantile, mu, lambdaI, lambdaC,
                            warmupAlpha, N, bankRuns, failRate)]
 fwrite(cell_summary, file.path(out_dir, "cell_failure_rates.csv"))
 cat("Wrote cell_failure_rates.csv (", nrow(cell_summary), " parameter cells)\n", sep = "")

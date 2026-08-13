@@ -31,8 +31,44 @@ function modelGen(key::String,
     # Rank agents by warm-up λ (descending). The top fracIndividualists (μ)
     # fraction → type I; the rest → type C.  Warm-up cultural position
     # determines who belongs to which type; μ controls how many.
+    #
+    # ⚠️ PLACEBO ARMS (added 2026-08-13; ASSIGN_RULE, default "warmup", is the
+    # published model and is bit-identical to the previous code path).
+    #
+    # The warm-up assigns high resistance scores to agents sitting on cultural
+    # BOUNDARIES, and those agents become type I. So individualism and bridge
+    # position are the same variable by construction, and varying μ moves two
+    # things at once: how many agents weight private signals heavily (the
+    # cultural channel we claim) and how many inter-cluster bridges are held by
+    # low-λ agents (a pure topology channel). The composition result is jointly
+    # attributable to both, and Chapter 2 cannot arbitrate — it has no
+    # composition variation at all.
+    #
+    #   warmup  — rank by warm-up λ (the model as published)
+    #   random  — uniformly random type assignment; warm-up score ignored
+    #   reverse — bottom-μ by warm-up λ (cluster interiors) become type I
+    #
+    # Gradient survives under `random` ⇒ the effect is signal weighting, i.e.
+    # culture, as claimed. Gradient dies ⇒ it required individualists on
+    # bridges, and the cultural reading is overstated.
+    #
+    # The warm-up above STILL RUNS in every arm and its output is still logged
+    # as `warmupLambda`; only its use in ranking changes. That keeps the RNG
+    # stream and every downstream draw identical, so the arms are comparable
+    # seed-for-seed. `lambdas_warmup` feeds nothing else — sortIdx here and the
+    # diagnostic column below — so this is a clean single-channel intervention.
     nI = round(Int, fracIndividualists * agtCnt)
-    sortIdx = sortperm(lambdas_warmup, rev=true)
+    assignRule = @isdefined(ASSIGN_RULE) ? ASSIGN_RULE : "warmup"
+    sortIdx = if assignRule == "random"
+        # seed1+2: distinct from the warm-up (seed1) and the λ draws (seed1+1),
+        # so the permutation is reproducible without perturbing either.
+        Random.seed!(seed1 + 2)
+        randperm(agtCnt)
+    elseif assignRule == "reverse"
+        sortperm(lambdas_warmup, rev=false)
+    else
+        sortperm(lambdas_warmup, rev=true)
+    end
     isI = falses(agtCnt)
     nI > 0 && (isI[sortIdx[1:nI]] .= true)
 
@@ -337,7 +373,7 @@ function modelRun(mod::Model)
         # if the bank is bankrupt, we need to stop the simulation
         runState=true
         #println("Bankrupt at tick ",t," with vault ",mod.theBank.vault)
-        return runState
+        return (runState, runSize(mod)...)
     end
     while !halt && !runState
         halt=true
@@ -444,7 +480,20 @@ function modelRun(mod::Model)
         #    println("Halting at tick ",t," with vault ",mod.theBank.vault)
         #end
     end
-    return runState
+    return (runState, runSize(mod)...)
+end
+
+# |S*| — the realised withdrawal set. The cascade converges to a FRACTIONAL
+# withdrawal set (the least fixed point of the best-response map, REPOSITORY_REVIEW
+# §9.7); `runState` only records whether that set drained the vault. Reporting the
+# binary alone throws away the quantity the policy discussion actually needs — how
+# much liquidity a run consumes — and is why no run-size exhibit exists.
+# withdrawHistory accumulates every agent that left, exogenous and endogenous alike.
+function runSize(mod::Model)
+    n = length(mod.theBank.withdrawHistory)
+    d = isempty(mod.theBank.withdrawHistory) ? 0.0 :
+        sum(a.deposit for a in mod.theBank.withdrawHistory)
+    return (n, d)
 end
 
 # now the parallelization functions
@@ -510,7 +559,7 @@ function modelCall()
                                 startIndex[:fracIndividualists],
                                 startIndex[:lambdaI],
                                 startIndex[:lambdaC])
-                rMod=modelRun(mod)
+                rMod, nWithdrawn, depositWithdrawn = modelRun(mod)
                 proc2=@spawnat 1 checkOff(currentIndex)
                 while !isReady(proc2)
                     sleep(1)
@@ -520,7 +569,10 @@ function modelCall()
         end
         # write out model results
         if !isnothing(results)
-        resultRow=DataFrame(key=results[1][:key],result=rMod)
+        # Widened 2026-08-13 from (key, result) to carry |S*|. Readers that
+        # take only the first two columns are unaffected.
+        resultRow=DataFrame(key=results[1][:key],result=rMod,
+                            nWithdrawn=nWithdrawn,depositWithdrawn=depositWithdrawn)
         CSV.write(dataDir*"/"*"bankRunResults"*string(workerCore)*".csv",resultRow,writeheader=false,append=true)
         end
 

@@ -4,3 +4,7 @@
 .Ruserdata
 sysimage.so
 outputs/*.csv
+
+# Python bytecode
+__pycache__/
+*.pyc

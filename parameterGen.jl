@@ -132,7 +132,24 @@ save_object(dataDir*"/key"*string(genSeed)*string(Dates.now())*".jld2", jointFra
 println(jointFrame)
 # subset to 16 rows
 #jointFrame=jointFrame[1:30,:]
-CSV.write(dataDir*"/"*"bankRunParametersInit.csv",jointFrame[:,[:seed1,:iteration,:graphParams1,:graphParams2,:reserveRatio,:depositInsuranceQuantile,:warmupAlpha,:fracIndividualists,:lambdaI,:lambdaC,:seed2,:key]],writeheader=false,append=true)
+# Deposit-distribution parameters, pulled out of the Distribution object so
+# they land in the parameter dump alongside everything else.
+# ⚠️ ADDED 2026-08-13. Before this, sigma was written ONLY to
+# bankRunlogNormal.csv, which carries no key and cannot be joined — so the
+# recorded parameter space collapsed 2,160 designed cells to 1,080 distinct
+# combinations and Experiment 3 (deposit heterogeneity, paper_draft.md §6.4)
+# was not estimable at all. Appending rather than inserting keeps positions
+# 1-12 stable, so a reader written against the old 12-column dump still parses
+# correctly; consolidate_results.py branches on width.
+jointFrame.lognMu    = [params(d)[1] for d in jointFrame.depositDist]
+jointFrame.lognSigma = [params(d)[2] for d in jointFrame.depositDist]
+# Assignment rule is a run-level constant, recorded so an arm is identifiable
+# from its outputs alone rather than only from the submitting script.
+jointFrame.assignRule .= ASSIGN_RULE
+# Monte Carlo depth is a run-level constant, recorded so results produced at
+# different depths can never be pooled by accident.
+jointFrame.mcDepth .= depth
+CSV.write(dataDir*"/"*"bankRunParametersInit.csv",jointFrame[:,[:seed1,:iteration,:graphParams1,:graphParams2,:reserveRatio,:depositInsuranceQuantile,:warmupAlpha,:fracIndividualists,:lambdaI,:lambdaC,:seed2,:key,:lognMu,:lognSigma,:assignRule,:mcDepth]],writeheader=false,append=true)
 logNormal=DataFrame(params.(jointFrame.depositDist))
 rename!(logNormal,:1 => :mu,:2 => :sigma)
 CSV.write(dataDir*"/"*"bankRunlogNormal.csv",logNormal,writeheader=false,append=true)
