@@ -3,7 +3,10 @@
 .RData
 .Ruserdata
 sysimage.so
-outputs/*.csv
+# Simulation output — task dirs run to ~200 GB on HPC and figures are
+# regenerated per-arm by analysis_p6.R. Nothing under outputs/ is tracked;
+# figures the chapter compiles against are curated into figures/ deliberately.
+outputs/
 
 # Python bytecode
 __pycache__/
