@@ -47,12 +47,12 @@ The HPC pipeline was rebuilt today (see `Daily Notes/2026-08-13.md`). Everything
 verified locally and `--dry-run`-tested; **nothing has run on HPC yet.** The one job
 before anything else is a smoke run.
 
-### ▶ IN FLIGHT — smoke run submitted 2026-08-13 16:43
+### ▶ START HERE 2026-08-14 — smoke run finished, output unchecked
 
-Job `9363073_1`, arm `smoke`: one cell, 50 runs, depth 100, 2h walltime, three
-chasers held on dependency. Startup confirmed the guard plus both new run
-parameters *as seen by Julia* (not merely by the shell, which is where the
-empty-export bug class lives):
+Job `9363073_1` (arm `smoke`, one cell, 50 runs, depth 100) **completed
+2026-08-13 pm. Its output has not been inspected.** Startup was already
+confirmed — the guard passed and both run parameters were reported by Julia
+itself, not merely by the shell:
 
 ```
 julia 1.8.0 matches Manifest pin
@@ -60,11 +60,38 @@ assignment rule: warmup
 Monte Carlo depth: 100
 ```
 
-**Awaiting the 7-item check table** (16 param cols, 4 result cols, 50 rows,
-startup lines, verifier `RESULT: OK`, consolidated CSV populated, `nWithdrawn`
-in range). The one to watch is `bankRun == true ⇒ nWithdrawn > 0` — the only
-check that tests whether `runSize()` reads the right state rather than merely
-returning plausible numbers. If it fails, \|S*\| is wrong everywhere downstream.
+So the environment, the orchestrator, and the export path are proven. **What is
+still unproven is whether the recording fixes produced correct output** — the
+16-column dump, the 4-column result row, and |S*| in particular.
+
+⚠️ **Two commits were never pushed** (`0970dfe`, `087efcc`), so
+`check_recording.sh` is not on hopper yet. First three commands:
+
+```bash
+git push origin individualism          # local
+git pull                               # hopper
+./scripts/check_recording.sh           # defaults to --tag smoke --task 1
+```
+
+It exits nonzero on any FAIL and auto-discovers the SLURM log. The decisive
+assertion is `bankRun == true` ⇒ `nWithdrawn > 0`: the only one that separates
+`runSize()` returning plausible numbers from `runSize()` reading the right
+state. If it fails, \|S*\| is wrong everywhere downstream and nothing from this
+arm should be consolidated.
+
+Also worth reading regardless of the gate's verdict:
+
+```bash
+sacct -j 9363073 --format=JobID,State,Elapsed,ExitCode   # Elapsed is the honest column
+squeue -u $USER                                          # did the three chasers run?
+```
+
+If the chasers cleared, `check_sweep_run.py` should report `RESULT: OK` and
+`outputs/smoke/consolidated_results.csv` should carry `sigma`, `mcDepth`,
+`nWithdrawn`, `depositWithdrawn` populated.
+
+**Then the placebo smoke** — same gate, one flag:
+`./scripts/check_recording.sh --tag smoke-placebo --rule random`
 
 **Then the placebo smoke**, which exercises the only remaining untested code path:
 
