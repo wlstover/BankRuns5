@@ -83,7 +83,7 @@ hdr "2. Result row width (expect 4; was 2 before |S*|)"
 if [[ ${#RESULTS[@]} -gt 0 ]]; then
     RES_W=$(cat "${RESULTS[@]}" | awk -F, '{print NF; exit}')
     if [[ "$RES_W" == "4" ]]; then ok "bankRunResults*.csv has 4 columns (key,result,nWithdrawn,depositWithdrawn)"
-    elif [[ "$RES_W" == "2" ]]; then bad "2 columns — the runSize() instrumentation did NOT land"
+    elif [[ "$RES_W" == "2" ]]; then bad "2 columns — the runSetSize() instrumentation did NOT land"
     else bad "unexpected width: $RES_W"; fi
 else
     bad "no bankRunResults*.csv found in $T"
@@ -168,7 +168,7 @@ else
     elif [[ "$viol" -eq 0 ]]; then
         ok "all ${ntrue} bankRun==true rows have nWithdrawn > 0"
     else
-        bad "${viol} of ${ntrue} bankRun==true rows report nWithdrawn == 0 — runSize() is NOT reading withdrawHistory correctly; |S*| is wrong everywhere downstream"
+        bad "${viol} of ${ntrue} bankRun==true rows report nWithdrawn == 0 — runSetSize() is NOT reading withdrawHistory correctly; |S*| is wrong everywhere downstream"
     fi
     # deposit-weighted sum must move with the count
     viol2=$(cat "${RESULTS[@]}" | awk -F, '$3+0>0 && $4+0<=0' | wc -l)

@@ -373,7 +373,7 @@ function modelRun(mod::Model)
         # if the bank is bankrupt, we need to stop the simulation
         runState=true
         #println("Bankrupt at tick ",t," with vault ",mod.theBank.vault)
-        return (runState, runSize(mod)...)
+        return (runState, runSetSize(mod)...)
     end
     while !halt && !runState
         halt=true
@@ -480,7 +480,7 @@ function modelRun(mod::Model)
         #    println("Halting at tick ",t," with vault ",mod.theBank.vault)
         #end
     end
-    return (runState, runSize(mod)...)
+    return (runState, runSetSize(mod)...)
 end
 
 # |S*| — the realised withdrawal set. The cascade converges to a FRACTIONAL
@@ -489,7 +489,12 @@ end
 # binary alone throws away the quantity the policy discussion actually needs — how
 # much liquidity a run consumes — and is why no run-size exhibit exists.
 # withdrawHistory accumulates every agent that left, exogenous and endogenous alike.
-function runSize(mod::Model)
+# NOTE: named runSetSize, NOT runSize. `runSize` is already a global in
+# parameterGen.jl:42 (iterations per initialisation, the 10 in 5x10=50). A
+# function of that name binds it as a const in Main, and parameterGen.jl is
+# included after this file, so the assignment then fails with `invalid
+# redefinition of constant runSize` -- which killed job 9363073_1 on 2026-08-13.
+function runSetSize(mod::Model)
     n = length(mod.theBank.withdrawHistory)
     d = isempty(mod.theBank.withdrawHistory) ? 0.0 :
         sum(a.deposit for a in mod.theBank.withdrawHistory)
