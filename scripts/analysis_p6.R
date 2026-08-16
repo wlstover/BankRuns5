@@ -245,14 +245,39 @@ nm_check[, peak_mu := sapply(seq_len(.N), function(i) {
     mu_vals <- muLevels[[i]]
     mu_vals[which.max(fr)]
 })]
-nm_check[, monotonic_increasing := sapply(failRates, function(fr) all(diff(fr) >= 0))]
-nm_check[, monotonic_decreasing := sapply(failRates, function(fr) all(diff(fr) <= 0))]
+# ⚠️ THIS IS A DESCRIPTIVE SUMMARY, NOT A TEST OF P6b. Retained because the
+# shape of the mu curve is worth eyeballing; do not quote it as evidence.
+# Two reasons, both established 2026-08-16:
+#   1. A 5-value sequence is monotonic by chance only 2/120 = 1.67% of the time,
+#      so `non_monotonic = TRUE` fires on 98.3% of pure noise. It carries almost
+#      no information. (The 08-15 fixture's "6 of 6 non-monotonic on random
+#      data" is what noise predicts at 90.4%, not a bug being caught.)
+#   2. P6b predicts an interior hump ABOVE the P6a baseline, not a non-monotonic
+#      curve. A real hump under a steeper P6a decline flattens the curve without
+#      reversing it, and this flag reports FALSE.
+# The actual test is scripts/analysis_p6b.R, which measures excess above the
+# endpoint chord with paramSeed-clustered standard errors and identifies P6b
+# off the treatment-vs-placebo contrast.
+nm_check[, nMuLevels := sapply(muLevels, length)]
+# An interior peak needs >= 3 mu levels to exist. all(diff(x) >= 0) on a
+# length-1 vector is vacuously TRUE in BOTH directions, which printed as
+# non_monotonic = FALSE — "untestable" masquerading as "monotonic".
+nm_check[, monotonic_increasing := ifelse(nMuLevels < 3, NA,
+             sapply(failRates, function(fr) all(diff(fr) >= 0)))]
+nm_check[, monotonic_decreasing := ifelse(nMuLevels < 3, NA,
+             sapply(failRates, function(fr) all(diff(fr) <= 0)))]
 nm_check[, non_monotonic := !monotonic_increasing & !monotonic_decreasing]
-print(nm_check[, .(lambdaGap, reserveRatio, peak_mu, non_monotonic)])
+print(nm_check[, .(lambdaGap, reserveRatio, nMuLevels, peak_mu, non_monotonic)])
 
-cat("\nNon-monotonic cases (interior peak):",
-    sum(nm_check$non_monotonic), "/", nrow(nm_check), "\n")
-fwrite(nm_check[, .(lambdaGap, reserveRatio, peak_mu,
+n_untestable <- sum(nm_check$nMuLevels < 3)
+if (n_untestable > 0) {
+    cat("\n", n_untestable, " stratum/strata have < 3 mu levels — reported as NA",
+        " (untestable), not as monotonic.\n", sep = "")
+}
+cat("\nNon-monotonic cases:", sum(nm_check$non_monotonic, na.rm = TRUE), "/",
+    sum(!is.na(nm_check$non_monotonic)), "testable strata")
+cat("  <- descriptive only; see analysis_p6b.R for the test of P6b.\n")
+fwrite(nm_check[, .(lambdaGap, reserveRatio, nMuLevels, peak_mu,
                     monotonic_increasing, monotonic_decreasing, non_monotonic)],
        file.path(out_dir, "p6_nonmonotonicity_check.csv"))
 
