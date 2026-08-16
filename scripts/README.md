@@ -176,12 +176,40 @@ local side is tracked:
 rsync -av wstover2@hopper:/projects/tstratma/BankRuns5/outputs/<tag>/consolidated_results.csv ./outputs/<tag>/
 ```
 
-## R module on hopper
+## ⚠️ R on hopper has no data.table — bootstrap the library once
 
-`run_analysis.slurm` tries `R/4.2.0-hb`, then `R`, then `r`. Required packages:
-`data.table`, `ggplot2`, `dplyr`, `tidyr`, `scales`. One-time install if missing:
+This is why the analysis stage had never produced output. `run_analysis.slurm`
+tries `R/4.2.0-hb`, then `R`, then `r`; on hopper the third wins and resolves to
+`/opt/sw/other/apps/r/4.3.1/gnu-openblas`, **whose site library does not contain
+`data.table`**. Every `--analyze` run aborted at `library(data.table)` before a
+line of analysis executed. It presented as a 9-second FAILED with an empty `.out`
+— the same signature as two unrelated bugs fixed the day before, which is what
+made it hard to see.
+
+One-time fix, on the login node:
 
 ```bash
-module load <whatever R works>
-R -e 'install.packages(c("data.table","ggplot2","dplyr","tidyr","scales"), repos="https://cloud.r-project.org")'
+cd /projects/tstratma/BankRuns5
+./scripts/bootstrap_r_libs.sh
+```
+
+It installs `data.table`, `ggplot2` and `scales` into
+`.Rlib/<R version>/` (project-local, gitignored, version-keyed so a module
+change cannot load objects built against a different R). `run_analysis.slurm`
+exports `R_LIBS_USER` to that path automatically. `dplyr` and `tidyr` are no
+longer required — `analysis_p6.R` never used them.
+
+`analysis_p6.R` now preflights its packages and prints the missing ones, the R
+version and the `.libPaths()` to **stdout**, so the next instance of this is
+readable in the `.out` instead of buried under Lmod chatter in the `.err`.
+
+### Fallback: run the analysis locally
+
+The analysis stage does not have to run on HPC. Its input is small — a
+single-cell arm is 250 rows, the full 2026-04 sweep is 68 MB — so if CRAN is
+unreachable from hopper, pull the CSV down and run it here:
+
+```bash
+rsync -av wstover2@hopper:/projects/tstratma/BankRuns5/outputs/<tag>/consolidated_results.csv ./outputs/<tag>/
+BANKRUN_ARM_DIR="$PWD/outputs/<tag>" Rscript scripts/analysis_p6.R
 ```

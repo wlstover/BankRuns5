@@ -17,3 +17,7 @@ logs/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# R packages for the analysis stage, installed by scripts/bootstrap_r_libs.sh.
+# Compiled objects, ~200 MB, and specific to hopper R version + toolchain.
+.Rlib/

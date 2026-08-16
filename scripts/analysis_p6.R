@@ -41,11 +41,35 @@
 # is now `depQuantile`, and `sigma` exists. Any figure regenerated before this
 # date is mislabelled at the axis level and must be redrawn, not relabelled.
 
+# ── Package preflight ────────────────────────────────────────────────────────
+# ⚠️ 2026-08-16: this stage had never executed on HPC, and the reason was not in
+# this file. Hopper's `module load r` resolves to R 4.3.1 whose site library has
+# **no data.table at all**, so `library(data.table)` aborted before line 1 of the
+# analysis. It surfaced as a bare R error buried under Lmod module chatter in the
+# .err with an empty .out — visually identical to the path-setup abort fixed on
+# 2026-08-15, and to the 9-second FAILED that preceded it.
+#
+# Name every missing package at once and say how to install it, so this class of
+# failure is legible from the .out rather than requiring the .err to be read.
+#
+# dplyr and tidyr used to be loaded here and are **not used anywhere in this
+# file** — no pipes, no verbs; the script is data.table + ggplot2 throughout.
+# They were two more chances to abort for no benefit and are dropped.
+required_pkgs <- c("data.table", "ggplot2", "scales")
+missing_pkgs  <- required_pkgs[
+    !vapply(required_pkgs, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing_pkgs) > 0) {
+    cat("\nERROR: missing R packages:", paste(missing_pkgs, collapse = ", "), "\n")
+    cat("R:        ", R.version.string, "\n")
+    cat("libPaths: ", paste(.libPaths(), collapse = "\n           "), "\n\n")
+    cat("On hopper, install them once into the project library:\n")
+    cat("    ./scripts/bootstrap_r_libs.sh\n\n")
+    stop("missing R packages: ", paste(missing_pkgs, collapse = ", "), call. = FALSE)
+}
+
 suppressPackageStartupMessages({
     library(data.table)
     library(ggplot2)
-    library(dplyr)
-    library(tidyr)
 })
 
 # ── Path setup ───────────────────────────────────────────────────────────────

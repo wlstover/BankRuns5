@@ -12,7 +12,8 @@
 #
 # Prerequisites:
 #   - run_consolidate.slurm has produced outputs/consolidated_results.csv
-#   - R + tidyverse + data.table available via module
+#   - R available via module, and the analysis packages installed once by
+#     scripts/bootstrap_r_libs.sh (hopper's R site library has no data.table)
 #
 # After it completes, rsync the analysis outputs:
 #   rsync -av wstover2@hopper:/projects/tstratma/BankRuns5/outputs/analysis/ ./outputs/analysis/
@@ -49,6 +50,21 @@ fi
 # Confirm R is available
 which R || { echo "ERROR: R not in PATH after module load" >&2; exit 1; }
 R --version | head -1
+
+# ⚠️ hopper's R has no data.table in its site library — the reason this stage
+# had never produced output (found 2026-08-16; the .err said
+# "there is no package called 'data.table'" under the Lmod chatter, while the
+# .out ended at the banner). The packages live in a project-local library
+# installed once by scripts/bootstrap_r_libs.sh, keyed by R version so a module
+# change cannot load objects built against a different R.
+R_VERSION="$(Rscript -e 'cat(paste0(R.version$major, ".", R.version$minor))')"
+export R_LIBS_USER="${PROJECT_ROOT}/.Rlib/${R_VERSION}"
+mkdir -p "${R_LIBS_USER}"
+echo "R_LIBS_USER=${R_LIBS_USER}"
+if [[ -z "$(ls -A "${R_LIBS_USER}" 2>/dev/null)" ]]; then
+    echo "NOTE: project R library is empty. If the analysis aborts on a missing" >&2
+    echo "      package, run: ./scripts/bootstrap_r_libs.sh" >&2
+fi
 
 cd "${PROJECT_ROOT}"
 
