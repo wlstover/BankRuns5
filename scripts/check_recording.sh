@@ -24,7 +24,15 @@
 
 set -uo pipefail
 
-TAG="smoke"; TASK=1; EXPECT_RUNS=50; EXPECT_RULE="warmup"; EXPECT_DEPTH=100
+# EXPECT_RUNS=250, not 50. parameterGen.jl:111 is
+#   seed1 = repeat(sample(1:1000000, seedRun, replace=false), seedRun)
+# which yields 25 seedFrame rows (5 distinct seeds, each 5x), crossjoined with
+# iteration 1:runSize=10 -> 250 rows per cell. `iteration` never reaches the
+# model, so the structure is 5 initialisations x 50 shock draws, NOT the
+# "5 x 10 = 50" the comments at parameterGen.jl:39-42 describe. Confirmed
+# against the 2026-04 legacy sweep: 2,833 of 2,835 cells hold exactly 250 rows
+# with exactly 5 distinct seed1 (the other two hold 500 / 10 — genuine top-ups).
+TAG="smoke"; TASK=1; EXPECT_RUNS=250; EXPECT_RULE="warmup"; EXPECT_DEPTH=100
 EXPECT_AGENTS=1000; LOG=""; ERRLOG=""; DECISIVE_UNTESTED=0
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -111,14 +119,27 @@ else
 fi
 
 # ── 3. run count ──────────────────────────────────────────────────────────────
-hdr "3. Run count (expect ${EXPECT_RUNS} = seeds x iterations)"
+hdr "3. Run count (expect ${EXPECT_RUNS} = 5 initialisations x 50 shock draws)"
 if [[ ${#RESULTS[@]} -gt 0 ]]; then
     n=$(cat "${RESULTS[@]}" | grep -c . || true)
     if [[ "$n" -eq "$EXPECT_RUNS" ]]; then ok "$n runs across ${#RESULTS[@]} worker files"
     elif [[ "$n" -lt "$EXPECT_RUNS" ]]; then
         bad "$n of ${EXPECT_RUNS} — under-filled. TIMEOUT or a worker died (the 2026-04 failure mode)"
+    elif [[ $((n % EXPECT_RUNS)) -eq 0 ]]; then
+        warn "$n = $((n / EXPECT_RUNS)) x ${EXPECT_RUNS} — an exact multiple, so this task was submitted $((n / EXPECT_RUNS)) times. restart.jl is not wired in, so a re-submitted task APPENDS a fresh block under new keys rather than resuming"
     else
-        warn "$n of ${EXPECT_RUNS} — surplus. restart.jl is not wired in, so a re-submitted task APPENDS a fresh block under new keys rather than resuming"
+        warn "$n of ${EXPECT_RUNS} — surplus, and not an exact multiple. Neither a clean re-submission nor a clean single run; inspect the key timestamps"
+    fi
+    # 5 distinct seed1 per block. Runs sharing a seed1 share network, warm-up,
+    # lambda assignment AND deposit vector (functions4.jl:28,82,92) — they differ
+    # only in seed2, the exogenous shock and cascade order. So the independent
+    # unit is the initialisation, not the run.
+    blocks=$(( n / EXPECT_RUNS )); [[ "$blocks" -lt 1 ]] && blocks=1
+    nseed1=$(cat "${RESULTS[@]}" | awk -F, '{k=split($1,a,"-"); print a[k-1]}' | sort -u | wc -l)
+    if [[ "$nseed1" -eq $(( 5 * blocks )) ]]; then
+        ok "$nseed1 distinct seed1 over $n runs — 5 initialisations per block, as designed"
+    else
+        warn "$nseed1 distinct seed1 over $n runs — expected $(( 5 * blocks )). Runs within a seed1 are NOT independent"
     fi
     # keys must be unique — duplicates mean two blocks were merged
     dups=$(cat "${RESULTS[@]}" | awk -F, '{print $1}' | sort | uniq -d | wc -l)

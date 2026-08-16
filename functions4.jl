@@ -490,7 +490,10 @@ end
 # much liquidity a run consumes — and is why no run-size exhibit exists.
 # withdrawHistory accumulates every agent that left, exogenous and endogenous alike.
 # NOTE: named runSetSize, NOT runSize. `runSize` is already a global in
-# parameterGen.jl:42 (iterations per initialisation, the 10 in 5x10=50). A
+# parameterGen.jl:42 (`runSize=10`, crossjoined as `iteration`). NB that
+# comment's arithmetic is wrong: parameterGen.jl:111 repeats the 5 sampled
+# seeds 5x, so a cell is 25 x 10 = 250 runs over 5 initialisations, not 50.
+# A
 # function of that name binds it as a const in Main, and parameterGen.jl is
 # included after this file, so the assignment then fails with `invalid
 # redefinition of constant runSize` -- which killed job 9363073_1 on 2026-08-13.
