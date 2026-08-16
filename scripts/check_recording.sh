@@ -12,12 +12,21 @@
 #   ./scripts/check_recording.sh --tag smoke-placebo --rule random
 #   ./scripts/check_recording.sh --tag depth1000 --depth 1000
 #
-# Exits 0 only if every check passes. Any FAIL exits 1.
+# Logs are auto-discovered in /scratch/$USER; override with --log / --errlog.
+#
+# Exit codes:
+#   0  every check passed, including the decisive |S*| implication
+#   1  at least one FAIL — do not consolidate or quote numbers from this arm
+#   2  INCONCLUSIVE — nothing failed, but the cell produced no bankRun==true run,
+#      so the decisive check-6 assertion was never exercised. Re-smoke at a lower
+#      reserve ratio. This is deliberately NOT 0: a gate that could not run its
+#      own decisive test has not certified anything.
 
 set -uo pipefail
 
 TAG="smoke"; TASK=1; EXPECT_RUNS=50; EXPECT_RULE="warmup"; EXPECT_DEPTH=100
-EXPECT_AGENTS=1000; LOG=""; PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+EXPECT_AGENTS=1000; LOG=""; ERRLOG=""; DECISIVE_UNTESTED=0
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -28,6 +37,7 @@ while [[ $# -gt 0 ]]; do
         --depth)   EXPECT_DEPTH="$2"; shift 2 ;;
         --agents)  EXPECT_AGENTS="$2"; shift 2 ;;
         --log)     LOG="$2"; shift 2 ;;
+        --errlog)  ERRLOG="$2"; shift 2 ;;
         -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
         *) echo "unknown flag: $1" >&2; exit 2 ;;
     esac
@@ -53,9 +63,20 @@ if [[ ! -d "$T" ]]; then
     exit 1
 fi
 
-# Locate the slurm log if not given. %A_%a means the array task's own file.
+# Locate the slurm logs if not given. %A_%a means the array task's own file.
+# BOTH streams matter: run_all.sh sends stdout to .out and stderr to .err with the
+# same basename, and an include-time Julia error lands ONLY in .err while the three
+# startup PASSes below still appear in .out. Discovering .out alone is how the
+# 2026-08-13 smoke failure read as "3 PASS" on a job that accomplished nothing.
 if [[ -z "$LOG" ]]; then
     LOG=$(ls -t /scratch/"${USER}"/bankrun-"${TAG}"-sweep-*_"${TASK}".out 2>/dev/null | head -1 || true)
+fi
+if [[ -z "$ERRLOG" ]]; then
+    if [[ -n "$LOG" && -f "${LOG%.out}.err" ]]; then
+        ERRLOG="${LOG%.out}.err"
+    else
+        ERRLOG=$(ls -t /scratch/"${USER}"/bankrun-"${TAG}"-sweep-*_"${TASK}".err 2>/dev/null | head -1 || true)
+    fi
 fi
 
 PARAMS="${T}/bankRunParametersInit.csv"
@@ -107,10 +128,32 @@ else
     bad "no results to count"
 fi
 
-# ── 4. run parameters reached Julia ───────────────────────────────────────────
-hdr "4. Startup lines (proves the exports reached JULIA, not just the shell)"
+# ── 4. stderr, then run parameters reached Julia ──────────────────────────────
+# Read stderr FIRST. The three startup assertions below fire at finMain0001.jl:49
+# and :82 — before the @everywhere includes and before any model code — so they
+# pass on a task that died at include time. Only .err distinguishes the two.
+hdr "4a. Task stderr (read this first — a fast failure lives here, not in .out)"
+if [[ -n "$ERRLOG" && -f "$ERRLOG" ]]; then
+    echo "     err: $ERRLOG"
+    if [[ ! -s "$ERRLOG" ]]; then
+        ok "stderr is empty"
+    elif grep -qE '^(ERROR|fatal|Fatal|Segmentation|ERROR: LoadError)' "$ERRLOG" \
+      || grep -qiE 'error: loaderror|invalid redefinition|UndefVarError|MethodError|out of memory|Killed|CANCELLED|DUE TO TIME LIMIT' "$ERRLOG"; then
+        bad "stderr reports a hard error — the checks below say nothing about the model:"
+        grep -nEm1 -B2 -A12 'ERROR|error:|UndefVarError|MethodError|CANCELLED|Killed' "$ERRLOG" \
+            | sed 's/^/       | /'
+    else
+        warn "stderr is non-empty but shows no recognised error pattern — read it:"
+        head -20 "$ERRLOG" | sed 's/^/       | /'
+    fi
+else
+    warn "stderr log not found — pass --errlog <path>. A silent include-time failure would be invisible"
+fi
+
+hdr "4b. Startup lines (proves the exports reached JULIA, not just the shell)"
 if [[ -n "$LOG" && -f "$LOG" ]]; then
     echo "     log: $LOG"
+    echo "     NOTE: these three fire before any model code; they are necessary, not sufficient."
     grep -q "matches Manifest pin" "$LOG" \
         && ok "Julia/Manifest version guard passed" \
         || bad "version guard line absent — old sweep_task.slurm, or the guard did not run"
@@ -165,6 +208,7 @@ else
     ntrue=$(cat "${RESULTS[@]}" | awk -F, 'tolower($2)=="true"' | wc -l)
     if [[ "$ntrue" -eq 0 ]]; then
         warn "no bankRun==true rows in this cell — cannot test the implication (try a lower reserve ratio)"
+        DECISIVE_UNTESTED=1
     elif [[ "$viol" -eq 0 ]]; then
         ok "all ${ntrue} bankRun==true rows have nWithdrawn > 0"
     else
@@ -212,6 +256,15 @@ if [[ "$FAIL" -gt 0 ]]; then
     echo "STATUS: FAIL — do not consolidate or quote numbers from this arm"
     echo "======================================================================"
     exit 1
+fi
+if [[ "$DECISIVE_UNTESTED" -eq 1 ]]; then
+    echo "STATUS: INCONCLUSIVE — nothing failed, but this cell never produced a"
+    echo "        bankRun==true run, so check 6's decisive assertion"
+    echo "        (bankRun ⇒ nWithdrawn > 0) was never exercised. runSetSize() is"
+    echo "        therefore still unverified. Re-smoke at a lower reserve ratio."
+    echo "        This is NOT a pass."
+    echo "======================================================================"
+    exit 2
 fi
 echo "STATUS: OK"
 echo "======================================================================"
