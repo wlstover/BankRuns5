@@ -41,69 +41,66 @@ it; `git clean -fd` on hopper would destroy it.
 
 ---
 
-## 📍 CURRENT STATE — 2026-08-14. **▶ START HERE.**
+## 📍 CURRENT STATE — 2026-08-15. **▶ START HERE.**
 
-The HPC pipeline was rebuilt 2026-08-13 (`Daily Notes/2026-08-13.md`). Its first smoke
-run failed on a name collision in our own instrumentation; that is fixed and pushed
-(`ff33ad3`, `Daily Notes/2026-08-14.md`). **The pipeline has still never produced a
-single model output on HPC.** The one job before anything else is the smoke re-run.
+**The smoke run passed.** Job `9368644_1` COMPLETED in 51:48, stderr empty,
+`check_recording.sh` returns **17 PASS / 0 FAIL / 0 WARN**, and check 6's decisive
+assertion was genuinely exercised — 222 `bankRun == true` rows, all with
+`nWithdrawn > 0`. `runSetSize()` is verified against real output and the pipeline has
+produced its first trustworthy model output on HPC. Narrative in
+`Daily Notes/2026-08-15.md`.
 
-### ▶ START HERE 2026-08-15 — collision fixed, smoke re-run pending
+Three commits pushed to `origin/individualism`: `8eecffa` (gate reads `.err` first,
+new INCONCLUSIVE exit), the 250-run correction, and the `analysis_p6.R` fixes.
 
-Job `9363073_1` **FAILED** — `sacct` says `FAILED`, `00:00:59` of a 2h slot, ExitCode
-`1:0`. The 2026-08-13 note called it "completed"; that was inferred from the job
-leaving the queue, not from `sacct`. Diagnosis and fix in `Daily Notes/2026-08-14.md`.
-
-**Cause: a name collision in our own instrumentation, not a logic bug.**
-`function runSize(mod::Model)` (our |S*| addition) collided with Schuler's global
-`runSize=10` at `parameterGen.jl:42`. `functions4.jl` is included `@everywhere` first,
-binding `runSize` as a const in `Main`; `parameterGen.jl` is included after and assigns
-to it. Julia refuses, and the task dies before writing anything.
-
-**Fixed in `ff33ad3` (pushed):** ours renamed `runSize` -> `runSetSize`; Schuler's
-untouched. New `test/test_name_collisions.jl` closes the class, verified in both
-directions. Only one collision exists across the whole include order.
-
-▶ **Re-run, on hopper:**
+### ▶ START HERE — the placebo smoke, then look at the analysis output
 
 ```bash
 git pull
-rm -rf outputs/smoke/task_1        # empty, but the CSVs open append=true
-./scripts/run_all.sh --tag smoke \
-    --reserve 0.25 --depq 0.0 --sigma 2.0 --p 0.05 --alpha 0.1 --mu 0.5 \
-    --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00
-./scripts/check_recording.sh       # after it finishes
-```
-
-⚠️ **Two traps when reading the result.**
-
-1. **A sub-minute failure is an include-time error, and it lives in `.err`.** Check 4
-   auto-discovers only the `.out` file, and its three assertions
-   (`Manifest pin`, `assignment rule`, `Monte Carlo depth`) fire at
-   `finMain0001.jl:49` and `:82` — *before* the includes and before any model code.
-   **They passed on the failed job.** They prove the export path reaches Julia and
-   nothing more; the 08-13 note's "environment, orchestrator and export path are
-   proven" over-read them. Read `.err` first on any fast failure.
-2. **Check 6 may WARN rather than PASS.** At reserve 0.25 the bank may survive every
-   run, so `ntrue == 0` and the decisive `bankRun == true ⇒ nWithdrawn > 0` assertion
-   is untestable — the gate exits 0 having proven nothing about `runSetSize`. That is
-   a re-smoke at a lower reserve, **not** a pass.
-
-**Then the placebo smoke**, still the only untested code path:
-
-```bash
 ./scripts/run_all.sh --tag smoke-placebo --assignment random \
     --reserve 0.25 --depq 0.0 --sigma 2.0 --p 0.05 --alpha 0.1 --mu 0.5 \
     --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00
 ./scripts/check_recording.sh --tag smoke-placebo --rule random
+
+# and, on the smoke arm that already passed, the analysis stage nobody has ever seen
+./scripts/run_all.sh --analyze --tag smoke
 ```
 
-Check `agents*.csv` (cols: key, idx, deposit, individualism, warmupLambda, agentType):
-in the **default** arm `agentType == "I"` must be exactly the top-mu of `warmupLambda`;
-in the **placebo** arm the two must be uncorrelated. That is the whole intervention.
+The placebo is still **the only untested code path**. Check `agents*.csv` (cols: key,
+idx, deposit, individualism, warmupLambda, agentType): in the **default** arm
+`agentType == "I"` must be exactly the top-mu of `warmupLambda`; in the **placebo** arm
+the two must be uncorrelated. That is the whole intervention.
 
-**Small follow-up:** add `.err` discovery to `check_recording.sh` check 4, so a fast
-failure surfaces its error instead of three green PASSes.
+⚠️ **`--analyze` has never produced output.** `analysis_p6.R` aborted on its own
+path-setup line on every arm and every R version until 2026-08-15, so nothing below its
+line 53 had ever executed. Four bugs fixed and verified end-to-end against synthetic
+CSVs at the real 21-column schema, but the *first real* run of it is still ahead of us —
+read the numbers sceptically.
+
+---
+
+## 🔴 A cell is 250 runs over 5 initialisations, not 50 — and they are clustered
+
+`parameterGen.jl:111` repeats the 5 sampled seeds 5x into 25 `seedFrame` rows, crossjoined
+with `iteration 1:10` -> **250 runs per cell**. `iteration` never reaches the model.
+Confirmed on the legacy sweep: 2,833 of 2,835 cells hold exactly 250 rows with exactly 5
+distinct `seed1`. The "5 x 10 = 50" in `parameterGen.jl:39-42` has always been wrong.
+
+Runs sharing a `seed1` share network, warm-up, lambda assignment and deposit vector
+(`functions4.jl:28,82,92`), differing only in `seed2`. Measured over the 1,857 legacy
+cells with interior failure rates: **ICC median 0.274, design effect median 14.4,
+effective n per cell ~17 rather than 250.**
+
+**19. Decide how to handle clustering before rewriting §6.** Aggregates over ~2,800 cells
+survive; any CI or significance claim about a single cell or a small stratum is roughly
+3.8x too tight. Either cluster at `seed1` or state the effective n explicitly. Do this
+together with item 1 — the re-consolidation is when the numbers get rebuilt anyway.
+
+**20. Fix the non-monotonicity diagnostic before running the k = 10, 50 arm (item 5).**
+`analysis_p6.R` flags `non_monotonic` whenever `all(diff(failRate) >= 0)` fails, with no
+noise model. On a synthetic fixture it returned **6 of 6 non-monotonic on random data.**
+Combined with DEFF ~14 on the very stratum P6b lives in, the arm as designed would return
+an uninterpretable answer.
 
 ### ⚠️ Do NOT delete `outputs/task_*` on HPC yet
 
@@ -185,7 +182,10 @@ surname placebo applied to the ABM, and the symmetry with Ch 1's methodology is 
 saying out loud when pitching it to Schuler.
 
 **7. Depth sensitivity** (`--depth 1000 --tag depth1000`). Doubles as the regression check
-against the legacy headline. MC standard error is ~0.016 at depth 1000 vs ~0.050 at 100;
+against the legacy headline. ⚠️ **Needs a walltime far past 2h**: the smoke cell took
+51:48 at depth 100 and the MC inner loop (`functions4.jl:433`, serial) is the dominant
+cost. This is the likeliest explanation for the 2026-04 TIMEOUTs clustering at high
+reserve, where runs last longest. MC standard error is ~0.016 at depth 1000 vs ~0.050 at 100;
 whether the extra decision noise raises or lowers aggregate P(run) is not obvious a priori.
 
 **8. Simulate the §9.8 high-degree trigger proposition** (action 16). Proved in
