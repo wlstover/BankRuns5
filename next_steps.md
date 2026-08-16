@@ -71,11 +71,25 @@ idx, deposit, individualism, warmupLambda, agentType): in the **default** arm
 `agentType == "I"` must be exactly the top-mu of `warmupLambda`; in the **placebo** arm
 the two must be uncorrelated. That is the whole intervention.
 
-⚠️ **`--analyze` has never produced output.** `analysis_p6.R` aborted on its own
-path-setup line on every arm and every R version until 2026-08-15, so nothing below its
-line 53 had ever executed. Four bugs fixed and verified end-to-end against synthetic
-CSVs at the real 21-column schema, but the *first real* run of it is still ahead of us —
-read the numbers sceptically.
+✅ **Both done 2026-08-16.** The placebo smoke passed **17 PASS / 0 FAIL / 0 WARN**:
+mean warm-up λ is 0.5157 (type I) vs 0.5118 (type C) against the treatment arm's 0.658
+vs 0.369 — cultural type is decoupled from warm-up position with everything else held
+fixed. The last untested code path is tested.
+
+⚠️ But the single cell proves the *mechanism*, not the *hypothesis*. At μ = 0.5 the two
+arms differ by 0.8 pp (88.8% vs 89.6%), z = 0.08 clustered. **A single cell has a minimum
+detectable difference of ~29.5 pp at the median design effect, against a composition
+effect of 16 pp** — it cannot test the placebo hypothesis even in principle. No
+single-cell comparison in this design can support a claim about composition. That is the
+argument for the full arm (item 6), not a null result.
+
+✅ **`--analyze` now produces output** — for the first time ever. It had *two* walls, not
+one: the four `analysis_p6.R` bugs fixed on 08-15, and then hopper's R 4.3.1 site library
+having **no `data.table` at all**, which aborted the import block before line 1 of the
+analysis. Fixed by `scripts/bootstrap_r_libs.sh` (project-local `.Rlib/<R version>`, run
+once on the login node). The consolidated parameters round-trip correctly end to end —
+flags → dump → consolidate → analysis, with the corrected column names — which is the
+first verification of the 08-13 mapping fix against real output rather than source.
 
 ---
 
@@ -96,11 +110,60 @@ survive; any CI or significance claim about a single cell or a small stratum is 
 3.8x too tight. Either cluster at `seed1` or state the effective n explicitly. Do this
 together with item 1 — the re-consolidation is when the numbers get rebuilt anyway.
 
-**20. Fix the non-monotonicity diagnostic before running the k = 10, 50 arm (item 5).**
-`analysis_p6.R` flags `non_monotonic` whenever `all(diff(failRate) >= 0)` fails, with no
-noise model. On a synthetic fixture it returned **6 of 6 non-monotonic on random data.**
-Combined with DEFF ~14 on the very stratum P6b lives in, the arm as designed would return
-an uninterpretable answer.
+**✅ 20. RESOLVED 2026-08-16 — the non-monotonicity diagnostic is retired.**
+`analysis_p6.R`'s `all(diff(failRate) >= 0)` flag was wrong in three ways, and the second
+is the one that mattered:
+
+1. A 5-value sequence is monotonic by chance only 2/120 = **1.67%** of the time, so
+   `non_monotonic = TRUE` fires on **98.3% of pure noise**. The 08-15 fixture's "6 of 6
+   non-monotonic on random data" was not a bug being caught — it is what noise predicts
+   at 90.4%.
+2. **P6b does not predict a non-monotonic curve.** It predicts an interior hump *above*
+   the P6a baseline; the channels are additive, so a real hump under a steeper P6a
+   decline flattens the curve without reversing it. Measured on a fixture with a **6 pp
+   P6b hump built in, the old flag returns 0 of 18 non-monotonic** — essentially no power
+   against its own alternative.
+3. `all(diff(x) >= 0)` is vacuously TRUE in both directions on a length-1 vector, so a
+   single-μ smoke arm printed `non_monotonic = FALSE` — "untestable" masquerading as
+   "monotonic". Now `NA` with `nMuLevels` reported. Does *not* occur in a full sweep: all
+   18 legacy strata carry all 5 μ levels.
+
+Replaced by `scripts/analysis_p6b.R` (commit `a0f964e`): excess above the μ-endpoint
+chord, cluster-bootstrapped on `paramSeed`, headline = the treatment-minus-placebo
+contrast. Verified against four ground-truth fixtures at the real clustering depth.
+Item 5 is unblocked.
+
+**21. Switch the P6b outcome variable from `bankRun` to cascade size \|S*\|.** New
+2026-08-16, and it follows from reading the model as threshold-cascade percolation.
+
+μ and the λ-gap set **transmissibility** (individualists are firebreaks that are also
+lightning rods — they absorb the signal at λ_I ≈ 0.1 but their private-signal tail draws
+ignite; that dual role is where the μ(1−μ) product behind P6b comes from). But `r` is not
+a density parameter — the vault is `r × total deposits`, so **`r` sets the cluster size
+that counts as failure**. `bankRun` is therefore a *threshold indicator on a continuous
+quantity*, and its sensitivity is maximal only when the threshold sits in the bulk of the
+cascade-size distribution.
+
+That reframes the whole saturation story: at r = 0.15 almost any cascade qualifies (~99%,
+flat in μ — the ceiling that censors P6b), at r = 0.40 only near-spanning cascades do,
+and sensitivity peaks at r = 0.25–0.30, which is exactly where the composition effect
+peaks (25–27 pp) and where the excess-above-chord peaks in the legacy data. "P6b needs
+intermediate cascade pressure" is not a brute fact about the model — it is what happens
+when a continuous quantity is measured through a threshold.
+
+P6b is a claim about cascade size. Test it on cascade size. `nWithdrawn` and
+`depositWithdrawn` are already in the 4-column result row (the 08-13 \|S*\|
+instrumentation) and the smoke run confirmed them populated and sane (0..639, every
+`bankRun` row with `nWithdrawn > 0`). Not available for the legacy sweep —
+`bankRunEndogenous*.csv` is the only source there and it is unconsolidated, which is a
+further argument for item 3.
+
+⚠️ Ch 2 dependency, and it is not optional: whether P6b-as-cascade-size is *coherent with*
+the Goldstein–Pauzner formal structure or is instead an example of **what an ABM can ask
+that the analytics cannot** turns on whether GP admits partial runs at all. In the σ → 0
+limit that delivers uniqueness, the withdrawing fraction is degenerate and runs are
+all-or-nothing by construction. Resolve this in `chapter2.tex` before §6 is rewritten —
+the framing of the chapter's contribution depends on the answer. See the Ch 2 item below.
 
 ### ⚠️ Do NOT delete `outputs/task_*` on HPC yet
 
@@ -166,20 +229,88 @@ does not exist. `fig1_p6a_headline` is safe (μ, λ_I, λ_C were always labelled
 
 ---
 
+## 🟣 Chapter 2 dependency — does the formal structure admit partial runs?
+
+**22. Resolve whether Goldstein–Pauzner can talk about cascade size, before §6 is
+rewritten.** New 2026-08-16. This is a Ch 2 question that gates a Ch 3 framing decision,
+so it is tracked here as well as there.
+
+Item 21 moves the P6b outcome from the binary `bankRun` to cascade size \|S*\|. Whether
+that is a *refinement of* the global-games framework or a *departure from* it depends on
+whether GP admits a partial run at all:
+
+- In the σ → 0 noise limit that delivers uniqueness, every late consumer withdraws below
+  θ\* and none above it. The withdrawing fraction is degenerate and the run is
+  all-or-nothing **by construction of the limit**, not by assumption about behaviour.
+- Away from the limit (σ bounded away from 0) the withdrawing fraction is continuous in
+  θ, so partial runs exist — at the cost of the uniqueness argument.
+- ⚠️ **The interesting possibility, and it needs checking against `chapter2.tex` rather
+  than asserting:** with heterogeneous λ the coupled fixed point gives two thresholds,
+  s\*_I ≠ s\*_C. For θ between them one type runs and the other does not, so the
+  withdrawing fraction is ≈ (1 − μ) — a partial run that survives the σ → 0 limit and is
+  *generated by* the cultural heterogeneity this dissertation introduces. If that holds,
+  P6b is coherent with the formal framework rather than outside it, and the model predicts
+  a plateau of partial runs of size (1 − μ) over an interval of θ whose width scales with
+  the λ-gap. That is a sharper and more falsifiable prediction than P6b as currently
+  stated, and it is directly testable against the \|S*\| distribution.
+
+**Two framings, and the evidence decides which:**
+
+| If the bridge exists | If it does not |
+|---|---|
+| P6b is a prediction *of* the heterogeneous-λ global-games model; \|S*\| is the natural observable; the ABM computes what the analytics characterises | \|S*\| is a question the equilibrium concept cannot pose, and the ABM's contribution is exactly that it can — which is the Ch 3 thesis anyway |
+
+Either is publishable and the second is already the chapter's stated position. What is
+not acceptable is writing §6 without knowing which one we are claiming.
+
+Source material: `chapter2.tex`, `theory/gp_walkthrough.tex` and `theory/fig_v.py` (the
+2026-08-14 derivation from primitives, verified numerically), `REPOSITORY_REVIEW.md`
+§Role in Endogenous Decision-Making for the coupled fixed point.
+
+---
+
 ## 🟠 Open — new arms worth running once the smoke run passes
 
-**5. P6b at k = 10, 50** (action 27). `./scripts/run_all.sh --k 6 10 50 --tag p6b-density`
-(6,480 cells). §6.9 predicts the P6b interior peak appears on dense networks and vanishes
-on sparse ones — and the focused sweep pinned k = 6. **The experiment designed to find
-P6b was run only where it should be weakest.** This is the leading explanation for P6b's
-non-detection now that the saturation argument is gone.
+**6 (was 5, PROMOTED 2026-08-16). Warm-up placebo — this is the P6b identification
+strategy, not a robustness check.** `./scripts/run_all.sh --assignment random --tag placebo`
+(optionally `--assignment reverse --tag anti`).
 
-**6. Warm-up placebo** (`--assignment random --tag placebo`, optionally
-`--assignment reverse --tag anti`). Decomposes the 16 pp composition result into culture
-vs. topology. Gradient survives ⇒ signal weighting, as claimed. Gradient dies ⇒ it
-required individualists on bridges and the cultural reading is overstated. This is the
-surname placebo applied to the ABM, and the symmetry with Ch 1's methodology is worth
-saying out loud when pitching it to Schuler.
+P6a is a **composition** effect: it depends only on how many agents carry λ_I rather than
+λ_C. P6b is a **position** effect: it needs individualists to ignite cascades that reach
+collectivists, which depends on where they sit in the network. The placebo holds
+composition exactly fixed — same count of each type, same λ distributions, same network,
+same deposits, same shock — and destroys only the type↔position correlation. So P6a
+survives it and P6b should not.
+
+That makes `excess(treatment) − excess(placebo)` a targeted P6b estimate which **cancels
+the P6a-curvature confound**, because P6a's shape is identical across arms by
+construction. No statistic computed on a single arm's μ curve can do this: the chord
+baseline assumes P6a is linear, §6.4 says it isn't, and a concave P6a produces positive
+excess with no hump at all. Demonstrated on fixture B in `scripts/analysis_p6b.R` — a
+world with **no P6b** but concave P6a returns a positive within-arm excess and a
+contrast of −0.38 pp.
+
+Assumption, and it is checkable: random assignment must leave P6a untouched. At μ = 0 and
+μ = 1 only one type is present, so P6b is zero by construction and any between-arm gap
+there is contamination. `analysis_p6b.R` writes it to `endpoint_contamination.csv` —
+read it before trusting the contrast.
+
+⚠️ Also a test of whether this model's contagion is **spatial at all.** `blendedTotal`
+mixes in `totalWithdrawnPoint`, which is at least partly a population-level estimate
+(item 9). If the signal is effectively mean-field, network position cannot matter and the
+placebo returns nothing — which would not be a null result about culture, it would be a
+finding about the model, and it would qualify the percolation framing in §6.9.
+
+The symmetry with Ch 1's surname placebo is worth saying out loud when pitching it to
+Schuler.
+
+**5 (was 6, DEMOTED). P6b at k = 10, 50** (action 27).
+`./scripts/run_all.sh --k 6 10 50 --tag p6b-density` (6,480 cells). §6.9 predicts the P6b
+interior peak appears on dense networks and vanishes on sparse ones — and the focused
+sweep pinned k = 6. Still worth running, but it is a conjecture about *where* P6b lives,
+whereas the placebo is a design that detects it wherever it is. Run the placebo first.
+⚠️ Do not run this arm until item 20 is closed — as of 2026-08-16 it is, so this is
+unblocked.
 
 **7. Depth sensitivity** (`--depth 1000 --tag depth1000`). Doubles as the regression check
 against the legacy headline. ⚠️ **Needs a walltime far past 2h**: the smoke cell took
