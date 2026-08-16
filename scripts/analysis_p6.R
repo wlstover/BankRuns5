@@ -49,8 +49,27 @@ suppressPackageStartupMessages({
 })
 
 # ── Path setup ───────────────────────────────────────────────────────────────
-project_root <- Sys.getenv("BANKRUN_PROJECT_ROOT",
-                          unset = normalizePath(file.path(dirname(sys.frame(1)$ofile %||% "."), "..")))
+# ⚠️ This block used to be a one-liner and it never once executed. It read
+#     Sys.getenv("BANKRUN_PROJECT_ROOT",
+#                unset = normalizePath(file.path(dirname(sys.frame(1)$ofile %||% "."), "..")))
+# which is fatal for two independent reasons, both of which abort the script
+# before the first cat() — which is why the SLURM .out ends at the banner:
+#   1. Sys.getenv() forces `unset` even when the variable IS set (it calls
+#      as.character(unset) unconditionally), and sys.frame(1) under Rscript at
+#      top level raises "not that many frames on the stack". Every R version.
+#   2. `%||%` only entered base R in 4.4.0. Hopper runs R 4.3.1, so it is also
+#      "could not find function" there. Masked on any local R >= 4.4.
+# Derive the path without either construct.
+project_root <- Sys.getenv("BANKRUN_PROJECT_ROOT", unset = "")
+if (!nzchar(project_root)) {
+    file_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+    project_root <- if (length(file_arg) > 0) {
+        normalizePath(file.path(dirname(sub("^--file=", "", file_arg[1])), ".."),
+                      mustWork = FALSE)
+    } else {
+        getwd()
+    }
+}
 if (!dir.exists(project_root)) {
     # Fallback: use current working directory
     project_root <- getwd()
@@ -80,11 +99,24 @@ dt <- fread(input_csv)
 cat("Loaded", nrow(dt), "rows.\n")
 
 # Coerce the relevant columns. consolidate_results.py writes them as strings.
-numeric_cols <- c("reserveRatio", "depQuantile", "warmupAlpha",
-                  "mu", "lambdaI", "lambdaC")
+# k, p and sigma are real columns in the corrected schema and the header above
+# promises marginals for them; they were omitted from both lists.
+numeric_cols <- c("reserveRatio", "depQuantile", "sigma", "k", "p",
+                  "warmupAlpha", "mu", "lambdaI", "lambdaC")
 for (c in numeric_cols) dt[[c]] <- as.numeric(dt[[c]])
-dt[, bankRun := bankRun == "true"]
-dt[, completed := completed == "true"]
+# ⚠️ NOT `bankRun == "true"`. fread type-detects a column of "true"/"false" as
+# LOGICAL, so comparing it to the string "true" is TRUE for zero rows — silently,
+# with no error: every failure rate comes out 0 and `completed` empties dt_c.
+# Verified on the real 21-column schema: 0 of 250 matched where 247 were true.
+# But consolidate_results.py:236 writes `completed` as "true"/"" and blanks the
+# outcome fields of an unfinished run, so a mixed column can still arrive as
+# character. Handle both, and treat NA/blank as FALSE.
+as_flag <- function(x) {
+    if (is.logical(x)) return(!is.na(x) & x)
+    tolower(trimws(as.character(x))) %in% c("true", "t", "1")
+}
+dt[, bankRun := as_flag(bankRun)]
+dt[, completed := as_flag(completed)]
 
 # Sample check: print completion / failure rate summary.
 cat("\n=== Completion + failure summary ===\n")
@@ -95,7 +127,20 @@ print(dt[, .(N = .N,
 
 # Restrict to completed runs only for failure-rate calculations.
 dt_c <- dt[completed == TRUE]
-cat("\n", nrow(dt_c), "completed runs.\n", sep = "")
+cat("\n", nrow(dt_c), " completed runs.\n", sep = "")
+
+# Fail loudly rather than emitting an all-zero figure set. The coercion bug
+# above did exactly this: every downstream aggregate stayed well-formed and
+# every failure rate was 0, which is indistinguishable from a real result.
+if (nrow(dt_c) == 0) {
+    stop("no completed runs after coercion — ", nrow(dt), " rows read but 0 usable. ",
+         "Check the `completed`/`bankRun` column types in ", input_csv)
+}
+if (sum(dt_c$bankRun) == 0) {
+    warning("zero bankRun==TRUE among ", nrow(dt_c), " completed runs. ",
+            "Possible if the arm is entirely in the survival regime; ",
+            "otherwise suspect the outcome-column coercion.")
+}
 
 # Derive lambda gap.
 dt_c[, lambdaGap := lambdaC - lambdaI]
@@ -129,8 +174,8 @@ fwrite(agg_p6, file.path(out_dir, "p6_mu_lambdagap.csv"))
 cat("\nWrote p6_mu_lambdagap.png + .csv\n")
 
 # ── 2. Marginal failure rates by each baseline parameter ────────────────────
-for (param in c("reserveRatio", "depQuantile", "warmupAlpha",
-                "mu", "lambdaI", "lambdaC")) {
+for (param in c("reserveRatio", "depQuantile", "sigma", "k", "p",
+                "warmupAlpha", "mu", "lambdaI", "lambdaC")) {
     agg <- dt_c[, .(failRate = mean(bankRun), N = .N), by = param]
     setnames(agg, param, "param_value")
     agg[, parameter := param]
@@ -148,16 +193,18 @@ for (param in c("reserveRatio", "depQuantile", "warmupAlpha",
     ggsave(file.path(out_dir, sprintf("marginal_%s.png", param)),
            p, width = 6, height = 4, dpi = 150)
 }
-cat("Wrote marginal_*.png for 6 parameters.\n")
+cat("Wrote marginal_*.png for 9 parameters.\n")
 
 # ── 3. Summary CSV: failure rate by every (mu, lambdaI, lambdaC, reserve)  ──
+# ⚠️ `by` used to carry `graphParams1 = NA, graphParams2 = NA` — stale names from
+# the pre-2026-08-13 schema, and length-1 constants, which data.table rejects
+# outright ("items in the 'by' list have lengths [...] 1, 1"). The network axes
+# are now their own columns, k and p, so group on the real cell definition.
 cell_summary <- dt_c[, .(N = .N,
                           bankRuns = sum(bankRun),
                           failRate = mean(bankRun)),
-                      by = .(reserveRatio, depQuantile, mu, lambdaI, lambdaC,
-                             warmupAlpha, graphParams1 = NA, graphParams2 = NA)][
-                       , .(reserveRatio, depQuantile, mu, lambdaI, lambdaC,
-                           warmupAlpha, N, bankRuns, failRate)]
+                      by = .(reserveRatio, depQuantile, sigma, k, p,
+                             warmupAlpha, mu, lambdaI, lambdaC)]
 fwrite(cell_summary, file.path(out_dir, "cell_failure_rates.csv"))
 cat("Wrote cell_failure_rates.csv (", nrow(cell_summary), " parameter cells)\n", sep = "")
 
