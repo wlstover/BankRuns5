@@ -308,6 +308,49 @@ requirement; figures degrade to a warning and every CSV is still written.
 
 ---
 
+**26. Visualisation module for run dynamics — added 2026-08-17.**
+`scripts/viz_cascade.py` + `scripts/viz/` + `scripts/dump_network.jl`, validated by
+`test/test_cascade_reader.py` (26 PASS). Four views of a single run: cascade timeline by
+type, vault depletion, propagation distance, and the cascade on the real network (static
+panels for the chapter, GIF for the defense).
+
+⚠️ **`figures/fig5_network_snapshot.png` should be retired when view 4 first runs on real
+data.** `make_figures.py:216` builds it from a fabricated `networkx` graph with an
+illustrative BFS — no model output at all — and it calls `nx.watts_strogatz_graph` while the
+model runs `newman_watts_strogatz`, so its caption is wrong in the same baked-into-the-PNG
+way as `fig2`. That is the figure-side face of item 11.
+
+📌 **View 3 is a diagnostic, not decoration.** It answers item 6's warning — whether this
+model's contagion is spatial at all, or whether `blendedTotal`'s population term makes it
+mean-field — on ONE cell, before the arms land. Validated two-sided against fixtures: a
+non-spatial cascade returns rho = −0.113 ("mean-field"), a neighbour-driven one returns
+rho = +0.643 ("spatial").
+
+⚠️ The network is *regenerated* from the cell's genSeed, not recorded by the model.
+`parameterGen.jl:37` seeds and nothing consumes the RNG before the graph call at line 107,
+so it is exact — but only under the same Julia and Manifest, and it is **not verified
+byte-identical to what the sweep used**. Airtight verification needs the model to emit an
+edge hash per task: one line, worth batching with item 12. Captions must say "regenerated
+from the cell's seed".
+
+**🔴 27. Are `bankRunResults*.csv` torn? This may BE the 249/250.** New 2026-08-17.
+`bankRunEndogenous1.csv` is measurably **1.69% malformed** — 3,656 blank rows, 3,652
+one-field, 63 two-field out of 435,934. Fifteen workers append with no coordination, so
+lines interleave and tear. **If the results file tears the same way, a torn line reads as a
+missing run** — exactly the "finished one run short" signature on five production cells.
+That is a cheaper and more likely explanation than the item-18 `checkOff` lock race.
+
+Check it directly on a completed cell:
+
+```bash
+python3 scripts/viz_cascade.py --audit outputs/production/task_26
+```
+
+If results rows are torn, the fix is output-side (per-worker files, or a lock) and it is
+silently costing runs at scale.
+
+---
+
 ## 🟠 Open — new arms worth running once the smoke run passes
 
 **6 (was 5, PROMOTED 2026-08-16). Warm-up placebo — this is the P6b identification
