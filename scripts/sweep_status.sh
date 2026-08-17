@@ -22,7 +22,15 @@
 set -uo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SHORT_RUN_SECS=${SHORT_RUN_SECS:-1800}   # below this = suspiciously fast
+# Below this = suspiciously fast. Deliberately LOW (5 min), not "well under the
+# smoke run's 51:48". Cell runtime varies a lot across the grid: low reserve
+# means the bank fails early and the run ends, so a legitimate fast cell can
+# finish in ~22 min (observed 2026-08-17, task_150 of the production arm, which
+# produced a full complement of runs). Setting this near the smoke time would
+# flag healthy cells and train the reader to ignore it. What it is really for
+# is the unambiguous corpse: the 9-second and 59-second exits this pipeline has
+# produced twice. Raise it with --short if you want a stricter sweep.
+SHORT_RUN_SECS=${SHORT_RUN_SECS:-300}
 
 TAGS=(); JOB_IDS=()
 while [[ $# -gt 0 ]]; do
