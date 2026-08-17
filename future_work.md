@@ -163,48 +163,167 @@ Net-new, and the most ambitious item.
 (`r`, `ι`, `μ`, `λ_I`, `λ_C`, Watts-Strogatz `k`/`p`, log-normal `σ`) are available via
 automatic differentiation, rather than reconstructed by finite differences over the grid.
 
-**Core obstacle — discreteness.** Two hard nondifferentiabilities:
+**Core obstacle — discreteness.** Three hard nondifferentiabilities, not two:
 
-- the withdraw/stay **decision** (`P̂_WD > P̂_stay` is a step) → relax with a temperature-scaled
-  sigmoid / Gumbel-softmax on the withdrawal choice;
-- the **failure** event (`Vault ≤ 0`) and the first-come-first-served payment `min/max` →
-  smooth approximations of the vault dynamics.
+- the withdraw/stay **decision** (`P̂_WD > P̂_stay` is a step);
+- the **failure** event (`Vault ≤ 0`) and the first-come-first-served payment `min`/`max`;
+- **μ itself**, which is *not* a continuous knob — it enters as a rank threshold
+  (`functions4.jl:62`, `sortperm(lambdas_warmup, rev=true)`, then a top-μ cut at L88). As μ
+  rises continuously, agents flip type one at a time: at N = 1000 that is a 1000-step
+  staircase whose derivative is a sum of spikes. Needs differentiable sorting (soft-sort /
+  optimal-transport ranking), which is a real addition on top of everything below — and it
+  sits on the exact axis P6a and P6b live on.
 
-**What it buys.**
+⚠️ Note the asymmetry: under `--assignment random` (the placebo arm) type assignment is an
+i.i.d. Bernoulli draw and reparameterises cleanly. **The placebo arm is differentiable in μ
+and the treatment arm is not.**
 
+### Parameter triage — which of the eight sweep axes admit gradients at all
+
+Assessed 2026-08-16 against the code. This split is itself substantive content: which
+parameters of a *cultural-heterogeneity* ABM are differentiable and which are structurally
+not is a claim about this model class, not bookkeeping.
+
+| Parameter | How it enters | Differentiable? |
+|---|---|---|
+| λ_I, λ_C | Beta distribution centres | **Yes** — reparameterises cleanly |
+| σ | log-normal deposits, `exp(σZ)` | **Yes** — textbook reparameterisation |
+| r | vault initialisation | **Yes**, modulo `min`/`max` in sequential payment |
+| q (`depQuantile`) | `quantile(depositDistribution, ·)`, `functions4.jl:235` | Awkward — piecewise-constant in the empirical sample |
+| **μ** | rank threshold on warm-up λ, `functions4.jl:62–88` | **Hard** — needs differentiable sorting (i.i.d. under the placebo rule) |
+| k | integer node degree | **No** |
+| p | Bernoulli edge presence (Newman–Watts) | Only under a relaxed / weighted-graph formulation |
+
+Three clean, two awkward, two effectively out. An earlier version of this section listed all
+eight as targets; that was wrong.
+
+---
+
+### What `dyer2023gradient` actually does, and how much of it transfers
+
+Read in full 2026-08-16. Their case study is Rama Cont's (2007) volatility-clustering model:
+N = 1000 agents, T = 100 periods, order `ρ_i(t) = 1[ε_t > v_i(t)] − 1[ε_t < −v_i(t)]` against a
+**common** signal ε_t, excess demand `Z_t = Σ ρ_i(t)`, returns `r_t = Z_t/(Nη)`, thresholds
+refreshed to `|r_t|` with probability s = 0.1. Initial thresholds `v_i(0) ~ f_γ = Gamma(α, β)`.
+
+**Transfers directly:**
+
+- **The discrete-decision fix is exactly our shape.** Their `ρ_i` is a threshold comparison
+  producing a discrete choice; our withdraw/stay and `Vault ≤ 0` are the same object. They use
+  a **straight-through** estimator (Eq. 14–16), `ρ_i = ρ̃_i + ϱ_i − ϱ_i.detach()`, with a
+  sigmoid `ς_k` of steepness k = 5, plus Gumbel-Softmax at temperature τ = 0.1 for the discrete
+  threshold update (Eq. 17).
+- 📌 **The forward pass stays bit-identical to the discrete model.** This is their explicit
+  design goal — gradients are introduced "in a way that does not entail changing the model
+  itself, in order that the modeller remains free to specify the model in the way that they
+  believe is most appropriate." **So an interior P6b peak cannot be an artifact of a relaxation
+  temperature**; simulated outputs are untouched. The exposure is *gradient bias* from k and τ,
+  which they flag in §5 as an unsolved hyperparameter-selection problem.
+- **The heterogeneity structure maps almost one-to-one — the strongest reason to think this
+  applies.** They draw agent thresholds i.i.d. from `f_γ` and calibrate **γ = (α, β), the
+  parameters of the heterogeneity distribution**. We would calibrate **(μ, λ_I, λ_C)**, the
+  parameters of a *mixture* of Betas over agent decision weights. Structurally the identical
+  inference problem: recover the shape of the cross-agent distribution of a decision-weight.
+- **The calibration stack is reusable off the shelf:** generalised variational inference
+  targeting `π_w,y(θ) ∝ exp(−w·ℓ(y,θ))π(θ)`, loss ℓ = MMD with a Gaussian RBF kernel (median
+  heuristic), normalising-flow variational family, via their BLACKBIRDS package. **MMD is a
+  distributional distance**, so it suits a cascade-size distribution as naturally as it suits
+  their returns series — which is the item-21 outcome variable.
+- **The payoff number:** the pathwise (differentiable) estimator reaches the target posterior in
+  ~10³ simulations while score-based/REINFORCE plateaus three orders of magnitude worse
+  (log q(θ\*) = 0.16 vs −2.31, their Table 1). For a model where one cell costs ~51 minutes,
+  that ratio *is* the argument.
+- **Forward-mode AD matters more for us than for them.** Their Figure 5: at 1M agents, RMAD
+  memory grows linearly in time-steps to **>30 GB** at 10³ steps, while FMAD stays flat at
+  **17 MB**. FMAD cost scales with the number of *inputs* — we have ~8 parameters and a graph
+  that would dwarf theirs, so their hybrid (FMAD for the ABM Jacobian, RMAD through the flow;
+  their Eq. 28–29) is arguably a better fit for our model than for the one they demonstrate on.
+
+**Does NOT transfer — and the paper says so itself.** From their §5, verbatim:
+
+> "some components of ABMs may also require adaptation; for example, agent-agent interactions
+> may need to be recast as message passing procedures on a graph"
+
+- ⚠️ **Their model has no agent-agent interaction at all.** Agents observe only the common
+  signal ε_t; they name "no social learning between agents is introduced" as a simplification.
+  **Our entire cultural mechanism is neighbour observation on a Watts–Strogatz graph.** The
+  paper's own stated limitation is our model's central feature. They point at Chopra et al.
+  (2023), differentiable agent-based epidemiology, for the graph case.
+- ⚠️ **Their model has no nested Monte Carlo.** Their agent decision is one threshold
+  comparison, O(1). Ours is `depth` clone-and-resimulate draws of the *entire model* per agent
+  per tick (`functions4.jl:433`). Their graph is ~10⁵ agent-steps and they already call RMAD
+  memory prohibitive at that scale.
+- ⚠️ **Their heterogeneity is i.i.d.; ours is rank-based** (the μ problem above).
+
+**Verdict: a template for the calibration layer, not a drop-in for the simulator layer.** The
+blocker is not the discrete decisions — that is solved, and the solution is clean. It is the
+nested MC and the network. Which is exactly why **item 2 is the enabling step**: replacing the
+clone-and-resimulate loop with a differentiable surrogate collapses both the nesting and the
+memory problem, and then their whole stack applies.
+
+**Two expectation-setters:**
+
+1. **They calibrate to a pseudo-observation** generated from their own model at known
+   θ\* = (0.1, 0.5, 0.5, 0.2) — a parameter-recovery exercise, not a fit to real market data.
+   Even this paper does not demonstrate calibration to observed markets, so a Celsius or SVB
+   calibration would be a step beyond what has been shown.
+2. **Language mismatch.** BLACKBIRDS is PyTorch; our simulator is Julia. Their ref [2] is
+   Arya et al.'s **StochasticAD**, which is Julia and which they name as the *unbiased*
+   alternative to Gumbel-Softmax. That is the likelier stack for us, and it dodges the k/τ
+   hyperparameter problem they leave open.
+
+---
+
+### What item 3 buys, restated after 2026-08-16
+
+- **P6b is a claim about a derivative.** It says ∂P(run)/∂μ changes sign — an interior peak.
+  The whole diagnostic problem of 2026-08-16 was trying to infer a derivative's sign change
+  from 5 noisy grid points at DEFF ≈ 14 (see `next_steps.md` items 20–21). A differentiable
+  model returns ∂P(run)/∂μ and ∂E[|S\*|]/∂μ **directly**, at any μ, with controllable variance.
+  That converts P6b from shape-inference on a coarse grid into a point estimate.
 - **Gradient-based sensitivity analysis** — local elasticities of fragility to each parameter,
-  far richer than the current experiment-by-experiment marginal plots (§6.2–6.9).
-- **Calibration by optimization instead of grid search** — directly minimize a distance between
-  simulated and target moments (see item 4), which is what turns "we swept a box" into "we
-  fit the model." This is the natural way to bring the model to the SVB / 1854 / Celsius data.
+  far richer than the experiment-by-experiment marginal plots of §6.2–6.9.
+- **Calibration by optimization instead of grid search**, which is what turns "we swept a box"
+  into "we fit the model."
+- 📌 **The cross-chapter payoff, which the original version of this section missed.** Ch 1 and
+  Ch 3 currently connect *narratively* ("the Celsius findings map onto the ABM's λ"). Calibrating
+  (μ, λ_I, λ_C) to Celsius moments would make that a *quantitative* bridge — does the ABM,
+  calibrated to Chapter 1's population, reproduce Chapter 1's observed dynamics? And the
+  observable lines up: `REPOSITORY_REVIEW.md` §9.9 already says the model "predicts partial
+  runs, not total collapse"; Celsius is itself a partial run (assets froze at a point, so the
+  observable is a cascade size, not a binary failure); and Ch 2 turns out to admit partial runs
+  analytically (2026-08-16 note). **|S\*| is the moment that connects all three chapters.**
 
-**Lit to position against (now in `banking.bib`, added 2026-07-14 from `~/ProtonDrive/Library/ABM`):**
+**Bibliography (in `banking.bib`, added 2026-07-14 from `~/ProtonDrive/Library/ABM`):**
 
-- `dyer2023gradient` — Dyer, Quera-Bofarull, Chopra, Farmer, Calinescu & Wooldridge, *Gradient-
-  Assisted Calibration for Financial Agent-Based Models*, ICAIF '23. **The most directly relevant
-  cite** — a *discrete financial* ABM made differentiable and calibrated via gradient-assisted /
-  probabilistic-ML methods. Note J. Doyne Farmer as a coauthor (ties to `Axtell_and_Farmer_2025`
-  already in the library). This is the template for what item 3 + item 4 would do to our bank-run model.
-- `querabofarull2023bayesian` — Quera-Bofarull, Chopra, Calinescu, Wooldridge & Dyer, *Bayesian
-  Calibration of Differentiable Agent-Based Models*, AI4ABM Workshop @ ICLR 2023. Generalised
-  variational inference for **misspecification-robust** Bayesian parameter inference on a
-  differentiable COVID-19 ABM — the calibration-under-misspecification angle for item 4.
-- `querabofarull2023challenges` — Quera-Bofarull, Dyer, Calinescu & Wooldridge, *Some Challenges of
-  Calibrating Differentiable ABMs*, Differentiable Almost Everything Workshop @ ICML 2023. The
-  **methods caveats** for item 3: differentiating through discrete randomness (Gumbel-Softmax
-  reparametrisation and its bias/variance issues), StochasticAD (Arya et al.) as the unbiased
-  alternative in Julia, and reverse- vs forward-mode AD trade-offs. Directly informs the "relax the
-  discrete withdraw/fail steps" obstacle above.
+- `dyer2023gradient` — Dyer, Quera-Bofarull, Chopra, Farmer, Calinescu & Wooldridge,
+  *Gradient-Assisted Calibration for Financial Agent-Based Models*, ICAIF '23, pp. 288–296.
+  **The most directly relevant cite**, read in full 2026-08-16; assessment above. J. Doyne
+  Farmer as coauthor ties to `Axtell_and_Farmer_2025` already in the library.
+- `querabofarull2023bayesian` — *Bayesian Calibration of Differentiable Agent-Based Models*,
+  AI4ABM @ ICLR 2023. Generalised variational inference for **misspecification-robust**
+  parameter inference on a differentiable COVID-19 ABM — the calibration-under-misspecification
+  angle for item 4.
+- `querabofarull2023challenges` — *Some Challenges of Calibrating Differentiable ABMs*,
+  Differentiable Almost Everything @ ICML 2023. The methods caveats: Gumbel-Softmax bias and
+  variance, StochasticAD as the unbiased Julia alternative, reverse- vs forward-mode
+  trade-offs. Directly addresses the k/τ hyperparameter gap `dyer2023gradient` leaves open.
 
-Secondary cites these three point to, still to source if item 3 is pursued seriously: **Andelfinger
-(2021)** (continuous approximations of discrete ABM control flow), **Chopra et al. (2023)**
-(differentiable agent-based epidemiology, the GS-trick deployment), **Arya et al. (2022)**
-(StochasticAD), **Bezanson et al. (2017)** (Julia — our sim language, relevant to which AD stack).
+Secondary cites to source if item 3 is pursued seriously: **Chopra et al. (2023)**
+(differentiable agent-based epidemiology — *promoted*: this is the graph/message-passing
+adaptation `dyer2023gradient` §5 says our network case needs), **Arya et al. (2022)**
+(StochasticAD), **Andelfinger (2021)** (continuous approximations of discrete ABM control
+flow), **Cont (2007)** (the volatility-clustering model `dyer2023gradient` uses as its case
+study), **Blondel et al.** on differentiable sorting/ranking for the μ problem.
 
 **Effort:** High (research-grade; likely a paper of its own, or a clearly-scoped §7 "direction"
-rather than a completed result). **Dependency:** cleanest if built on the item-2 surrogate
-(already differentiable) rather than autodiffing through the clone-and-resimulate loop.
+rather than a completed result). **Dependency:** now firmly established — build on the item-2
+surrogate rather than autodiffing through the clone-and-resimulate loop.
 **Cross-link:** items 2 and 4.
+
+⚠️ Stale detail in the Anchor section above: it says `D = 1000`. The default was lowered to
+**100** on 2026-08-13 (`scripts/README.md`); the 2026-04 production sweep ran at 1000. Graph-size
+and memory arguments here should use whichever depth the arm actually ran at.
 
 ---
 
@@ -256,3 +375,16 @@ item 1 (adaptive λ / social learning) — independent; closes the §7 "fixed wi
 Natural order if pursued: **1** (self-contained, closes an existing limitation) → **2** (unlocks
 the P6b sweep the paper already needs) → **4** (SVB moment-matching, feasible once 2 is cheap) →
 **3** (research-grade; subsumes gradient calibration for 4).
+
+📌 **Updated 2026-08-16 after reading `dyer2023gradient` in full.** The item-2-before-item-3
+dependency is no longer a preference, it is a requirement: their method assumes an O(1) agent
+decision and *no* agent-agent interaction, so our nested Monte Carlo (`functions4.jl:433`) and
+our network are the two things that do not transfer. Replacing the inner loop with a
+differentiable surrogate removes both obstacles at once.
+
+The calibration **target** is also now specific rather than aspirational: |S\*| (cascade size),
+which is simultaneously item 21's outcome variable in `next_steps.md`, the observable in
+`REPOSITORY_REVIEW.md` §9.9's SVB validation, the form Celsius actually takes (a partial run —
+assets froze at a point), and — per the 2026-08-16 Ch 2 result — an object the
+Goldstein–Pauzner structure admits. That makes item 4 a **cross-chapter** deliverable rather
+than a Ch 3 robustness exercise.

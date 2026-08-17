@@ -389,6 +389,6 @@ processes oversubscribes 16 CPUs. It needs an explicit split (fewer runs in flig
   Update it together with item 2, when new numbers land.
 - **`paper_draft.md` §7 / `abm_chapter.tex`** carry an uncommitted edit removing the
   religiosity-channel sentences. Commit with the rest.
-- **`future_work.md`** (untracked) holds the four proposed extensions: adaptive-λ social
+- **`future_work.md`** (tracked) holds the four proposed extensions: adaptive-λ social
   learning, NN surrogate for the MC inner loop, differentiable ABM, validation
   benchmarking.
