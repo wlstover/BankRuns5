@@ -61,6 +61,21 @@ LEGACY_PARAM_COLS = 12
 
 BAD_SLURM_STATES = ("TIMEOUT", "FAILED", "OUT_OF_MEMORY", "CANCELLED", "NODE_FAIL")
 
+# ⚠️ Added 2026-08-17. This script is an afterany chaser, so it was written
+# assuming every task had finished. Run it MID-FLIGHT — which is the natural
+# thing to do on a sweep lasting days — and every still-running task looks like
+# a failure: it has written some or none of its 250 rows, so it lands in
+# "under-filled", and a task that has not yet written bankRunResults*.csv at all
+# is reported "no outcome rows -> FAIL". Both are false alarms, and a checker
+# that cries wolf on a healthy sweep is a checker that gets ignored.
+#
+# In-progress tasks are now counted separately and excluded from the pass/fail
+# classification entirely. This needs --job-id: without sacct there is no way to
+# distinguish "still running" from "died silently", and the script says so
+# rather than guessing.
+IN_PROGRESS_STATES = ("RUNNING", "PENDING", "COMPLETING", "REQUEUED",
+                      "RESIZING", "SUSPENDED", "CONFIGURING")
+
 
 def read_rows(paths):
     """Total data rows across a set of headerless CSVs."""
@@ -150,6 +165,18 @@ def main():
         key=lambda d: int(d.name.split("_", 1)[1]) if d.name.split("_", 1)[1].isdigit() else 0,
     )
 
+    # ⚠️ A --manifest pointing at a path that does not exist used to be silently
+    # ignored, which quietly disabled the "in manifest but no output directory"
+    # check — the only check that can see a cell that never ran at all. A typo
+    # in the path (manfifest.csv) therefore downgraded the verifier with no
+    # indication whatsoever. If it was asked for, it must be there.
+    if args.manifest and not Path(args.manifest).exists():
+        print(f"FAIL  --manifest {args.manifest} does not exist.")
+        print("      Refusing to continue: without it, the check for cells that never")
+        print("      produced a directory at all is silently skipped, and the run would")
+        print("      look healthier than it is. Fix the path or omit --manifest.")
+        return 1
+
     expected_ids = None
     if args.manifest and Path(args.manifest).exists():
         with open(args.manifest, newline="") as fh:
@@ -158,7 +185,7 @@ def main():
     states = sacct_states(args.job_id) if args.job_id else {}
 
     fails, warns = [], []
-    n_ok = n_partial = n_surplus = 0
+    n_ok = n_partial = n_surplus = n_inflight = 0
     ragged_tasks = []
     total_runs = 0
     total_outcomes = 0
@@ -186,6 +213,10 @@ def main():
     if args.job_id:
         print(f"sacct states  : {len(states)} array tasks for job {args.job_id}"
               + ("" if states else "  (sacct unavailable — state checks skipped)"))
+    if not states:
+        print("NOTE  no sacct data (pass --job-id to enable). If this sweep is still")
+        print("      running, in-progress tasks CANNOT be distinguished from failures")
+        print("      and will be reported as under-filled or as missing outcome rows.")
     print("-" * 70)
 
     seen_ids = set()
@@ -203,6 +234,12 @@ def main():
         total_outcomes += n_res
 
         state = states.get(tid)
+
+        # Still going: not a result yet, in either direction.
+        if state and any(state.startswith(g) for g in IN_PROGRESS_STATES):
+            n_inflight += 1
+            continue
+
         if state and any(state.startswith(b) for b in BAD_SLURM_STATES):
             fails.append(f"task_{tid}: SLURM state {state} ({n_res} outcome rows)")
             continue
@@ -244,6 +281,8 @@ def main():
             fails.append(f"task_{tid}: in manifest but no output directory")
 
     # ── Summary ───────────────────────────────────────────────────────────────
+    if n_inflight:
+        print(f"in flight (skipped)       : {n_inflight}")
     print(f"complete (=={args.expected_runs} runs) : {n_ok}")
     print(f"under-filled (<{args.expected_runs})    : {n_partial}")
     print(f"surplus (>{args.expected_runs})         : {n_surplus}")
