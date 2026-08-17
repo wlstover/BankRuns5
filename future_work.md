@@ -94,6 +94,29 @@ change. **Dependency:** none. **Cross-link:** the reward-signal version overlaps
 - Secondary contagion ABMs *[metadata unverified — behind paywall, not in bib]*: "Bank runs via
   social networks", JEIC (2025, doi …00452-4); Gong (2023), Int. J. Finance & Econ.
 
+**Further leads added 2026-08-17 — ⚠️ UNVERIFIED (recalled, not checked against the
+papers or the databases; confirm venue/year/claim before any draft use).** Prompted by
+committee feedback on *social* vs *group* learning and the FDIC-expectations channel:
+
+- **Iyer & Puri (2012), AER** — *Understanding Bank Runs: The Importance of Depositor-Bank
+  Relationships and Networks.* The empirical anchor for this whole item: social-network
+  transmission in an actual run, with deposit insurance moderating it. If one citation is
+  added, this is it.
+- **Iyer, Puri & Ryan (2016), JF** — *A Tale of Two Runs.* Depositor learning **across** runs
+  at the same bank — the closest empirical analogue to adaptive λ.
+- **Kelly & Ó Gráda (2000), AER** — *Market Contagion: Evidence from the Panics of 1854 and
+  1857.* Irish immigrant social networks in New York bank runs; the historical case that
+  culture-plus-network drives runs.
+- **Chari & Jagannathan (1988), JF** — signal extraction with informed/uninformed depositors.
+  The analytic ancestor of λ: learning from *others' withdrawals* rather than from fundamentals.
+- **Centola & Macy (2007), AJS** — *Complex Contagions and the Weakness of Long Ties.* Why
+  threshold/percolation contagion behaves differently from epidemic contagion; the sociology
+  counterpart to the §6.9 percolation framing and to `watts2002simple`.
+- **Brock & Hommes (1997, 1998)** — adaptive belief systems; agents switching information-
+  weighting rules on past performance. The canonical economics formalism for an adaptive λ.
+- **DeGroot (1974)**; **Golub & Jackson (2010), AEJ:Micro** — the naive-social-learning
+  machinery the DeGroot variant of this proposal would actually use.
+
 **⚠️ GAP = opportunity.** No paper found that models **FDIC / lender-of-last-resort specifically
 dampening depositors' *social* learning**. The pieces exist separately (Arifovic on bank-run
 learning; Arifovic 2025 on policy + social learning; DD on insurance) but the *combination* is
@@ -189,13 +212,32 @@ not is a claim about this model class, not bookkeeping.
 | λ_I, λ_C | Beta distribution centres | **Yes** — reparameterises cleanly |
 | σ | log-normal deposits, `exp(σZ)` | **Yes** — textbook reparameterisation |
 | r | vault initialisation | **Yes**, modulo `min`/`max` in sequential payment |
-| q (`depQuantile`) | `quantile(depositDistribution, ·)`, `functions4.jl:235` | Awkward — piecewise-constant in the empirical sample |
+| q (`depQuantile`) | `quantile(depositDistribution, ·)`, `functions4.jl:235` | **Yes** — see correction below |
 | **μ** | rank threshold on warm-up λ, `functions4.jl:62–88` | **Hard** — needs differentiable sorting (i.i.d. under the placebo rule) |
 | k | integer node degree | **No** |
 | p | Bernoulli edge presence (Newman–Watts) | Only under a relaxed / weighted-graph formulation |
 
-Three clean, two awkward, two effectively out. An earlier version of this section listed all
+Four clean, one awkward, two effectively out. An earlier version of this section listed all
 eight as targets; that was wrong.
+
+**📌 Correction 2026-08-17 — `q` was mis-triaged, and it is the one that matters most.** This
+table previously read *"Awkward — piecewise-constant in the empirical sample."* That would hold
+for `quantile(deposits_vector, q)`. The code does not do that: `objects.jl:46` declares
+`depositDistribution::Distribution`, and `functions4.jl:235` calls `quantile` on the
+**distribution object** — the analytic inverse CDF. For the log-normal that is
+`exp(m + σ·Φ⁻¹(q))`, smooth in `q` *and* in `σ`; the empirical sample (`functions4.jl:93`) is
+drawn separately and never enters the cap. So `q` belongs in the clean tier next to `r`,
+subject only to the `min`/`max` in sequential payment, which are subdifferentiable and routine
+for autodiff.
+
+This matters because `q` is the **policy** parameter: the FDIC/deposit-insurance counterfactual
+is the one gradient target with an external audience, and it turns out to be among the cleanest
+rather than among the awkward.
+
+**Also 2026-08-17: μ's "hard" verdict is rule-dependent.** The differentiable-sorting problem is
+a property of the *warm-up* assignment rule. Under `--assignment random` the type draw is i.i.d.
+Bernoulli(μ) and reparameterises cleanly. The placebo arm is therefore also the tractable
+configuration for this item — worth exploiting rather than working around.
 
 ---
 

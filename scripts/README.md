@@ -11,7 +11,8 @@ scripts/run_all.sh          orchestrator — the only thing you invoke
 ├── sweep_task.slurm        array-task payload (one task = one parameter cell)
 ├── check_sweep_run.py      afterany chaser — did the tasks actually finish?
 ├── ../consolidate_results.py   afterany chaser — task dirs -> one CSV
-└── run_analysis.slurm      afterok chaser — analysis_p6.R -> figures + CSVs
+├── run_analysis.slurm      afterok chaser — analysis_p6.R -> figures + CSVs
+└── analysis_p6b.R          afterok chaser — the P6b test (see --compare)
 ```
 
 ## Quick start
@@ -39,11 +40,58 @@ is what makes it safe to run a variant without destroying its own baseline.
 | Anti-treatment | `./scripts/run_all.sh --assignment reverse --tag anti` |
 | Top up under-filled cells | `./scripts/run_all.sh --tag production --restart` |
 | Post-process only | `./scripts/run_all.sh --consolidate --analyze --tag production` |
+| **The P6b test (headline)** | `./scripts/run_all.sh --analyze --tag production --compare placebo` |
 
 Any axis can be overridden and is forwarded to `gen_params.sh`, which validates
 it: `--reserve --depq --sigma --k --p --alpha --mu --lambda-i --lambda-c`.
 
 `--depth N` sets the Monte Carlo draws per agent decision (default **100**).
+
+## The P6b test — `--compare` and why a single arm cannot do it
+
+`analysis_p6b.R` runs automatically as its own job (`--no-p6b` disables it). Its
+headline statistic is
+
+    excess(treatment) - excess(placebo)
+
+which needs **two** arms, so it needs `--compare <tag>`:
+
+```bash
+./scripts/run_all.sh --analyze --tag production --compare placebo
+```
+
+Without `--compare` the job still runs, but within-arm only — and a within-arm
+number cannot establish P6b. The excess is measured above a chord that assumes
+P6a is **linear** in mu, while §6.4 reports the P6a decline is "steepest in the
+interior and flatter at the boundaries". A concave P6a therefore produces a
+positive excess with no P6b whatsoever, and no statistic computed on one arm's
+mu curve can separate them: the confound is in the baseline, not the noise.
+
+The placebo differences it out, because random assignment holds composition
+exactly fixed (same type counts, same lambda draws, same network, same
+deposits, same shock) and destroys only the type-to-position correlation. P6a
+is a composition effect and survives; P6b is a position effect and should not.
+
+⚠️ Read `endpoint_contamination__*.csv` first. At mu = 0 and mu = 1 only one
+type exists, so P6b is zero by construction and any between-arm gap there is
+P6a contamination — the contrast is not clean.
+
+**The outcome is cascade size |S*| (`nWithdrawn`), not `bankRun`** — since
+2026-08-17. The vault is `r x total deposits`, so a binary run indicator is a
+threshold on a continuous quantity whose sensitivity varies with `r`, one of
+the axes being stratified on. `bankRun` is retained as a secondary outcome.
+Outputs are suffixed `__cascade__` / `__binary__` and `__headline__` /
+`__insurance__` so the two can never be confused for one another.
+
+The `__insurance__` block stratifies additionally on `depQuantile`, giving the
+depQuantile x lambda-gap interaction — the reduced-form test of whether a
+deposit-insurance backstop dampens social-signal weighting. Check `nSeeds` in
+that output before quoting it: it pools proportionally fewer paramSeeds than
+the headline. Disable with `BANKRUN_SKIP_INTERACTION=1`.
+
+Validate any change to this script with `Rscript test/test_p6b_continuous.R`
+(6 ground-truth fixtures; fixture B is the one that matters — a curved P6a with
+no P6b, which the contrast must refuse).
 
 ## ⚠️ Monte Carlo depth is a modelling parameter, not a speed knob
 

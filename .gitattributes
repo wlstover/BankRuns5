@@ -1,0 +1,34 @@
+# Line-ending policy — added 2026-08-17.
+#
+# WHY THIS EXISTS
+# Four files come from John Schuler and are CRLF; everything we wrote is LF.
+# On 2026-08-13 our edits silently flipped three of them, inflating
+# functions4.jl's diff from 62 lines to 1,122. The flip was invisible until
+# `git diff --stat` was compared against `git diff --stat -w`.
+#
+# WHY `-text` AND NOT `text eol=crlf`
+# `-text` tells git to perform NO end-of-line conversion on these paths, so the
+# bytes already committed stay exactly as they are. `text eol=crlf` would be the
+# more aggressive fix — it makes git normalise to LF in the index, which would
+# render future flips invisible — but it requires a one-time
+# `git add --renormalize`, producing precisely the whole-file diff on
+# functions4.jl that open item 12 (sending Schuler our changes) needs to avoid.
+# Revisit after that diff has been sent and accepted.
+#
+# THIS DOES NOT STOP AN EDITOR FROM REWRITING LINE ENDINGS.
+# It only stops git from doing conversions of its own, so what you see in
+# `git diff` is the truth. The detector is still mandatory before committing
+# anything that touches these four files:
+#
+#     git diff --stat            # if this disagrees with the next line,
+#     git diff --stat -w         # an EOL flip has happened — fix before staging
+#
+# Schuler's files — published model code, CRLF, do not convert.
+functions4.jl    -text
+finMain0001.jl   -text
+parameterGen.jl  -text
+objects.jl       -text
+
+# restart.jl is also CRLF-origin and is not currently wired in
+# (finMain0001.jl:90); pin it so it does not drift while dormant.
+restart.jl       -text

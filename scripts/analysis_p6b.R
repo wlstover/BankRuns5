@@ -24,22 +24,53 @@
 #     strata of the 2026-04 sweep carry all 5 mu levels — but "untestable"
 #     must not print as "monotonic".
 #
+# ── THE OUTCOME IS CASCADE SIZE |S*|, NOT P(run). Added 2026-08-17. ──────────
+# P6b is a claim about how BIG a cascade gets, and `bankRun` is that quantity
+# passed through a threshold whose height is set by the reserve ratio r: the
+# vault is r x total deposits, so r fixes the cluster size that counts as
+# failure. A threshold indicator is maximally sensitive only when the threshold
+# sits in the bulk of the distribution, so measuring P6b through `bankRun`
+# makes sensitivity vary systematically with r — one of the axes being
+# stratified on. At r = 0.15 nearly every cascade qualifies (~99%, flat in mu:
+# a ceiling that censors P6b); at r = 0.40 only near-spanning ones do.
+#
+# So the primary outcome here is `nWithdrawn` — the realised withdrawal set
+# size |S*|, instrumented 2026-08-13 and confirmed populated by the 2026-08-15
+# smoke run. `bankRun` is retained as a SECONDARY outcome so the binary result
+# stays comparable to the legacy headline.
+#
+# 📌 This also connects to Chapter 2. A(theta) — "the proportion of depositors
+# withdrawing at period 1", chapter2.tex:571 — IS nWithdrawn/N. The 2026-08-16
+# result that the heterogeneous-lambda global game admits partial runs makes
+# cascade size an object of the analytics, not an ABM-only consolation.
+#
+# ⚠️ A TESTABLE IMPLICATION OF THE SWITCH. Under `bankRun`, r doubles as the
+# measuring instrument, which is why P6b appeared only at r = 0.25-0.30 and the
+# regime looked "saturated" elsewhere. Under |S*| r is no longer the
+# instrument, so P6b should become detectable across the whole r range. If the
+# excess stays humped at 0.25-0.30 and flat elsewhere, the threshold
+# explanation was wrong and something else is going on.
+#
 # WHAT THIS COMPUTES
 # ------------------
-# For each (lambdaGap, reserveRatio) stratum, the excess of the interior mu
-# levels above the chord joining the two endpoint mu levels:
+# For each stratum, the excess of the interior mu levels above the chord
+# joining the two endpoint mu levels:
 #
-#     excess(mu) = failRate(mu) - [ failRate(mu_lo)
-#                    + (failRate(mu_hi) - failRate(mu_lo)) * (mu - mu_lo)
-#                                                          / (mu_hi - mu_lo) ]
+#     excess(mu) = y(mu) - [ y(mu_lo)
+#                    + (y(mu_hi) - y(mu_lo)) * (mu - mu_lo) / (mu_hi - mu_lo) ]
 #
-# Positive excess = hump above a linear P6a baseline. Standard errors come
-# from a cluster bootstrap over paramSeed, because runs sharing a paramSeed
-# share the network, the warm-up, the lambda assignment and the deposit vector
-# (functions4.jl:28,82,92) and differ only in the shock and cascade order. The
-# independent unit is the initialisation, not the run. Ignoring this makes
-# binomial-over-N standard errors roughly 3.8x too tight at the median design
-# effect measured on the legacy sweep (ICC 0.274, DEFF 14.4).
+# where y is the mean outcome. Positive excess = hump above a linear P6a
+# baseline. Standard errors come from a cluster bootstrap over paramSeed,
+# because runs sharing a paramSeed share the network, the warm-up, the lambda
+# assignment and the deposit vector (functions4.jl:28,82,92) and differ only in
+# the shock and cascade order. The independent unit is the initialisation, not
+# the run. Ignoring this makes naive-over-N standard errors roughly 3.8x too
+# tight at the median design effect measured on the legacy sweep (ICC 0.274,
+# DEFF 14.4).
+#
+# Note the estimator is a ratio of sums either way — sum(k)/sum(n) for a
+# proportion, sum(s)/sum(n) for a mean — so the bootstrap machinery is
+# identical for both outcomes.
 #
 # ⚠️ THE CHORD IS NOT A CLEAN P6a BASELINE — read this before quoting a number.
 # It assumes P6a is LINEAR in mu, and paper_draft.md §6.4 reports that the P6a
@@ -72,7 +103,24 @@
 # untouched. It is checkable and this script checks it: at mu = 0 and mu = 1
 # there is only one type present, P6b is zero by construction, and any
 # between-arm gap at the endpoints is P6a contamination. Reported as
-# `endpoint_contamination.csv` — read it before trusting the contrast.
+# `endpoint_contamination__*.csv` — read it before trusting the contrast.
+#
+# ── THE INSURANCE INTERACTION. Added 2026-08-17. ────────────────────────────
+# The focused grid crosses depQuantile (0.0, 0.2, 0.5) with the lambda-gap
+# (0.8, 0.6, 0.2) — a fully crossed 3x3 that has never been estimated. Since
+# lambda IS the weight an agent places on the social signal, depQuantile x
+# lambdaGap asks directly: does a deposit-insurance backstop reduce how much
+# social-signal weighting matters? That is the reduced form of the committee's
+# question about social learning and the FDIC.
+#
+# ⚠️ Reduced form, not structural: lambda is assigned exogenously at warm-up
+# and never learned. The structural version (lambda responding to own coverage)
+# is future_work.md item 1. Do not describe this as a test of learning.
+#
+# ⚠️ depQuantile is a QUANTILE of the deposit distribution, so it is the share
+# of depositors covered BY COUNT, not by value. At sigma = 3.0, q = 0.5 insures
+# only ~0.7% of deposit VALUE. The swept levels are all low-insurance regimes;
+# do not read them as "half insured".
 #
 # USAGE
 #   # single arm
@@ -83,27 +131,41 @@
 #   BANKRUN_COMPARE_DIR=outputs/placebo \
 #   Rscript scripts/analysis_p6b.R
 #
-#   BANKRUN_BOOT=2000    # bootstrap replicates, default 2000
+#   BANKRUN_BOOT=2000        # bootstrap replicates, default 2000
+#   BANKRUN_NAGENTS=1000     # if set, |S*| is reported as a share of N
+#   BANKRUN_SKIP_INTERACTION=1   # skip the depQuantile stratification
 #
 # Requires the post-2026-08-13 consolidated schema (paramSeed, k, p,
-# reserveRatio, depQuantile, sigma, mu, lambdaI, lambdaC). It refuses to run on
-# the legacy positional schema rather than silently reading the wrong axes.
+# reserveRatio, depQuantile, sigma, mu, lambdaI, lambdaC) plus nWithdrawn. It
+# refuses to run on the legacy positional schema rather than silently reading
+# the wrong axes.
 
 # ── Package preflight (see analysis_p6.R for why this is explicit) ───────────
-required_pkgs <- c("data.table", "ggplot2", "scales")
-missing_pkgs  <- required_pkgs[
-    !vapply(required_pkgs, requireNamespace, logical(1), quietly = TRUE)]
-if (length(missing_pkgs) > 0) {
-    cat("\nERROR: missing R packages:", paste(missing_pkgs, collapse = ", "), "\n")
+# Split deliberately. data.table is load-bearing — no numbers without it. But
+# ggplot2/scales only draw an optional PNG, and on 2026-08-16 the entire
+# analysis stage aborted before line 1 because a *plotting* library was absent
+# from hopper's site library. Losing every number because a figure cannot be
+# drawn is the wrong failure. Numbers now survive a missing plotting stack; the
+# figure degrades to a warning.
+if (!requireNamespace("data.table", quietly = TRUE)) {
+    cat("\nERROR: missing required R package: data.table\n")
     cat("R:        ", R.version.string, "\n")
     cat("libPaths: ", paste(.libPaths(), collapse = "\n           "), "\n\n")
-    cat("On hopper, install them once: ./scripts/bootstrap_r_libs.sh\n\n")
-    stop("missing R packages: ", paste(missing_pkgs, collapse = ", "), call. = FALSE)
+    cat("On hopper, install it once: ./scripts/bootstrap_r_libs.sh\n\n")
+    stop("missing R package: data.table", call. = FALSE)
 }
-suppressPackageStartupMessages({
-    library(data.table)
-    library(ggplot2)
-})
+suppressPackageStartupMessages(library(data.table))
+
+plot_pkgs    <- c("ggplot2", "scales")
+missing_plot <- plot_pkgs[!vapply(plot_pkgs, requireNamespace, logical(1), quietly = TRUE)]
+CAN_PLOT     <- length(missing_plot) == 0
+if (CAN_PLOT) {
+    suppressPackageStartupMessages(library(ggplot2))
+} else {
+    cat("\n⚠️  Missing plotting packages:", paste(missing_plot, collapse = ", "), "\n")
+    cat("   All CSV outputs will still be written; figures will be skipped.\n")
+    cat("   To get figures: ./scripts/bootstrap_r_libs.sh\n\n")
+}
 
 set.seed(20260816)   # fixed: the bootstrap must not move between runs
 
@@ -121,13 +183,43 @@ if (!dir.exists(project_root)) project_root <- getwd()
 arm_dir     <- Sys.getenv("BANKRUN_ARM_DIR", unset = file.path(project_root, "outputs"))
 compare_dir <- Sys.getenv("BANKRUN_COMPARE_DIR", unset = "")
 n_boot      <- as.integer(Sys.getenv("BANKRUN_BOOT", unset = "2000"))
+n_agents    <- suppressWarnings(as.numeric(Sys.getenv("BANKRUN_NAGENTS", unset = "")))
+skip_inter  <- nzchar(Sys.getenv("BANKRUN_SKIP_INTERACTION", unset = ""))
 out_dir     <- file.path(arm_dir, "analysis")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 cat("arm_dir:     ", arm_dir, "\n")
 cat("compare_dir: ", if (nzchar(compare_dir)) compare_dir else "(none — within-arm only)", "\n")
 cat("out_dir:     ", out_dir, "\n")
-cat("bootstrap:   ", n_boot, "replicates, clustered on paramSeed\n\n")
+cat("bootstrap:   ", n_boot, "replicates, clustered on paramSeed\n")
+
+# ── Outcome specifications ──────────────────────────────────────────────────
+# `col`   the per-run column summed into the numerator
+# `scale` multiplier applied for display (100 turns a proportion into pp)
+# `unit`  what a displayed number means — printed on every table
+#
+# ⚠️ N (agent count) is NOT in the consolidated schema: agtCnt was dropped
+# deliberately because it never held what it claimed. So |S*| is reported in
+# RAW AGENTS unless BANKRUN_NAGENTS is set. Do not silently divide by 1000.
+cascade_scale <- 1
+cascade_unit  <- "agents withdrawn"
+if (!is.na(n_agents) && n_agents > 0) {
+    cascade_scale <- 100 / n_agents
+    cascade_unit  <- sprintf("%% of N=%g agents", n_agents)
+}
+
+OUTCOMES <- list(
+    cascade = list(key = "cascade", col = "nWithdrawn", scale = cascade_scale,
+                   unit = cascade_unit,
+                   desc = "cascade size |S*| — the primary P6b outcome"),
+    binary  = list(key = "binary",  col = "bankRunNum", scale = 100,
+                   unit = "pp",
+                   desc = "P(bank run) — secondary, comparable to the legacy headline")
+)
+
+# ── Stratifications ─────────────────────────────────────────────────────────
+STRATA_HEADLINE    <- c("lambdaGap", "reserveRatio")
+STRATA_INTERACTION <- c("lambdaGap", "reserveRatio", "depQuantile")
 
 # ── Load ────────────────────────────────────────────────────────────────────
 as_flag <- function(x) {
@@ -142,7 +234,7 @@ as_flag <- function(x) {
 # a complete, plausible figure set off the wrong axis. Discriminate on columns
 # that exist only in the corrected schema, and reject the legacy names outright.
 REQUIRED_COLS <- c("paramSeed", "reserveRatio", "mu", "lambdaI", "lambdaC",
-                   "completed", "bankRun",
+                   "completed", "bankRun", "nWithdrawn",
                    "k", "p", "sigma", "depQuantile", "assignRule", "mcDepth")
 LEGACY_ONLY_COLS <- c("agtCnt", "depositInsurance", "exogProb")
 
@@ -169,30 +261,70 @@ load_arm <- function(dir, label) {
     }
     dt[, bankRun   := as_flag(bankRun)]
     dt[, completed := as_flag(completed)]
+    dt[, bankRunNum := as.numeric(bankRun)]
     dt <- dt[completed == TRUE]
     if (nrow(dt) == 0) stop(label, ": no completed runs.", call. = FALSE)
+
+    # ⚠️ REFUSE on blank |S*| rather than dropping it. Runs produced before the
+    # 2026-08-13 instrumentation carry nWithdrawn empty, which fread reads as
+    # NA. Silently dropping those rows would compute a real-looking cascade
+    # statistic on whatever subset happened to survive — the same shape of
+    # failure as the legacy wrong-axis figure set, and harder to notice because
+    # nothing about the output would look unusual.
+    dt[, nWithdrawn := suppressWarnings(as.numeric(nWithdrawn))]
+    n_missing <- sum(is.na(dt$nWithdrawn))
+    if (n_missing > 0) {
+        stop(label, ": ", format(n_missing, big.mark = ","), " of ",
+             format(nrow(dt), big.mark = ","), " completed runs have a blank ",
+             "`nWithdrawn`.\nThose predate the 2026-08-13 |S*| instrumentation. ",
+             "Cascade size cannot be computed for them and dropping them silently ",
+             "would bias the estimate toward whatever subset survived. Either ",
+             "re-run the arm, or restrict to post-instrumentation runs explicitly ",
+             "before calling this script.", call. = FALSE)
+    }
+
     # set() not [[<- : the base assignment forces a shallow copy and data.table
     # emits a warning about it on every load, which is noise in a SLURM .out.
-    for (cc in c("reserveRatio", "mu", "lambdaI", "lambdaC"))
+    for (cc in c("reserveRatio", "mu", "lambdaI", "lambdaC", "depQuantile"))
         set(dt, j = cc, value = as.numeric(dt[[cc]]))
     dt[, lambdaGap := round(lambdaC - lambdaI, 4)]
     dt[, arm := label]
-    cat(sprintf("%-10s %s rows, %d strata, %d mu levels, %d paramSeeds\n",
+
+    # ⚠️ mcDepth is a MODELLING parameter (decision precision scales as
+    # 1/sqrt(depth)), not a compute setting. consolidate_results.py says in so
+    # many words: DO NOT POOL ACROSS DEPTHS. Nothing enforced it until now.
+    depths <- sort(unique(dt$mcDepth))
+    if (length(depths) > 1) {
+        stop(label, ": consolidated CSV mixes Monte Carlo depths (",
+             paste(depths, collapse = ", "), "). Decision precision scales as ",
+             "1/sqrt(depth), so these are different models and must not be pooled. ",
+             "Split the arm by mcDepth first.", call. = FALSE)
+    }
+
+    cat(sprintf("%-10s %s rows, %d headline strata, %d mu levels, %d paramSeeds, mcDepth %s\n",
                 label, format(nrow(dt), big.mark = ","),
-                nrow(unique(dt[, .(lambdaGap, reserveRatio)])),
-                uniqueN(dt$mu), uniqueN(dt$paramSeed)))
+                nrow(unique(dt[, ..STRATA_HEADLINE])),
+                uniqueN(dt$mu), uniqueN(dt$paramSeed), depths))
     dt
 }
 
 dt_t <- load_arm(arm_dir, "treatment")
 dt_p <- if (nzchar(compare_dir)) load_arm(compare_dir, "placebo") else NULL
 
+# Arms must agree on depth too, or the contrast compares two different models.
+if (!is.null(dt_p) && unique(dt_t$mcDepth) != unique(dt_p$mcDepth)) {
+    stop("treatment ran at mcDepth ", unique(dt_t$mcDepth), " and placebo at ",
+         unique(dt_p$mcDepth), ". The contrast would difference two different ",
+         "models. Re-run one arm to match.", call. = FALSE)
+}
+
 # ── Cluster table: one row per (stratum, mu, paramSeed) ─────────────────────
 # The bootstrap resamples paramSeeds, so collapse to that grain once and then
-# every replicate is a fast sum over a small table.
-clusters <- function(dt) {
-    dt[, .(n = .N, k = sum(bankRun)),
-       by = .(lambdaGap, reserveRatio, mu, paramSeed)]
+# every replicate is a fast sum over a small table. The numerator is always
+# named `k` downstream regardless of which outcome filled it.
+clusters <- function(dt, outcome, strata) {
+    dt[, .(n = .N, k = sum(get(outcome$col))),
+       by = c(strata, "mu", "paramSeed")]
 }
 
 # ── The statistic ───────────────────────────────────────────────────────────
@@ -206,22 +338,22 @@ excess_of <- function(mu, rate) {
 }
 
 # Point estimates and a cluster bootstrap, per stratum.
-excess_table <- function(cl, n_boot) {
-    strata <- unique(cl[, .(lambdaGap, reserveRatio)])
-    out <- vector("list", nrow(strata))
-    for (i in seq_len(nrow(strata))) {
-        g <- strata$lambdaGap[i]; r <- strata$reserveRatio[i]
-        sub <- cl[lambdaGap == g & reserveRatio == r]
+excess_table <- function(cl, n_boot, strata) {
+    strata_vals <- unique(cl[, ..strata])
+    out <- vector("list", nrow(strata_vals))
+    for (i in seq_len(nrow(strata_vals))) {
+        key <- strata_vals[i]
+        sub <- cl[key, on = strata]
         mu_levels <- sort(unique(sub$mu))
 
         # Refuse to report rather than report vacuously. An interior peak needs
         # at least three mu levels to exist at all.
         if (length(mu_levels) < 3) {
-            out[[i]] <- data.table(lambdaGap = g, reserveRatio = r, mu = NA_real_,
-                                   nMuLevels = length(mu_levels), excess = NA_real_,
-                                   se = NA_real_, ci_lo = NA_real_, ci_hi = NA_real_,
-                                   nSeeds = uniqueN(sub$paramSeed), nRuns = sum(sub$n),
-                                   testable = FALSE)
+            out[[i]] <- cbind(key, data.table(
+                mu = NA_real_, nMuLevels = length(mu_levels), excess = NA_real_,
+                se = NA_real_, ci_lo = NA_real_, ci_hi = NA_real_,
+                nSeeds = uniqueN(sub$paramSeed), nRuns = sum(sub$n),
+                testable = FALSE))
             next
         }
 
@@ -241,110 +373,156 @@ excess_table <- function(cl, n_boot) {
             e <- excess_of(as.numeric(names(by_mu)), unname(rates))
             boot[b, ] <- e$excess
         }
-        out[[i]] <- data.table(
-            lambdaGap = g, reserveRatio = r, mu = est$mu,
-            nMuLevels = length(mu_levels), excess = est$excess,
+        out[[i]] <- cbind(key, data.table(
+            mu = est$mu, nMuLevels = length(mu_levels), excess = est$excess,
             se    = apply(boot, 2, sd),
             ci_lo = apply(boot, 2, quantile, 0.025, names = FALSE),
             ci_hi = apply(boot, 2, quantile, 0.975, names = FALSE),
-            nSeeds = uniqueN(sub$paramSeed), nRuns = sum(sub$n), testable = TRUE)
+            nSeeds = uniqueN(sub$paramSeed), nRuns = sum(sub$n), testable = TRUE))
     }
     rbindlist(out)
 }
 
-cl_t <- clusters(dt_t)
-cat("\nBootstrapping treatment arm...\n")
-ex_t <- excess_table(cl_t, n_boot)
-ex_t[, arm := "treatment"]
+# ── One full analysis for a given (outcome, stratification) ─────────────────
+run_block <- function(outcome, strata, block, make_figure) {
+    sc  <- outcome$scale
+    tag <- paste0(outcome$key, "__", block)
 
-untestable <- ex_t[testable == FALSE]
-if (nrow(untestable) > 0) {
-    cat("\n⚠️", nrow(untestable), "stratum/strata have fewer than 3 mu levels — an interior\n")
-    cat("   peak cannot exist there. Reported as NA (untestable), NOT as monotonic.\n")
-}
+    cat("\n", strrep("=", 74), "\n", sep = "")
+    cat("OUTCOME: ", outcome$desc, "\n", sep = "")
+    cat("UNITS:   ", outcome$unit, "\n", sep = "")
+    cat("STRATA:  ", paste(strata, collapse = " x "), "\n", sep = "")
+    cat(strrep("=", 74), "\n", sep = "")
 
-res <- ex_t
-if (!is.null(dt_p)) {
-    cat("Bootstrapping placebo arm...\n")
-    ex_p <- excess_table(clusters(dt_p), n_boot)
-    ex_p[, arm := "placebo"]
-    res <- rbind(ex_t, ex_p)
+    cl_t <- clusters(dt_t, outcome, strata)
+    cat("Bootstrapping treatment arm (", nrow(unique(cl_t[, ..strata])), " strata)...\n", sep = "")
+    ex_t <- excess_table(cl_t, n_boot, strata)
+    ex_t[, arm := "treatment"]
 
-    # ── The headline contrast ────────────────────────────────────────────────
-    # Independent arms, so the difference's SE adds in quadrature.
-    d <- merge(ex_t[testable == TRUE, .(lambdaGap, reserveRatio, mu,
-                                        ex_t = excess, se_t = se)],
-               ex_p[testable == TRUE, .(lambdaGap, reserveRatio, mu,
-                                        ex_p = excess, se_p = se)],
-               by = c("lambdaGap", "reserveRatio", "mu"))
-    d[, diff := ex_t - ex_p]
-    d[, se   := sqrt(se_t^2 + se_p^2)]
-    d[, z    := diff / se]
-    setorder(d, -diff)
-    fwrite(d, file.path(out_dir, "p6b_treatment_minus_placebo.csv"))
-
-    cat("\n=== P6b: excess(treatment) - excess(placebo) ===\n")
-    cat("Positive = hump present under warm-up assignment and absent when\n")
-    cat("cultural type is decoupled from network position. That is P6b.\n\n")
-    print(d[, .(lambdaGap, reserveRatio, mu,
-                excess_treat = round(100 * ex_t, 2),
-                excess_placebo = round(100 * ex_p, 2),
-                diff_pp = round(100 * diff, 2),
-                se_pp = round(100 * se, 2), z = round(z, 2))])
-    cat(sprintf("\nPooled: mean diff %+.2f pp over %d stratum-mu points; %d of %d positive.\n",
-                100 * mean(d$diff), nrow(d), sum(d$diff > 0), nrow(d)))
-
-    # ── Assumption check: P6a must be untouched at the endpoints ─────────────
-    # At mu = 0 and mu = 1 only one type is present, so P6b is zero by
-    # construction. Any between-arm gap there is P6a contamination and the
-    # contrast above is not clean.
-    ends <- function(cl, label) {
-        mus <- sort(unique(cl$mu))
-        cl[mu %in% c(mus[1], mus[length(mus)]),
-           .(rate = sum(k) / sum(n), nRuns = sum(n)),
-           by = .(lambdaGap, reserveRatio, mu)][, arm := label][]
+    untestable <- ex_t[testable == FALSE]
+    if (nrow(untestable) > 0) {
+        cat("\n⚠️", nrow(untestable), "stratum/strata have fewer than 3 mu levels — an interior\n")
+        cat("   peak cannot exist there. Reported as NA (untestable), NOT as monotonic.\n")
     }
-    ec <- merge(ends(cl_t, "treatment")[, .(lambdaGap, reserveRatio, mu, rate_t = rate)],
-                ends(clusters(dt_p), "placebo")[, .(lambdaGap, reserveRatio, mu, rate_p = rate)],
-                by = c("lambdaGap", "reserveRatio", "mu"))
-    ec[, gap_pp := 100 * (rate_t - rate_p)]
-    fwrite(ec, file.path(out_dir, "endpoint_contamination.csv"))
-    cat("\n=== Assumption check: P6a unchanged at the endpoints ===\n")
-    cat(sprintf("mean |gap| at mu endpoints: %.2f pp   max |gap|: %.2f pp\n",
-                mean(abs(ec$gap_pp)), max(abs(ec$gap_pp))))
-    cat("Large gaps here mean random assignment moved P6a too, and the contrast\n")
-    cat("above is not clean. See endpoint_contamination.csv.\n")
+
+    res <- ex_t
+    if (!is.null(dt_p)) {
+        cat("Bootstrapping placebo arm...\n")
+        cl_p <- clusters(dt_p, outcome, strata)
+        ex_p <- excess_table(cl_p, n_boot, strata)
+        ex_p[, arm := "placebo"]
+        res <- rbind(ex_t, ex_p)
+
+        # ── The headline contrast ────────────────────────────────────────────
+        # Independent arms, so the difference's SE adds in quadrature.
+        keep_t <- c(strata, "mu", "excess", "se")
+        d <- merge(setnames(ex_t[testable == TRUE, ..keep_t],
+                            c("excess", "se"), c("ex_t", "se_t")),
+                   setnames(ex_p[testable == TRUE, ..keep_t],
+                            c("excess", "se"), c("ex_p", "se_p")),
+                   by = c(strata, "mu"))
+        d[, diff := ex_t - ex_p]
+        d[, se   := sqrt(se_t^2 + se_p^2)]
+        d[, z    := diff / se]
+        setorder(d, -diff)
+        fwrite(d, file.path(out_dir, paste0("p6b_treatment_minus_placebo__", tag, ".csv")))
+
+        cat("\n=== P6b: excess(treatment) - excess(placebo) — ", outcome$unit, " ===\n", sep = "")
+        cat("Positive = hump present under warm-up assignment and absent when\n")
+        cat("cultural type is decoupled from network position. That is P6b.\n\n")
+        show <- copy(d)
+        show[, `:=`(excess_treat = round(sc * ex_t, 2),
+                    excess_placebo = round(sc * ex_p, 2),
+                    diff_u = round(sc * diff, 2),
+                    se_u = round(sc * se, 2), z = round(z, 2))]
+        print(show[, c(strata, "mu", "excess_treat", "excess_placebo",
+                       "diff_u", "se_u", "z"), with = FALSE])
+        cat(sprintf("\nPooled: mean diff %+.3f %s over %d stratum-mu points; %d of %d positive.\n",
+                    sc * mean(d$diff), outcome$unit, nrow(d), sum(d$diff > 0), nrow(d)))
+
+        # ── Assumption check: P6a must be untouched at the endpoints ─────────
+        # At mu = 0 and mu = 1 only one type is present, so P6b is zero by
+        # construction. Any between-arm gap there is P6a contamination and the
+        # contrast above is not clean.
+        ends <- function(cl) {
+            mus <- sort(unique(cl$mu))
+            cl[mu %in% c(mus[1], mus[length(mus)]),
+               .(rate = sum(k) / sum(n), nRuns = sum(n)),
+               by = c(strata, "mu")]
+        }
+        ec <- merge(setnames(ends(cl_t), "rate", "rate_t")[, c(strata, "mu", "rate_t"), with = FALSE],
+                    setnames(ends(cl_p), "rate", "rate_p")[, c(strata, "mu", "rate_p"), with = FALSE],
+                    by = c(strata, "mu"))
+        ec[, gap_u := sc * (rate_t - rate_p)]
+        fwrite(ec, file.path(out_dir, paste0("endpoint_contamination__", tag, ".csv")))
+        cat("\n=== Assumption check: P6a unchanged at the endpoints ===\n")
+        cat(sprintf("mean |gap| at mu endpoints: %.3f %s   max |gap|: %.3f %s\n",
+                    mean(abs(ec$gap_u)), outcome$unit,
+                    max(abs(ec$gap_u)), outcome$unit))
+        cat("Large gaps here mean random assignment moved P6a too, and the contrast\n")
+        cat("above is not clean. See endpoint_contamination__", tag, ".csv.\n", sep = "")
+    }
+
+    fwrite(res, file.path(out_dir, paste0("p6b_excess_above_chord__", tag, ".csv")))
+
+    cat("\n=== Within-arm excess above the endpoint chord — ", outcome$unit, " ===\n", sep = "")
+    cat("⚠️ Confounded with P6a curvature — see the header. Diagnostic, not a result.\n\n")
+    shown <- res[testable == TRUE]
+    if (nrow(shown) > 0) {
+        shown <- copy(shown)
+        shown[, `:=`(excess_u = round(sc * excess, 2),
+                     ci = sprintf("[%+.2f, %+.2f]", sc * ci_lo, sc * ci_hi))]
+        setorderv(shown, c("arm", strata, "mu"))
+        print(shown[, c("arm", strata, "mu", "nMuLevels", "excess_u", "ci", "nSeeds"),
+                    with = FALSE])
+    }
+
+    # ── Figure (headline stratification only — the facet grid is 2-D) ────────
+    if (make_figure && !CAN_PLOT) {
+        cat("\n(figure skipped — plotting packages unavailable; CSVs above are complete)\n")
+    }
+    if (make_figure && CAN_PLOT && nrow(res[testable == TRUE]) > 0) {
+        plot_dt <- res[testable == TRUE]
+        p <- ggplot(plot_dt, aes(x = factor(mu), y = sc * excess,
+                                 ymin = sc * ci_lo, ymax = sc * ci_hi,
+                                 color = arm, group = arm)) +
+            geom_hline(yintercept = 0, linewidth = 0.4, color = "grey40") +
+            geom_pointrange(position = position_dodge(width = 0.4), size = 0.35) +
+            facet_grid(sprintf("λ-gap %.1f", lambdaGap) ~ sprintf("r = %.2f", reserveRatio)) +
+            labs(title = paste0("P6b: excess above the endpoint chord — ", outcome$desc),
+                 subtitle = paste0("Cluster bootstrap on paramSeed (", n_boot,
+                                   " reps). Positive = interior hump above a linear P6a baseline."),
+                 x = expression("Individualist share " * mu),
+                 y = paste0("Excess (", outcome$unit, ")"), color = NULL) +
+            theme_minimal(base_size = 10) +
+            theme(legend.position = "bottom", panel.grid.minor = element_blank())
+        ggsave(file.path(out_dir, paste0("p6b_excess__", tag, ".png")), p,
+               width = 11, height = 6, dpi = 200)
+        cat("\nWrote p6b_excess__", tag, ".png\n", sep = "")
+    }
+
+    invisible(res)
 }
 
-fwrite(res, file.path(out_dir, "p6b_excess_above_chord.csv"))
+# ── Run the blocks ──────────────────────────────────────────────────────────
+# Primary outcome on both stratifications; the binary secondary on the headline
+# stratification only, so the legacy comparison exists without quadrupling the
+# bootstrap cost.
+run_block(OUTCOMES$cascade, STRATA_HEADLINE, "headline", make_figure = TRUE)
+run_block(OUTCOMES$binary,  STRATA_HEADLINE, "headline", make_figure = TRUE)
 
-cat("\n=== Within-arm excess above the endpoint chord ===\n")
-cat("⚠️ Confounded with P6a curvature — see the header. Diagnostic, not a result.\n\n")
-print(res[testable == TRUE,
-          .(arm, lambdaGap, reserveRatio, mu, nMuLevels,
-            excess_pp = round(100 * excess, 2),
-            ci = sprintf("[%+.2f, %+.2f]", 100 * ci_lo, 100 * ci_hi),
-            nSeeds)][order(arm, lambdaGap, reserveRatio, mu)])
-
-# ── Figure ──────────────────────────────────────────────────────────────────
-plot_dt <- res[testable == TRUE]
-if (nrow(plot_dt) > 0) {
-    p <- ggplot(plot_dt, aes(x = factor(mu), y = 100 * excess,
-                             ymin = 100 * ci_lo, ymax = 100 * ci_hi,
-                             color = arm, group = arm)) +
-        geom_hline(yintercept = 0, linewidth = 0.4, color = "grey40") +
-        geom_pointrange(position = position_dodge(width = 0.4), size = 0.35) +
-        facet_grid(sprintf("λ-gap %.1f", lambdaGap) ~ sprintf("r = %.2f", reserveRatio)) +
-        labs(title = "P6b: excess run probability above the endpoint chord",
-             subtitle = paste0("Cluster bootstrap on paramSeed (", n_boot,
-                               " reps). Positive = interior hump above a linear P6a baseline."),
-             x = expression("Individualist share " * mu),
-             y = "Excess (percentage points)", color = NULL) +
-        theme_minimal(base_size = 10) +
-        theme(legend.position = "bottom", panel.grid.minor = element_blank())
-    ggsave(file.path(out_dir, "p6b_excess.png"), p,
-           width = 11, height = 6, dpi = 200)
-    cat("\nWrote p6b_excess.png\n")
+if (!skip_inter) {
+    n_inter <- nrow(unique(dt_t[, ..STRATA_INTERACTION]))
+    cat("\n", strrep("-", 74), "\n", sep = "")
+    cat("INSURANCE INTERACTION — depQuantile x lambdaGap, the reduced-form\n")
+    cat("social-learning test. ", n_inter, " strata (vs ",
+        nrow(unique(dt_t[, ..STRATA_HEADLINE])), " headline), so each\n", sep = "")
+    cat("stratum-mu point pools proportionally fewer paramSeeds. Check nSeeds\n")
+    cat("in the output before quoting anything from it.\n")
+    cat(strrep("-", 74), "\n", sep = "")
+    run_block(OUTCOMES$cascade, STRATA_INTERACTION, "insurance", make_figure = FALSE)
+} else {
+    cat("\nSkipping the insurance interaction (BANKRUN_SKIP_INTERACTION set).\n")
 }
 
 cat("\nDone. Outputs in:", out_dir, "\n")

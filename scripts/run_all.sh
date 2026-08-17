@@ -16,6 +16,18 @@
 #   ./scripts/run_all.sh --tag production --restart        # top up under-filled cells
 #   ./scripts/run_all.sh --consolidate --analyze --tag production   # post-processing only
 #
+#   # THE P6b TEST — the chapter's headline number:
+#   ./scripts/run_all.sh --analyze --tag production --compare placebo
+#
+# --compare <tag>  Contrast this arm against <tag> in analysis_p6b.R, giving
+#   excess(treatment) - excess(placebo). This is the identification strategy,
+#   not a robustness check: P6a is a composition effect and survives random
+#   assignment, P6b is a position effect and should not, so the contrast
+#   differences out the P6a curvature confound that no single-arm statistic can
+#   separate. Without it the P6b job still runs, but within-arm only — and a
+#   concave P6a produces a positive within-arm excess with no P6b at all.
+#   --no-p6b  skips the P6b job entirely.
+#
 # Axis overrides (passed straight to gen_params.sh, which validates them):
 #   --reserve  --depq  --sigma  --k  --p  --alpha  --mu  --lambda-i  --lambda-c
 #   --lambda-mode paired|crossed
@@ -82,6 +94,8 @@ DRY_RUN=0
 DO_SWEEP=1
 DO_CONSOLIDATE=1
 DO_ANALYZE=1
+DO_P6B=1                # analysis_p6b.R — the actual P6b test, see --compare
+COMPARE_TAG=""          # placebo arm to contrast against; empty = within-arm only
 DO_CHECK=1
 RESTART=0
 STAGE_ONLY=0            # set when --consolidate/--analyze given without a sweep
@@ -118,6 +132,8 @@ while [[ $# -gt 0 ]]; do
         --no-sweep)     DO_SWEEP=0; shift ;;
         --no-consolidate) DO_CONSOLIDATE=0; shift ;;
         --no-analyze)   DO_ANALYZE=0; shift ;;
+        --no-p6b)       DO_P6B=0; shift ;;
+        --compare)      COMPARE_TAG="$2"; DO_P6B=1; shift 2 ;;
         --no-check)     DO_CHECK=0; shift ;;
         --consolidate)  STAGE_ONLY=1; DO_CONSOLIDATE=1; shift ;;
         --analyze)      STAGE_ONLY=1; DO_ANALYZE=1; shift ;;
@@ -165,6 +181,41 @@ fi
 
 ARM_DIR="${PROJECT_ROOT}/outputs/${TAG}"
 MANIFEST="${ARM_DIR}/manifest.csv"
+
+# ── --compare: resolve the contrast arm ──────────────────────────────────────
+# analysis_p6b.R's headline statistic is excess(treatment) - excess(placebo).
+# Until 2026-08-17 nothing in this pipeline ever set BANKRUN_COMPARE_DIR, so
+# the chapter's headline number was reachable only by hand-exporting an
+# environment variable — the kind of undocumented incantation that produces a
+# wrong-axis figure months later.
+COMPARE_DIR=""
+if [[ -n "$COMPARE_TAG" ]]; then
+    if [[ ! "$COMPARE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        echo "ERROR: --compare must be alphanumeric with . _ - only (it is a tag)" >&2
+        exit 1
+    fi
+    # Contrasting an arm with itself yields an identically-zero difference,
+    # which reads as a clean, well-identified null. Refuse it.
+    if [[ "$COMPARE_TAG" == "$TAG" ]]; then
+        echo "ERROR: --compare '${COMPARE_TAG}' is the same arm as --tag." >&2
+        echo "       The contrast would be exactly zero by construction and would" >&2
+        echo "       look like a clean null result. Compare against the other arm." >&2
+        exit 1
+    fi
+    COMPARE_DIR="${PROJECT_ROOT}/outputs/${COMPARE_TAG}"
+    if [[ ! -d "$COMPARE_DIR" ]]; then
+        echo "ERROR: --compare arm directory does not exist: ${COMPARE_DIR}" >&2
+        echo "       Run that arm first, or check the tag." >&2
+        exit 1
+    fi
+    # The CSV legitimately may not exist yet if both arms are in flight; the
+    # analysis job is chained behind consolidation and R will refuse cleanly.
+    if [[ ! -f "${COMPARE_DIR}/consolidated_results.csv" ]]; then
+        echo "NOTE: ${COMPARE_DIR}/consolidated_results.csv not present yet." >&2
+        echo "      Fine if that arm is still running or not yet consolidated —" >&2
+        echo "      analysis_p6b.R will refuse rather than half-report." >&2
+    fi
+fi
 
 # The legacy sweep lives at outputs/task_*. Refuse to alias it.
 if [[ "$TAG" == "task" ]] || [[ "$TAG" == task_* ]]; then
@@ -395,6 +446,38 @@ if [[ $DO_ANALYZE -eq 1 ]]; then
         --chdir="${PROJECT_ROOT}" \
         "${SCRIPTS_DIR}/run_analysis.slurm")
     echo "Submitted ${jobname}    →  job ${an_jid}${CONS_JID:+  (afterok:${CONS_JID})}"
+fi
+
+# ── Stage 5: the P6b test (analysis_p6b.R) ────────────────────────────────────
+# Submitted as its own job rather than folded into stage 4: it is a different
+# script with a different input contract (two arms, not one), and when a
+# contrast arm is given it must be able to fail on that arm's absence without
+# taking the marginal-plot analysis down with it.
+#
+# afterok on consolidation, same reasoning as stage 4 — a P6b contrast computed
+# on a truncated CSV is worse than no contrast.
+if [[ $DO_P6B -eq 1 ]]; then
+    jobname="bankrun-${TAG}-p6b"
+    dep_flag=()
+    [[ -n "$CONS_JID" ]] && dep_flag=(--dependency=afterok:"${CONS_JID}")
+    p6b_export="ALL,BANKRUN_PROJECT_ROOT=${PROJECT_ROOT},BANKRUN_ARM_DIR=${ARM_DIR}"
+    [[ -n "$COMPARE_DIR" ]] && p6b_export="${p6b_export},BANKRUN_COMPARE_DIR=${COMPARE_DIR}"
+    p6b_jid=$(run_or_echo sbatch --parsable \
+        --job-name="${jobname}" \
+        --partition=normal \
+        --nodes=1 --cpus-per-task=4 --mem=16G --time="0-02:00:00" \
+        --output="/scratch/%u/${jobname}-%j.out" \
+        --error="/scratch/%u/${jobname}-%j.err" \
+        --export="${p6b_export}" \
+        "${dep_flag[@]}" \
+        --chdir="${PROJECT_ROOT}" \
+        "${SCRIPTS_DIR}/run_analysis.slurm" "${SCRIPTS_DIR}/analysis_p6b.R")
+    if [[ -n "$COMPARE_DIR" ]]; then
+        echo "Submitted ${jobname}         →  job ${p6b_jid}  (contrast vs '${COMPARE_TAG}')"
+    else
+        echo "Submitted ${jobname}         →  job ${p6b_jid}  (within-arm only — no --compare given,"
+        echo "                                        so the P6a curvature confound is NOT differenced out)"
+    fi
 fi
 
 echo ""

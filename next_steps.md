@@ -27,7 +27,12 @@ in `git status` to show it — hopper was still running the pre-fix positional
 before 2026-08-13 should be trusted until regenerated.** `outputs/` is now
 gitignored in full and chapter figures live in `figures/`.
 
-**⚠️ CRLF trap, unfixed.** Schuler's four files (`functions4.jl`,
+**✅ CRLF trap — guarded 2026-08-17** (`.gitattributes`, `-text` on the four files
++ `restart.jl`; `-text` rather than `eol=crlf` so no renormalisation diff lands on
+Schuler's files before item 12 is sent). The manual check below is still required —
+a `.gitattributes` stops *git* converting, not an *editor*. Original note:
+
+**⚠️ CRLF trap, was unfixed.** Schuler's four files (`functions4.jl`,
 `finMain0001.jl`, `parameterGen.jl`, `objects.jl`) are CRLF; ours are LF. The
 morning's edits silently flipped three of them, inflating `functions4.jl`'s diff
 from 62 lines to 1,122. Restored before staging, but there is no
@@ -133,8 +138,16 @@ chord, cluster-bootstrapped on `paramSeed`, headline = the treatment-minus-place
 contrast. Verified against four ground-truth fixtures at the real clustering depth.
 Item 5 is unblocked.
 
-**21. Switch the P6b outcome variable from `bankRun` to cascade size \|S*\|.** New
-2026-08-16, and it follows from reading the model as threshold-cascade percolation.
+**✅ 21. RESOLVED 2026-08-17 — the P6b outcome is now cascade size \|S*\|.**
+`analysis_p6b.R` primary outcome is `nWithdrawn`; `bankRun` retained as a secondary so
+the legacy comparison survives. Outputs suffixed `__cascade__`/`__binary__` and
+`__headline__`/`__insurance__` — deliberately NOT reusing the old filenames, because
+keeping a name while changing what it measures is this repo's signature failure.
+Validated by `test/test_p6b_continuous.R` (6 fixtures, 22 PASS / 0 FAIL), which is
+committed this time — the 08-16 fixtures were built in-session and lost.
+Three guards added while there: refuse blank `nWithdrawn` (legacy rows) rather than
+dropping them, refuse mixed `mcDepth`, and refuse `--compare` against the arm's own tag.
+Original reasoning:
 
 μ and the λ-gap set **transmissibility** (individualists are firebreaks that are also
 lightning rods — they absorb the signal at λ_I ≈ 0.1 but their private-signal tail draws
@@ -266,6 +279,32 @@ not acceptable is writing §6 without knowing which one we are claiming.
 Source material: `chapter2.tex`, `theory/gp_walkthrough.tex` and `theory/fig_v.py` (the
 2026-08-14 derivation from primitives, verified numerically), `REPOSITORY_REVIEW.md`
 §Role in Endogenous Decision-Making for the coupled fixed point.
+
+---
+
+## 🟢 Done 2026-08-17 — the analysis chain
+
+**23. `--compare <tag>` wired into `run_all.sh`.** Until today nothing in the pipeline
+ever set `BANKRUN_COMPARE_DIR`, so the chapter's headline statistic was reachable only
+by hand-exporting an environment variable. `analysis_p6b.R` now runs as its own SLURM
+job (`bankrun-<tag>-p6b`, `--no-p6b` to disable), and `--compare` threads the contrast
+arm through. Guards: refuses a self-compare (which would return an exactly-zero
+difference that reads as a clean null), refuses a missing arm directory, and warns
+loudly when run without `--compare` that the P6a curvature confound is *not*
+differenced out.
+
+**24. The insurance interaction is now estimated.** `analysis_p6b.R` emits a second
+stratification adding `depQuantile`, giving `depQuantile × λ-gap` — the reduced-form
+test of whether a deposit-insurance backstop dampens social-signal weighting. This
+answers the committee's FDIC/social-learning question on the arms already running, at
+zero simulation cost. ⚠️ Reduced form only: λ is assigned at warm-up and never learned;
+the structural version is `future_work.md` item 1. ⚠️ And `depQuantile` is a share of
+depositors **by count** — at σ = 3.0, q = 0.5 insures ~0.7% of deposit *value*.
+
+**25. Plotting packages are no longer load-bearing.** `analysis_p6b.R` required
+ggplot2+scales at preflight, so a missing *plotting* library aborted the run before any
+number was computed — the exact shape of the 08-16 wall. data.table is now the only hard
+requirement; figures degrade to a warning and every CSV is still written.
 
 ---
 
