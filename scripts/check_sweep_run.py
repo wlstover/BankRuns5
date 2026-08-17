@@ -39,8 +39,22 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-# 5 initialisation seeds x 10 iterations per seed (parameterGen.jl:40-42).
-EXPECTED_RUNS_PER_CELL = 50
+# ⚠️ 250, not 50 — corrected 2026-08-17. parameterGen.jl:111 is
+#     seed1 = repeat(sample(1:1000000, seedRun, replace=false), seedRun)
+# which yields 25 seedFrame rows (5 distinct seeds, each repeated 5x),
+# crossjoined with iteration 1:runSize=10 -> 250 rows per cell. `iteration`
+# never reaches the model, so the structure is 5 initialisations x 50 shock
+# draws, NOT the "5 x 10 = 50" described at parameterGen.jl:39-42. Confirmed
+# against the legacy sweep: 2,833 of 2,835 cells hold exactly 250 rows with
+# exactly 5 distinct seed1.
+#
+# This was 50 until 2026-08-17, and the consequence was not cosmetic. Every
+# healthy cell would have been reported "surplus" (2,160 NOTE lines, drowning
+# the signal), and — the real problem — a TIMEOUT'd cell holding 51-249 of its
+# 250 runs would have been classified surplus, i.e. GREEN, when it is exactly
+# the failure this verifier exists to catch. check_recording.sh was corrected
+# on 2026-08-15; this file was missed.
+EXPECTED_RUNS_PER_CELL = 250
 
 # bankRunParametersInit.csv width. 12 = pre-sigma-fix; 14 = with lognMu/lognSigma.
 LEGACY_PARAM_COLS = 12
@@ -145,6 +159,7 @@ def main():
 
     fails, warns = [], []
     n_ok = n_partial = n_surplus = 0
+    ragged_tasks = []
     total_runs = 0
     total_outcomes = 0
     legacy_width_tasks = []
@@ -152,6 +167,20 @@ def main():
 
     print(f"arm directory : {arm_dir}")
     print(f"task dirs     : {len(task_dirs)}")
+
+    # An arm with no task directories at all used to print RESULT: OK, because
+    # every count was trivially zero and no check had anything to fail on. That
+    # is the house failure mode — a gate reporting green on a job that
+    # accomplished nothing (cf. the three PASSes on the dead 2026-08-13 smoke
+    # run). A verifier that cannot see any work has not verified anything.
+    if not task_dirs:
+        print("-" * 70)
+        print(f"FAIL  no task directories under {arm_dir}.")
+        print("      Nothing was verified. This is not a pass — check that the arm tag")
+        print("      is right, that the sweep actually started, and that sweep_task.slurm")
+        print("      wrote where you think it did (it mkdir -p's TASK_DIR before Julia")
+        print("      runs, so an empty dir is not evidence the model ever executed).")
+        return 1
     if expected_ids is not None:
         print(f"manifest cells: {len(expected_ids)}")
     if args.job_id:
@@ -188,6 +217,13 @@ def main():
             warns.append(f"task_{tid}: {n_res}/{args.expected_runs} runs — under-filled")
         elif n_res > args.expected_runs:
             n_surplus += 1
+            # A top-up appends a WHOLE fresh block, so a legitimately topped-up
+            # cell holds an exact multiple of the block size. A ragged count is
+            # a top-up that itself died partway — surplus in total while still
+            # missing runs from its last block, which "surplus" alone reads as
+            # healthy. Separate the two.
+            if n_res % args.expected_runs != 0:
+                ragged_tasks.append((tid, n_res))
         else:
             n_ok += 1
 
@@ -224,6 +260,18 @@ def main():
         print("      block under new keys rather than resuming. The extra runs are valid")
         print("      draws — but do NOT describe the sweep as N replications per cell")
         print("      without recounting from the data.")
+        print()
+
+    if ragged_tasks:
+        print(f"WARN  {len(ragged_tasks)} cells hold a run count that is NOT a multiple")
+        print(f"      of {args.expected_runs}. A top-up appends a whole block, so a ragged")
+        print("      total means a top-up died partway: the cell is over the base count")
+        print("      while still missing runs from its final block. Counting it as")
+        print("      'surplus' would read as healthy.")
+        for tid, n in ragged_tasks[:10]:
+            print(f"        task_{tid}: {n} runs")
+        if len(ragged_tasks) > 10:
+            print(f"        … and {len(ragged_tasks) - 10} more")
         print()
 
     if legacy_width_tasks:
