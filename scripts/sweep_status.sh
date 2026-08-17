@@ -107,7 +107,7 @@ report_arm() {
     # ── Terminal states from the accounting DB ───────────────────────────────
     local done_ct=0
     if [[ -n "$jid" ]] && have sacct; then
-        echo "-- finished (sacct) --"
+        echo "-- all states (sacct) --"
         sacct -X -j "$jid" -n --format=State%20 2>/dev/null \
             | awk '{print $1}' | sort | uniq -c \
             | awk '{printf "   %-14s %s\n", $2, $1}'
@@ -149,7 +149,13 @@ report_arm() {
     local dirs=0 withdata=0
     if [[ -d "$arm_dir" ]]; then
         dirs=$(find "$arm_dir" -mindepth 1 -maxdepth 1 -type d -name 'task_*' 2>/dev/null | wc -l)
-        withdata=$(find "$arm_dir" -mindepth 2 -maxdepth 2 -name 'bankRunResults*.csv' 2>/dev/null | wc -l)
+        # Count task DIRECTORIES holding at least one outcome file, not the
+        # files themselves. A task writes one bankRunResults<N>.csv per worker
+        # block, so counting files gave 3,370 for 230 dirs and reported
+        # "progress: 156%" — a percentage over 100 being the only reason it got
+        # noticed. -printf '%h' then sort -u collapses to the parent dir.
+        withdata=$(find "$arm_dir" -mindepth 2 -maxdepth 2 -name 'bankRunResults*.csv' \
+                        -printf '%h\n' 2>/dev/null | sort -u | wc -l)
     fi
     echo "   task dirs created      : ${dirs}"
     echo "   with an outcome file   : ${withdata}${expected:+  of ${expected} cells}"
