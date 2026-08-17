@@ -30,7 +30,8 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # flag healthy cells and train the reader to ignore it. What it is really for
 # is the unambiguous corpse: the 9-second and 59-second exits this pipeline has
 # produced twice. Raise it with --short if you want a stricter sweep.
-SHORT_RUN_SECS=${SHORT_RUN_SECS:-300}
+SHORT_RUN_SECS=${SHORT_RUN_SECS:-60}
+EXPECT_RUNS=${EXPECT_RUNS:-250}   # parameterGen.jl:111 — 250, not the documented 50
 
 TAGS=(); JOB_IDS=()
 while [[ $# -gt 0 ]]; do
@@ -128,20 +129,59 @@ report_arm() {
             echo "   none"
         fi
 
-        # ⚠️ COMPLETED but implausibly fast. This is the check the State column
-        # cannot give you, and the one this pipeline keeps needing.
-        local fast=0
+        # ── COMPLETED but short: the check that actually matters ────────────
+        # This began as "COMPLETED but implausibly fast", on the theory that a
+        # task which did nothing returns quickly. On 2026-08-17 that flagged six
+        # cells at ~4:50 which turned out to hold a full 250 runs each: they were
+        # r=0.15, sigma=3.0, mu=1.0 -- smallest vault, most concentrated
+        # deposits, no herding -- so the cascade completes in a tick or two and
+        # five minutes is CORRECT. Six for six on three axes: a legitimate corner
+        # of the grid, not a fault.
+        #
+        # Elapsed was only ever a proxy. The real question is whether the task
+        # wrote its runs, and that has no false positives from fast cells. Time
+        # is kept only for the unambiguous corpse (under 60s), where no cell can
+        # legitimately finish.
+        local short_list
+        short_list=$(find "$arm_dir" -mindepth 2 -maxdepth 2 -name 'bankRunResults*.csv' -print0 2>/dev/null \
+            | xargs -0 -r wc -l 2>/dev/null \
+            | awk -v want="$EXPECT_RUNS" '
+                $2 ~ /task_[0-9]+\// { d=$2; sub(/\/[^\/]*$/,"",d); rows[d]+=$1 }
+                END { for (d in rows) if (rows[d] < want) printf "%s %d\n", d, rows[d] }' \
+            | sort)
+        # Only finished tasks: a running task is short because it is not done.
+        local completed_ids
+        completed_ids=$(sacct -X -j "$jid" -n --state=COMPLETED --format=JobID%20 2>/dev/null \
+                        | sed 's/.*_//' | tr -d ' ' | sort -u)
+        if [[ -n "$short_list" && -n "$completed_ids" ]]; then
+            local flagged=0
+            echo "-- COMPLETED but short of ${EXPECT_RUNS} runs --"
+            while read -r d n; do
+                [[ -z "${d:-}" ]] && continue
+                local tid="${d##*task_}"
+                grep -qx "$tid" <<< "$completed_ids" || continue
+                flagged=$((flagged+1))
+                [[ $flagged -le 15 ]] && echo "   task_${tid}: ${n}/${EXPECT_RUNS} runs"
+            done <<< "$short_list"
+            if [[ $flagged -eq 0 ]]; then
+                echo "   none — every finished task wrote its full complement"
+            else
+                [[ $flagged -gt 15 ]] && echo "   … and $((flagged - 15)) more"
+                echo "   ⚠️  ${flagged} task(s) exited COMPLETED without writing all"
+                echo "       ${EXPECT_RUNS} runs. A green state on incomplete work is this"
+                echo "       repo's signature failure. Recover with --restart (a top-up:"
+                echo "       it appends a fresh block, it does not finish a partial one)."
+            fi
+        fi
+
+        # The unambiguous corpse only. No cell finishes legitimately in <60s.
+        local dead=0
         while read -r id el; do
             [[ -z "${el:-}" ]] && continue
-            [[ $(to_secs "$el") -lt $SHORT_RUN_SECS ]] && { fast=$((fast+1)); \
-                [[ $fast -le 8 ]] && echo "   ⚠️  ${id} COMPLETED in ${el} — too fast to have done the work"; }
+            [[ $(to_secs "$el") -lt $SHORT_RUN_SECS ]] && { dead=$((dead+1)); \
+                [[ $dead -le 8 ]] && echo "   ⚠️  ${id} COMPLETED in ${el} — no cell finishes this fast"; }
         done < <(sacct -X -j "$jid" -n --state=COMPLETED \
                        --format=JobID%20,Elapsed%12 2>/dev/null | awk '{print $1, $2}')
-        if [[ $fast -gt 0 ]]; then
-            echo "   ⚠️  ${fast} COMPLETED task(s) ran under $((SHORT_RUN_SECS/60)) min."
-            echo "       A green state on a task that did nothing is this repo's"
-            echo "       signature failure. Check its .err before trusting the arm."
-        fi
     fi
 
     # ── What actually landed on disk ─────────────────────────────────────────
