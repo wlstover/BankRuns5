@@ -53,9 +53,45 @@ using Graphs
 using Printf
 using SHA
 using Dates
+import Pkg
+
+# ⚠️ pkgversion() was added in Julia 1.9. hopper loads julia/1.8.0
+# (sweep_task.slurm:46), where calling it is an UndefVarError — which is exactly
+# what happened on first use, 2026-08-17. The provenance line is a nicety; it
+# must never be the thing that stops the network being dumped.
+function graphs_version()
+    if isdefined(Base, :pkgversion)          # Julia >= 1.9
+        try
+            return string(Base.pkgversion(Graphs))
+        catch
+        end
+    end
+    try                                       # works on 1.8
+        for (_, dep) in Pkg.dependencies()
+            if dep.name == "Graphs" && dep.version !== nothing
+                return string(dep.version)
+            end
+        end
+    catch
+    end
+    return "unknown"
+end
 
 function usage()
-    println(read(@__FILE__, String)[1:findfirst("=====\n", read(@__FILE__, String))[end]])
+    println("""
+    dump_network.jl — regenerate a sweep cell's network as an edge list.
+
+      --manifest F --task N     read k and p from the manifest (preferred)
+      --seed S [--k 6] [--p 0.05]
+      --n 1000                  agent count
+      --seed-offset 1000        genSeed = offset + task
+      --out PATH                writes PATH_edges.csv and PATH_meta.csv
+
+    Example:
+      julia --project scripts/dump_network.jl \\
+            --manifest outputs/production/manifest.csv --task 73 \\
+            --out outputs/production/task_73/network
+    """)
     exit(2)
 end
 
@@ -163,7 +199,7 @@ open(metaPath, "w") do io
     println(io, "expectedNW,",    round(expectedNW, digits=6))
     println(io, "edgeHash,",      edgeHash)
     println(io, "juliaVersion,",  VERSION)
-    println(io, "graphsVersion,", pkgversion(Graphs))
+    println(io, "graphsVersion,", graphs_version())
     println(io, "generatedAt,",   Dates.now())
     println(io, "generator,newman_watts_strogatz")
     println(io, "provenance,regenerated-from-seed-not-recorded-by-model")
