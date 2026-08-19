@@ -69,7 +69,8 @@ N_SEEDS   <- 40      # paramSeeds per (stratum, mu)
 N_RUNS    <- 5       # runs per paramSeed
 
 make_arm <- function(dir, mean_fn, assign_rule, mus = MUS, depths = 100,
-                     blank_sstar = FALSE, legacy = FALSE, seed_base = 0) {
+                     blank_sstar = FALSE, legacy = FALSE, seed_base = 0,
+                     n_lost = 0L) {
     dir.create(dir, recursive = TRUE, showWarnings = FALSE)
     rows <- list(); i <- 0L; sid <- seed_base
     for (g in GAPS) for (r in RESERVES) for (q in DEPQS) for (m in mus) {
@@ -100,6 +101,16 @@ make_arm <- function(dir, mean_fn, assign_rule, mus = MUS, depths = 100,
         }
     }
     dt <- rbindlist(rows)
+    # Simulate the 9be29d7 teardown race: the master checked the row off, so
+    # `completed` stays TRUE, but no result row was ever written, so ALL THREE
+    # outcome columns are blank. This is what consolidate_results.py emits,
+    # because `completed` comes from bankRunParametersFin.csv and the outcomes
+    # come from bankRunResults*.csv.
+    if (n_lost > 0L) {
+        idx <- sample.int(nrow(dt), n_lost)
+        dt[idx, `:=`(bankRun = NA, nWithdrawn = NA_integer_,
+                     depositWithdrawn = NA_real_)]
+    }
     if (legacy) {
         # The legacy schema's tell: columns that only it has. Its `reserveRatio`
         # holds the rewiring probability, which is exactly why name-presence
@@ -199,6 +210,43 @@ re <- run_script(e_t)
 ok(re$status != 0, "E: script REFUSES blank nWithdrawn rather than dropping them")
 ok(grepl("blank", re$out) && grepl("instrumentation", re$out),
    "E: error explains these predate the |S*| instrumentation")
+
+# ═══ E2. Lost result rows BELOW the cap -> drop, loudly ═════════════════════
+# The 2026-08-19 production run halted with "53 of 540,000 ... predate the
+# instrumentation". That diagnosis was wrong: those rows had NO result row at
+# all, from the check-off-before-write race fixed in 9be29d7, and the advice to
+# re-run the arm would have cost two days for 0.0098% of the data. These two
+# fixtures pin the distinction so it cannot regress.
+cat("\n=== Fixture E2: lost result rows, below the cap ===\n")
+e2_t <- make_arm(file.path(root, "E2_treat"), function(m, g, r) 700 - 200 * m,
+                 "warmup", seed_base = 610000, n_lost = 3L)
+e2_p <- make_arm(file.path(root, "E2_plac"), function(m, g, r) 700 - 200 * m,
+                 "random", seed_base = 620000)
+re2 <- run_script(e2_t, e2_p, boot = 100)
+ok(re2$status == 0, "E2: proceeds when lost rows are below the cap")
+ok(grepl("NO result row", re2$out), "E2: says the rows have no result row")
+ok(grepl("9be29d7|check-off-before-write", re2$out),
+   "E2: names the teardown race, NOT the instrumentation")
+ok(!grepl("predate the", re2$out),
+   "E2: does NOT misattribute this to pre-instrumentation data")
+ok(grepl("selected on run duration", re2$out),
+   "E2: warns the loss is not missing-at-random")
+ok(file.exists(file.path(e2_t, "analysis", "dropped_no_result__treatment.csv")),
+   "E2: writes the dropped keys out for audit")
+ok(file.exists(file.path(e2_t, "analysis",
+                         "p6b_treatment_minus_placebo__cascade__headline.csv")),
+   "E2: still produces the headline contrast")
+
+# ═══ E3. Lost result rows ABOVE the cap -> refuse ═══════════════════════════
+cat("\n=== Fixture E3: lost result rows, above the cap ===\n")
+e3_t <- make_arm(file.path(root, "E3_treat"), function(m, g, r) 700 - 200 * m,
+                 "warmup", seed_base = 630000, n_lost = 400L)
+re3 <- run_script(e3_t)
+ok(re3$status != 0, "E3: REFUSES when lost rows exceed the cap")
+ok(grepl("above the", re3$out) && grepl("cap", re3$out),
+   "E3: names the cap it exceeded")
+ok(grepl("diagnose_short_cells", re3$out),
+   "E3: points at the diagnostic rather than leaving it hanging")
 
 # ═══ F. Mixed Monte Carlo depth -> refuse ═══════════════════════════════════
 cat("\n=== Fixture F: mixed mcDepth in one arm ===\n")

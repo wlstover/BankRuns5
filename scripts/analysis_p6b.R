@@ -185,6 +185,13 @@ compare_dir <- Sys.getenv("BANKRUN_COMPARE_DIR", unset = "")
 n_boot      <- as.integer(Sys.getenv("BANKRUN_BOOT", unset = "2000"))
 n_agents    <- suppressWarnings(as.numeric(Sys.getenv("BANKRUN_NAGENTS", unset = "")))
 skip_inter  <- nzchar(Sys.getenv("BANKRUN_SKIP_INTERACTION", unset = ""))
+# Hard cap on runs that were checked off but never wrote a result row (the
+# 9be29d7 teardown race). Measured 2026-08-19 at 0.0098% (production) and
+# 0.0139% (placebo), so 0.1% is a 7x margin: comfortably above the known defect,
+# far below any rate at which the duration selection could matter. Deliberately
+# NOT an env var -- a threshold you can raise from the command line is a
+# threshold that gets raised at 2am and forgotten.
+MAX_LOST_FRAC <- as.numeric(Sys.getenv("BANKRUN_MAX_LOST_FRAC", unset = "0.001"))
 out_dir     <- file.path(arm_dir, "analysis")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -259,25 +266,82 @@ load_arm <- function(dir, label) {
              "calls reserveRatio is the network rewiring probability p). Re-consolidate ",
              "before using it.", call. = FALSE)
     }
+    # ⚠️ Capture "this row has no outcome at all" BEFORE as_flag() runs.
+    # as_flag maps NA to FALSE, which is right for `completed` but destructive
+    # for `bankRun`: a run whose result row was never written would silently
+    # become bankRun = FALSE, i.e. get counted as a surviving bank. That is a
+    # directional bias in the binary block, invisible in every output. Detect it
+    # on the raw column, handling both the logical NA fread gives for an
+    # all-blank column and the empty string it gives for a mixed one.
+    raw_bankrun <- dt[["bankRun"]]
+    no_result <- if (is.logical(raw_bankrun)) is.na(raw_bankrun) else
+        is.na(raw_bankrun) | !nzchar(trimws(as.character(raw_bankrun)))
+    dt[, noResult := no_result]
+
     dt[, bankRun   := as_flag(bankRun)]
     dt[, completed := as_flag(completed)]
     dt[, bankRunNum := as.numeric(bankRun)]
+    dt[noResult == TRUE, bankRunNum := NA_real_]   # undo the NA -> FALSE coercion
     dt <- dt[completed == TRUE]
     if (nrow(dt) == 0) stop(label, ": no completed runs.", call. = FALSE)
 
-    # ⚠️ REFUSE on blank |S*| rather than dropping it. Runs produced before the
-    # 2026-08-13 instrumentation carry nWithdrawn empty, which fread reads as
-    # NA. Silently dropping those rows would compute a real-looking cascade
-    # statistic on whatever subset happened to survive — the same shape of
-    # failure as the legacy wrong-axis figure set, and harder to notice because
-    # nothing about the output would look unusual.
+    # Blank |S*| has TWO causes and they need opposite treatment. The 2026-08-19
+    # run halted here reporting "53 of 540,000 ... predate the instrumentation",
+    # which was the wrong diagnosis and would have cost a two-day re-run.
+    #
+    #   (a) NO RESULT ROW AT ALL -- bankRun, nWithdrawn and depositWithdrawn are
+    #       all blank while `completed` is TRUE. consolidate_results.py takes
+    #       `completed` from the master ledger bankRunParametersFin.csv and the
+    #       outcome columns from bankRunResults*.csv, so this is precisely the
+    #       check-off-before-write race fixed in 9be29d7: the master marked the
+    #       row done, then the worker was torn down before it wrote. The run is
+    #       simply UNOBSERVED. It carries no outcome for either the cascade or
+    #       the binary block, so it is dropped from both -- but loudly, with the
+    #       keys written out, and only below a hard cap.
+    #
+    #   (b) A RESULT ROW WITHOUT |S*| -- bankRun is populated, nWithdrawn is
+    #       blank. That is genuinely pre-2026-08-13 data, it means depths are
+    #       being mixed, and it still REFUSES outright.
     dt[, nWithdrawn := suppressWarnings(as.numeric(nWithdrawn))]
+
+    lost <- dt$noResult & is.na(dt$nWithdrawn)
+    n_lost <- sum(lost)
+    if (n_lost > 0) {
+        frac <- n_lost / nrow(dt)
+        cat(sprintf(
+            "\n%s: %s of %s completed runs (%.4f%%) have NO result row.\n",
+            label, format(n_lost, big.mark = ","),
+            format(nrow(dt), big.mark = ","), 100 * frac))
+        cat("  Cause: the check-off-before-write race in modelCall() (fixed 9be29d7).\n")
+        cat("  The master marked the row complete, then the pool was torn down\n")
+        cat("  before the worker wrote its result. The run is unobserved, not\n")
+        cat("  mis-measured, so it is dropped from BOTH outcome blocks.\n")
+        cat("  ⚠️ NOT missing at random: the lost run is the LAST TO FINISH in its\n")
+        cat("  cell, so the loss is selected on run duration. At this rate that is\n")
+        cat("  immaterial, but say so in the methods rather than calling it attrition.\n")
+        if (frac > MAX_LOST_FRAC) {
+            stop(label, ": ", format(n_lost, big.mark = ","), " runs (",
+                 sprintf("%.4f%%", 100 * frac), ") have no result row, above the ",
+                 sprintf("%.2f%%", 100 * MAX_LOST_FRAC), " cap.\nAt this rate the ",
+                 "duration selection is no longer negligible. Investigate with ",
+                 "tests/diagnose_short_cells.py before trusting any estimate.",
+                 call. = FALSE)
+        }
+        lost_f <- file.path(out_dir, paste0("dropped_no_result__", label, ".csv"))
+        want <- intersect(c("key", "task_id", "paramSeed", "mu", "reserveRatio",
+                            "lambdaI", "lambdaC"), names(dt))
+        fwrite(dt[lost, ..want], lost_f)
+        cat("  Keys written to ", lost_f, "\n\n", sep = "")
+        dt <- dt[!lost]
+    }
+
     n_missing <- sum(is.na(dt$nWithdrawn))
     if (n_missing > 0) {
         stop(label, ": ", format(n_missing, big.mark = ","), " of ",
              format(nrow(dt), big.mark = ","), " completed runs have a blank ",
-             "`nWithdrawn`.\nThose predate the 2026-08-13 |S*| instrumentation. ",
-             "Cascade size cannot be computed for them and dropping them silently ",
+             "`nWithdrawn` but DO carry a bankRun outcome.\nThose predate the ",
+             "2026-08-13 |S*| instrumentation, so this arm mixes Monte Carlo ",
+             "depths. Cascade size cannot be computed for them and dropping them ",
              "would bias the estimate toward whatever subset survived. Either ",
              "re-run the arm, or restrict to post-instrumentation runs explicitly ",
              "before calling this script.", call. = FALSE)
