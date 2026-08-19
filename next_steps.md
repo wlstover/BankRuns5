@@ -76,6 +76,39 @@ there isn't one.
 
 Full narrative in `Daily Notes/2026-08-19.md`.
 
+### ✅ The placebo was a real intervention — and the clustering is one hop deep
+
+`tests/check_type_clustering.py` (Moran's I, binary adjacency on the network; the placebo
+arm IS the randomisation null):
+
+| | task_1147 | task_817 |
+|---|---|---|
+| I(treatment) − I(placebo), agentType | **+0.10186 ± 0.00130, t = +78.3** | **+0.07975 ± 0.00110, t = +72.7** |
+| warmupLambda I, treat vs placebo | identical to **0.00e+00** | identical to **0.00e+00** |
+
+So the third reading — that the warm-up never clustered type and the placebo changed labels
+rather than structure — is **refuted**. But the correlogram is the actual finding:
+
+| lag | 1147 diff | 817 diff |
+|---|---|---|
+| **1** | **+0.10186** | **+0.07975** |
+| 2 | +0.00679 | −0.00422 |
+| 3 | +0.00304 | −0.00576 |
+
+📌 At μ = 0.5, I = +0.103 means **55.1% of edges join same-type agents against 50% by
+chance — and nothing at two hops.** That is fine-grained assortativity, **not the contiguous
+regions a firebreak needs.** A cascade routes around a lone individualist; blocking needs a
+wall. And it is not weak crystallisation: P6b is null at both `warmupAlpha` levels
+(+0.11 ± 0.40 at α = 0.1, −0.28 ± 0.36 at α = 0.5).
+
+⚠️ `warmupLambda` is MORE spatially structured (+0.124, +0.131) than the `agentType` derived
+from it (+0.103, +0.093) — **the top-μ threshold discards spatial information.**
+
+**So the chapter's claim is neither "P6b is absent" nor "P6b is untested":** the warm-up
+produces short-range assortativity rather than cultural regions, and cascade outcomes are
+insensitive to it. That is sharper than a bare null because it says *what kind* of position
+structure was tested.
+
 ### ▶ START HERE — three things, in this order
 
 **A. Complete the 2×2 to separate r from p** (below, item 29). One confound is doing real
@@ -543,7 +576,11 @@ finding about the model, and it would qualify the percolation framing in §6.9.
 The symmetry with Ch 1's surname placebo is worth saying out loud when pitching it to
 Schuler.
 
-**5 (was 6, DEMOTED). P6b at k = 10, 50** (action 27).
+**5 (was 6, DEMOTED; prior lowered 2026-08-19). P6b at k = 10, 50**
+⚠️ Still worth running, but the prior is now lower: clustering decays to nothing by two
+hops, and a denser network will not create regions either — it will add shortcuts that
+shorten paths further. Run item 32 first; it is minutes against days.
+ (action 27).
 `./scripts/run_all.sh --k 6 10 50 --tag p6b-density` (6,480 cells). §6.9 predicts the P6b
 interior peak appears on dense networks and vanishes on sparse ones — and the focused
 sweep pinned k = 6. Still worth running, but it is a conjecture about *where* P6b lives,
@@ -587,6 +624,14 @@ If the untestable fraction tracks **r** it is cascade length; if it tracks **p**
 small-world mixing collapsing the cascade into a single sweep. Both are real statements and
 they are different ones. ⚠️ The headline null does not depend on this — a spatial regime
 demonstrably exists and P6b is null inside it — but the §6.9 mechanism claim does.
+
+**32. Is one-hop clustering a property of Flache–Macy, or of the μ-threshold?** New
+2026-08-19. `warmupLambda` carries more spatial structure than the `agentType` thresholded
+from it, so the top-μ cut is destroying some. Measure the correlogram of `warmupLambda`
+itself (the script already computes its Moran's I; extend to lags) before concluding the
+cultural dynamics cannot produce regions. ⚠️ **Item 13 is now a live modelling question
+rather than a documentation query:** if warm-up λ tracks opinion *strength* rather than
+boundary *position*, one-hop assortativity is exactly what it would produce.
 
 **30. Rewrite §6.9's percolation framing against a null P6b.** The forest-fire reading
 predicted an interior hump from the μ(1−μ) product of ignition × propagation. Propagation is
