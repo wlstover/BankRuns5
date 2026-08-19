@@ -60,15 +60,40 @@ The two placebo NODE_FAILs (`_364`, `_365`) requeued and both hold a full 250 ru
 ### ▶ START HERE — consolidate, then the contrast
 
 ```bash
-git pull                                    # 9be29d7 + 1ec2b0c
+git pull
+# 0. the precondition — must pass before any of the rest means anything
+python3 scripts/check_endpoint_identity.py \
+    --arm-a outputs/production --arm-b outputs/placebo --check-agents
+# 1. then the pipeline
 ./scripts/run_all.sh --consolidate --tag production
 ./scripts/run_all.sh --consolidate --tag placebo
 ./scripts/run_all.sh --analyze --tag production --compare placebo
 ```
 
-⚠️ **Read `endpoint_contamination.csv` before the headline.** At μ = 0 and μ = 1 only one
-type is present, so P6b is zero by construction and any between-arm gap there is
-contamination, not signal. The contrast is only interpretable if those endpoints agree.
+**Step 0 is not a formality.** At μ = 0 `nI = 0` and the `nI > 0 &&` guard short-circuits;
+at μ = 1 `isI[sortIdx[1:nI]]` flags everyone whatever order `sortIdx` is in. So the
+assignment rule cannot bite at the endpoints, and since `functions4.jl` re-seeds at every
+stage (`seed1+2` for the placebo's `randperm`, `seed1+1` for the λ draws, `seed1` for
+deposits, `mod.seed2` at line 358 for the run) the placebo's extra RNG consumption
+perturbs nothing downstream. **The paired endpoint cells must therefore be bit-identical,
+run for run** — expected value exactly 0 differences, not "small". Match on
+`(task_id, seed1, seed2)`, never on `key`, which embeds `Dates.now()` and differs across
+arms by construction.
+
+⚠️ The check also samples interior μ as a **positive control**, and refuses to pass without
+it: interior cells MUST differ, or `ASSIGN_RULE` never reached the model and endpoint
+identity is trivially true. Validated on ten ground-truth worlds
+(`test/test_endpoint_identity.py`, 20 PASS / 0 FAIL), seven of which are false-green traps.
+
+📌 **If step 0 passes, the chord cancels.** excess_J(μ) = rate_J(μ) − chord_J(μ), and equal
+endpoints give chord_t ≡ chord_p, so
+
+    excess_t(μ) − excess_p(μ)  ==  rate_t(μ) − rate_p(μ)      exactly
+
+(verified to 1.1e-16). The headline P6b statistic is then simply the arm difference in
+cascade size at interior μ, and the P6a-curvature confound that §6.4 worries about is
+**absent from the contrast by algebra rather than by argument**. That is a stronger
+statement of the 08-16 identification claim and it should replace it in §6.
 
 ⚠️ And the outcome is now cascade size: the headline files are suffixed `__cascade__`, with
 `__binary__` retained so the legacy comparison survives (item 21).
@@ -143,10 +168,35 @@ Runs sharing a `seed1` share network, warm-up, lambda assignment and deposit vec
 cells with interior failure rates: **ICC median 0.274, design effect median 14.4,
 effective n per cell ~17 rather than 250.**
 
-**19. Decide how to handle clustering before rewriting §6.** Aggregates over ~2,800 cells
-survive; any CI or significance claim about a single cell or a small stratum is roughly
-3.8x too tight. Either cluster at `seed1` or state the effective n explicitly. Do this
-together with item 1 — the re-consolidation is when the numbers get rebuilt anyway.
+**19. Clustering — half done, and the remaining half is a different problem.** Aggregates
+over ~2,800 cells survive; any CI about a single cell or a small stratum is roughly 3.8x
+too tight.
+
+✅ **"Cluster at `seed1`" is implemented.** `analysis_p6b.R` collapses to one row per
+(stratum, μ, `paramSeed`) and bootstraps by resampling `paramSeed`s — and `paramSeed` *is*
+`seed1` (`consolidate_results.py:13,175`).
+
+🔴 **"State the effective n" is still owed, and it is a reporting decision.** `nRuns` =
+540,000 will be read as the sample size; the independent unit is the initialisation, ~120
+per stratum × μ. `excess_table` already emits `nSeeds` — print it next to every interval
+and state the design effect once.
+
+🔴 **The live problem is bigger: `analysis_p6b.R:420` assumes the arms are independent.**
+They are paired by construction — `GEN_SEED = SEED_OFFSET + task_id` with the same offset
+in both arms, so paired cells share network, deposits, warm-up, `seed1` and `seed2`.
+`se = sqrt(se_t^2 + se_p^2)` drops the covariance, which is large and positive because both
+arms sit on the same initialisations. **Conservative, not wrong-signed**, so it cannot
+manufacture a P6b — but it discards exactly what the paired design was built to buy, since
+the network draw is the dominant variance component (ICC 0.274). Fix by resampling each
+initialisation once per replicate and taking *both* arms' outcomes for it. Do it only if
+the headline comes back marginal; the point estimate and the sign test are unaffected.
+
+🟠 Second-order: the bootstrap resamples `paramSeed`s independently within each μ, so a
+replicate can draw a different parameter mix at μ = 0.25 than at μ = 0.5 — composition
+imbalance entering as noise. The grid is fully crossed (6 r × 3 q × 2 σ × 2 p × 2 α × 3
+λ-pairs = 432 blocks × 5 μ = 2,160), so **432 complete, fully-matched μ-curves per arm**
+exist. Blocking on those removes the imbalance entirely. Worth it only if the headline is
+marginal.
 
 **✅ 20. RESOLVED 2026-08-16 — the non-monotonicity diagnostic is retired.**
 `analysis_p6.R`'s `all(diff(failRate) >= 0)` flag was wrong in three ways, and the second
