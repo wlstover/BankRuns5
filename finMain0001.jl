@@ -177,4 +177,16 @@ while sum(jointFrame.completed) < size(jointFrame,1)
             end
         end    
 end
+# Belt and braces behind the functions4.jl write/checkOff reorder (2026-08-19).
+# The loop above exits on sum(completed), which a worker sets from inside
+# modelCall. Falling straight off the end of the script lets Julia tear down
+# the pool while a worker still holds an unfinished call, so drain every
+# outstanding future first. Bounded: at this point no row is left to pull, so
+# each in-flight call either finishes its current run or returns immediately
+# on a nothing from rowPull.
+for c in keys(coreDict)
+    if coreDict[c] isa Future
+        wait(coreDict[c])
+    end
+end
 CSV.write(dataDir*"/"*"bankRunParametersFin.csv",jointFrame[:,[:key,:started,:completed]],writeheader=false,append=true)

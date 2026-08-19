@@ -568,20 +568,30 @@ function modelCall()
                                 startIndex[:lambdaI],
                                 startIndex[:lambdaC])
                 rMod, nWithdrawn, depositWithdrawn = modelRun(mod)
+                # write out model results
+                # Widened 2026-08-13 from (key, result) to carry |S*|. Readers
+                # that take only the first two columns are unaffected.
+                #
+                # ⚠ ORDER IS LOAD-BEARING, corrected 2026-08-19. The write must
+                # happen BEFORE checkOff. finMain0001.jl exits the master loop
+                # the instant sum(completed) reaches nrow, then falls off the
+                # end of the script and Julia tears down the worker pool. With
+                # checkOff first, the worker that completes the final row is
+                # still inside its sleep(1) poll when that happens and its
+                # result row is never written -- the task exits COMPLETED
+                # holding 249 of 250 runs. Measured on the 2026-08-17 arms at
+                # 53/2160 production and 75/2160 placebo cells, with 120 of the
+                # 128 lost runs sitting in the last 20 rows of the frame
+                # (35.8 sigma against a positionally-random null).
+                resultRow=DataFrame(key=results[1][:key],result=rMod,
+                                    nWithdrawn=nWithdrawn,depositWithdrawn=depositWithdrawn)
+                CSV.write(dataDir*"/"*"bankRunResults"*string(workerCore)*".csv",resultRow,writeheader=false,append=true)
                 proc2=@spawnat 1 checkOff(currentIndex)
                 while !isReady(proc2)
                     sleep(1)
                 end
                 # now we need to fetch the result              
                 fetch(proc2)
-        end
-        # write out model results
-        if !isnothing(results)
-        # Widened 2026-08-13 from (key, result) to carry |S*|. Readers that
-        # take only the first two columns are unaffected.
-        resultRow=DataFrame(key=results[1][:key],result=rMod,
-                            nWithdrawn=nWithdrawn,depositWithdrawn=depositWithdrawn)
-        CSV.write(dataDir*"/"*"bankRunResults"*string(workerCore)*".csv",resultRow,writeheader=false,append=true)
         end
 
     return nothing
