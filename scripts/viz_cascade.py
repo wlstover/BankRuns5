@@ -31,6 +31,7 @@ USAGE
 from __future__ import annotations
 
 import argparse
+import collections
 import sys
 from pathlib import Path
 
@@ -94,6 +95,95 @@ def build_synthetic_network(n, k, p, seed=20260817):
     return nx.relabel_nodes(g, {i: i + 1 for i in g.nodes})   # Julia is 1-indexed
 
 
+def survey(args) -> int:
+    """Propagation rho over every run in a cell, not just one.
+
+    Whether this model's contagion is spatial decides how Chapter 3 reads its own
+    P6b null: a real negative result about the cultural mechanism, or a finding
+    that the model cannot express P6b at all. That is too much weight for a
+    single run — especially since the first two cells sampled on 2026-08-19 gave
+    rho = +0.606 and an undefined value, from one run each.
+
+    Runs whose cascade finished in a single step are UNTESTABLE and are counted
+    separately. Folding them in as zeros would drag the distribution toward
+    mean-field and manufacture the very conclusion under test.
+    """
+    import pandas as pd
+
+    if not args.network:
+        print("ERROR: --survey needs --network <edges.csv> from dump_network.jl",
+              file=sys.stderr)
+        return 2
+    graph = cd.load_network(args.network)
+    agents = cd.load_agents(args.task_dir, verbose=False)
+    decisions = cd.load_decisions(args.task_dir, verbose=False)
+    keys = sorted(set(agents["key"].astype(str)) & set(decisions["key"].astype(str)))
+    if args.survey:
+        keys = keys[:args.survey]
+    print(f"survey: {len(keys)} runs from {args.task_dir}")
+    print(f"        graph {graph.number_of_nodes()} nodes, "
+          f"{graph.number_of_edges()} edges\n")
+
+    rows, reasons = [], collections.Counter()
+    for k in keys:
+        a = agents[agents["key"].astype(str) == k].copy().reset_index(drop=True)
+        d = decisions[decisions["key"].astype(str) == k].copy().reset_index(drop=True)
+        if a["idx"].duplicated().any():
+            reasons["key covers more than one run"] += 1
+            continue
+        run = cd.CascadeRun(key=k, agents=a, decisions=d, n_agents=len(a),
+                            mu_observed=float((a["agentType"] == "I").mean()),
+                            ticks=sorted(d["tick"].unique().tolist()))
+        w, rho, pv, why = cv.propagation_rho(run, graph)
+        if why is not None:
+            reasons[why.split(":")[0][:52]] += 1
+            continue
+        rows.append({"key": k, "rho": rho, "p": pv, "n_withdrawals": len(w),
+                     "n_ticks": int(w["tick"].nunique()),
+                     "cascade_size": int(len(run.withdrawals()))})
+
+    df = pd.DataFrame(rows)
+    n_und = sum(reasons.values())
+    print(f"  testable runs   : {len(df)} / {len(keys)}")
+    print(f"  UNTESTABLE runs : {n_und}"
+          + ("   <-- not mean-field; excluded, not zeroed" if n_und else ""))
+    for why, n in reasons.most_common():
+        print(f"      {n:>4}  {why}")
+    if df.empty:
+        print("\n  🔴 No run in this cell has more than one endogenous tick, so this "
+              "cell\n     cannot answer the question. Pick a cell with longer cascades.")
+        return 1
+
+    sig = df[(df["rho"] > 0.1) & (df["p"] < 0.05)]
+    print(f"\n  rho: median {df['rho'].median():+.3f}   mean {df['rho'].mean():+.3f}"
+          f"   IQR [{df['rho'].quantile(.25):+.3f}, {df['rho'].quantile(.75):+.3f}]")
+    print(f"       min {df['rho'].min():+.3f}   max {df['rho'].max():+.3f}")
+    print(f"  runs meeting the spatial criterion (rho>0.1, p<0.05): "
+          f"{len(sig)}/{len(df)} ({100*len(sig)/len(df):.0f}%)")
+    print(f"  runs with rho < 0 : {(df['rho'] < 0).sum()}/{len(df)}")
+
+    out = Path(args.out_dir or (args.task_dir / "viz")) / "propagation_survey.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out, index=False)
+    print(f"\n  wrote {out}")
+
+    med = df["rho"].median()
+    print("\n  VERDICT")
+    if med > 0.3 and len(sig) > 0.6 * len(df):
+        print("    SPATIAL. Network position governs who falls when, so the placebo")
+        print("    arm COULD have detected a position effect. The P6b null is a real")
+        print("    negative result about the cultural mechanism, not an artifact.")
+    elif med < 0.1:
+        print("    MEAN-FIELD. Position does not govern the cascade, so the placebo")
+        print("    could not have detected P6b even if it existed. The null is a")
+        print("    finding about the MODEL — item 9's population-level term in")
+        print("    blendedTotal — and it qualifies the percolation framing in §6.9.")
+    else:
+        print("    AMBIGUOUS. Neither clearly spatial nor clearly mean-field; the")
+        print("    chapter cannot lean on either reading from this cell alone.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -111,11 +201,18 @@ def main() -> int:
                     help="default <task-dir>/viz")
     ap.add_argument("--list", action="store_true", help="list runs and exit")
     ap.add_argument("--audit", type=Path, help="torn-row audit of a task dir, then exit")
+    ap.add_argument("--survey", nargs="?", type=int, const=0, default=None,
+                    metavar="N",
+                    help="compute the propagation rho for EVERY run in the task dir "
+                         "(or the first N) and report the distribution. Needs --network. "
+                         "One run's rho is an anecdote; this is the diagnostic.")
     ap.add_argument("--dpi", type=int, default=200)
     args = ap.parse_args()
 
     if args.audit:
         return audit(args.audit)
+    if args.survey is not None:
+        return survey(args)
     if not args.task_dir:
         ap.error("--task-dir is required (or use --audit)")
 

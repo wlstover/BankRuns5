@@ -255,6 +255,52 @@ def main() -> int:
         # shell and then picks up stragglers, so an intermediate median can dip.
         # The defensible claim is that the front MOVES OUT overall, which is
         # what the Spearman statistic tests and what this checks end to end.
+        # ═══ I. the SURVEY: many runs, and untestable != mean-field ══════
+        # 2026-08-19: task_1147 returned rho = +0.606 and task_817 returned NaN,
+        # one run each. The NaN was a run whose cascade finished in a single
+        # endogenous tick, so tick was constant — UNTESTABLE, not mean-field.
+        # If a survey folded those in as zeros it would drag the distribution
+        # toward mean-field and manufacture the conclusion under test. Both
+        # directions are pinned here, plus the all-untestable cell.
+        print("\n=== Fixture I: propagation survey over many runs ===")
+        import subprocess, sys as _sys
+        VIZ = str(Path(__file__).resolve().parent.parent / "scripts" / "viz_cascade.py")
+
+        def edges_csv(g, path):
+            with open(path, "w") as fh:
+                fh.write("src,dst\n")
+                for u, v in g.edges:
+                    fh.write(f"{u},{v}\n")
+            return str(path)
+
+        def run_survey(task_dir, g):
+            e = edges_csv(g, Path(task_dir).parent / f"{Path(task_dir).name}_edges.csv")
+            r = subprocess.run([_sys.executable, VIZ, "--task-dir", str(task_dir),
+                                "--network", e, "--survey"],
+                               capture_output=True, text=True)
+            return r.returncode, " ".join((r.stdout + r.stderr).split())
+
+        d_many = make_task_dir(tmp / "I_spatial", n=200, mu=0.3, n_ticks=8,
+                               n_runs=6, graph=g2, seed=17)
+        rc, out = run_survey(d_many, g2)
+        ok(rc == 0, f"survey exits 0 on a spatial cell (rc={rc})")
+        ok("SPATIAL" in out and "MEAN-FIELD" not in out,
+           "survey verdict on a neighbour-driven cell is SPATIAL")
+        ok("testable runs : 6 / 6" in out, "survey counts every run as testable")
+
+        # every cascade finishes in one endogenous tick -> nothing to correlate
+        # n_ticks=1 leaves a single endogenous tick after tick 0 is dropped as
+        # the origin — exactly what task_817 hit on 2026-08-19.
+        d_one = make_task_dir(tmp / "I_onetick", n=200, mu=0.3, n_ticks=1,
+                              n_runs=4, graph=g2, seed=23)
+        rc1, out1 = run_survey(d_one, g2)
+        ok("UNTESTABLE runs : 4" in out1 and "testable runs : 0 / 4" in out1,
+           "single-tick cascades are counted UNTESTABLE, not scored as zero")
+        ok("only one endogenous tick" in out1, "survey names why they are untestable")
+        ok(rc1 != 0, f"an unanswerable cell exits non-zero (rc={rc1})")
+        ok("MEAN-FIELD" not in out1,
+           "an all-untestable cell does NOT return a mean-field verdict")
+
         first = summ_sp["median_distance"].iloc[0]
         last = summ_sp["median_distance"].iloc[-1]
         ok(last > first,

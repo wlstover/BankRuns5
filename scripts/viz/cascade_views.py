@@ -140,6 +140,54 @@ def vault_depletion(run, ax=None, reserve_ratio=None):
 
 
 # ── View 3: propagation distance (the diagnostic) ──────────────────────────
+def propagation_rho(run, graph):
+    """Spearman rho between the tick an agent withdrew and its graph distance
+    from the shock. PURE — no plotting, so a survey over many runs can call it
+    and so the number survives a machine with no matplotlib backend.
+
+    Returns (withdrawals_df, rho, p, reason). `reason` is None on success and a
+    short string when rho is undefined; it is never silently NaN, because a run
+    whose cascade finished in a single step is UNTESTABLE, not mean-field, and
+    averaging those two together is how a null gets manufactured.
+    """
+    import networkx as nx
+    from scipy.stats import spearmanr
+
+    origin = run.origin_idx
+    if not origin:
+        return None, float("nan"), float("nan"), (
+            f"run {run.key!r} has no exogenous withdrawals, so the cascade has "
+            f"no origin set and distance is undefined.")
+
+    present = [o for o in origin if o in graph]
+    if not present:
+        return None, float("nan"), float("nan"), (
+            f"none of the {len(origin)} origin agents are nodes in the supplied "
+            f"graph (graph has {graph.number_of_nodes()} nodes, run has "
+            f"N={run.n_agents}). The graph does not match this run.")
+
+    dist = nx.multi_source_dijkstra_path_length(graph, set(present))
+    w = run.withdrawals()
+    w = w[w["tick"] > 0].copy()                      # tick 0 IS the origin
+    w["distance"] = w["idx"].map(dist)
+    w = w.dropna(subset=["distance"])
+    if w.empty:
+        return None, float("nan"), float("nan"), (
+            "no endogenous withdrawals reachable from the shock.")
+
+    # ⚠️ One endogenous tick means there is no time axis to correlate against.
+    # scipy returns NaN with a ConstantInputWarning; that is UNTESTABLE and must
+    # be reported as such rather than folded into a distribution of rho.
+    if w["tick"].nunique() < 2:
+        return w, float("nan"), float("nan"), (
+            f"only one endogenous tick (tick {int(w['tick'].iloc[0])}): the "
+            f"cascade finished in a single step, so tick is constant and rho is "
+            f"undefined. UNTESTABLE, not mean-field.")
+
+    rho, p = spearmanr(w["tick"], w["distance"])
+    return w, float(rho), float(p), None
+
+
 def propagation_distance(run, graph, ax=None):
     """Graph distance from the exogenous shock vs the tick an agent withdrew.
 
@@ -153,30 +201,12 @@ def propagation_distance(run, graph, ax=None):
     Spearman correlation, so the reader is not asked to eyeball a trend.
     """
     import networkx as nx
-    from scipy.stats import spearmanr
 
     ax = ax or plt.subplots(figsize=(5.5, 3.4))[1]
 
-    origin = run.origin_idx
-    if not origin:
-        raise ValueError(
-            f"run {run.key!r} has no exogenous withdrawals, so the cascade has "
-            f"no origin set and distance is undefined.")
-
-    present = [o for o in origin if o in graph]
-    if not present:
-        raise ValueError(
-            f"none of the {len(origin)} origin agents are nodes in the supplied "
-            f"graph (graph has {graph.number_of_nodes()} nodes, run has "
-            f"N={run.n_agents}). The graph does not match this run.")
-
-    dist = nx.multi_source_dijkstra_path_length(graph, set(present))
-    w = run.withdrawals()
-    w = w[w["tick"] > 0].copy()                      # tick 0 IS the origin
-    w["distance"] = w["idx"].map(dist)
-    w = w.dropna(subset=["distance"])
-    if w.empty:
-        raise ValueError("no endogenous withdrawals reachable from the shock.")
+    w, rho, p, why = propagation_rho(run, graph)
+    if why is not None:
+        raise ValueError(why)
 
     ticks = sorted(w["tick"].unique())
     data = [w.loc[w["tick"] == t, "distance"].values for t in ticks]
@@ -190,7 +220,6 @@ def propagation_distance(run, graph, ax=None):
         for ln in bp[part]:
             ln.set(color=INK_MUTED, lw=1.0)
 
-    rho, p = spearmanr(w["tick"], w["distance"])
     spatial = bool(rho > 0.1 and p < 0.05)
     verdict = ("spatial: distance grows with tick" if spatial
                else "NO distance-tick relationship — consistent with mean-field")
