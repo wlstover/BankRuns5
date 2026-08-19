@@ -33,3 +33,11 @@ draft/draft.mtc
 draft/draft.mtc0
 draft/draft.synctex.gz
 draft/draft-concordance.tex
+
+# Stale console dumps from pre-pipeline interactive runs, untracked 2026-08-19.
+# 1.out was 15 MB / 73,900 lines and nothing referenced it. Real job output goes
+# to logs/ (already ignored) via the .slurm files.
+*.out
+*.err
+out.txt
+.DS_Store

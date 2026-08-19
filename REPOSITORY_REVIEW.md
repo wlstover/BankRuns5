@@ -57,18 +57,23 @@ BankRuns5/
 │   ├── parameterGen.jl     # Parameter sweep grid construction
 │   ├── finMain0001.jl      # Main entry point; distributed execution controller
 │   ├── test_run.jl         # Small-scale sanity-check sweep for individualism params
-│   ├── modelStep.jl        # Minimal stub for running one model
-│   ├── model3_ws_homogeneous.jl  # Model 3: closed-form, homogeneous deposits
-│   ├── restart.jl          # Resume logic for interrupted sweeps
-│   ├── jld2CSV.jl          # Convert JLD2 data files to CSV
-│   ├── dataTools.jl        # Simple JLD2 loader utility
-│   └── sysImage.jl         # Compile Julia system image for faster worker startup
+│   ├── model3_ws_homogeneous.jl  # Model 3: closed-form, homogeneous deposits.
+│   │                        #   Live: next_steps cites it as the clean pmap pattern
+│   ├── restart.jl          # Resume logic for interrupted sweeps (not wired in)
+│   └── sysImage.jl         # Compile Julia system image for faster worker startup.
+│                            #   Live: sysimage.so is loaded by finMain0001.jl:11
 │
-├── Analysis (R)
+├── Analysis (R)  — see scripts/analysis_p6.R and scripts/analysis_p6b.R
+│
+├── legacy/                 # dead code, kept for provenance (2026-08-19)
+│   ├── README.md           # what superseded each file; nothing references them
 │   ├── analysis.R          # Quick top-level failure rate summary
 │   ├── analysis2.R         # Full analysis: withdrawals, failure by parameters, plots
-│   └── workingAnalysis.R   # Extended analysis: vault percentages, run histories
-│   └── finAnalysis.R       # (Legacy/other project — anti-trust model analysis)
+│   ├── workingAnalysis.R   # Extended analysis: vault percentages, run histories
+│   ├── finAnalysis.R       # (other project entirely — anti-trust model, June 2024)
+│   ├── jld2CSV.jl          # Convert JLD2 data files to CSV (-> consolidate_results.py)
+│   ├── dataTools.jl        # Simple JLD2 loader utility
+│   └── modelStep.jl        # Minimal stub for running one model
 │
 ├── Paper and Documentation
 │   ├── REPOSITORY_REVIEW.md # Repository overview, model structure, theoretical development
@@ -224,7 +229,7 @@ The main controller script. Responsibilities:
 
 ---
 
-#### `modelStep.jl`
+#### `legacy/modelStep.jl`
 A minimal three-line stub (`modelRun(mod)` + print + `:complete`) used for testing a single model step interactively. Not part of the main sweep pipeline.
 
 ---
@@ -234,12 +239,12 @@ Handles recovery after an interrupted sweep. Loads all `.jld2` parameter files i
 
 ---
 
-#### `jld2CSV.jl`
+#### `legacy/jld2CSV.jl`
 A one-off conversion script that reads a JLD2 archive, extracts deposit distribution and withdrawal distribution parameters (as numeric columns), computes betweenness centrality for each network, and writes a supplemental CSV. Useful for loading graph-theoretic and distributional metadata into R for analysis.
 
 ---
 
-#### `dataTools.jl`
+#### `legacy/dataTools.jl`
 Two-line stub: loads a `data.jld2` file. Appears to be a development utility.
 
 ---
@@ -284,12 +289,12 @@ Uses Julia's `PackageCompiler` to compile a precompiled system image (`sysimage.
 
 ### R Analysis Code
 
-#### `analysis.R`
+#### `legacy/analysis.R`
 The simplest analysis script. Reads all `bankRunResults*.csv` files from the data directory, combines them, and computes the overall mean failure rate. Provides a single top-level statistic.
 
 ---
 
-#### `analysis2.R`
+#### `legacy/analysis2.R`
 The primary analysis script. Reads all output CSVs, assembles full datasets, and produces:
 
 - Scatter plot of agent-level `wdProb` vs `stayProb` colored by bank failure outcome.
@@ -303,7 +308,7 @@ The primary analysis script. Reads all output CSVs, assembles full datasets, and
 
 ---
 
-#### `workingAnalysis.R`
+#### `legacy/workingAnalysis.R`
 A deeper, partially-completed analysis script. Extends `analysis2.R` with:
 
 - Merging the Geometric and LogNormal parameter CSVs with the control file for richer filtering.
@@ -315,7 +320,7 @@ A deeper, partially-completed analysis script. Extends `analysis2.R` with:
 
 ---
 
-#### `finAnalysis.R`
+#### `legacy/finAnalysis.R`
 **Note:** Despite residing in this repository, this file analyzes an *anti-trust model*, not the bank run model. It reads data from `~/ResearchCode/antiTrustData`, defines a modified logit function, and builds analysis around a "privacy index." This appears to be a legacy file from a different project that was not removed.
 
 ---
