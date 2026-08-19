@@ -46,7 +46,53 @@ it; `git clean -fd` on hopper would destroy it.
 
 ---
 
-## 📍 CURRENT STATE — 2026-08-19. **▶ START HERE.**
+## 📍 CURRENT STATE — 2026-08-19 pm. **▶ START HERE.**
+
+**THE P6b CONTRAST IS IN. It is a well-powered null, and contagion is spatial, so the null
+is about culture rather than about the model.**
+
+| | cascade (agents) | binary (pp) |
+|---|---|---|
+| **P6a** swing μ = 0 → 1 | **−50.0** | **−19.8** |
+| P6a in the placebo arm | −50.0 | −19.8 |
+| **P6b** contrast, clustered on 18 strata | **−0.09 ± 0.30** | **+0.02 ± 0.06** |
+| 95% CI | [−0.72, +0.54] | [−0.10, +0.14] |
+| MDE (80%) as a share of the within-arm excess | **15%** | 18% |
+
+P6a is a **composition** effect and survives random assignment to three significant figures,
+exactly as designed. P6b is bounded below **1.4% of P6a**. 30/54 stratum-μ points positive
+(sign test p = 0.25), no gradient in μ, none in the λ-gap.
+
+✅ **The 08-16 within-arm preview is explained.** Its +0.66 pp chord excess reproduces here
+at +0.91 pp and the placebo differences it out entirely — all of it was P6a curvature. That
+is fixture B in the real data and the vindication of building the placebo arm.
+
+✅ **Contagion IS spatial, so the null is not an artifact.** `viz_cascade.py --survey` over
+250 runs of task_1147: median rho **+0.500**, 95% of 132 testable runs spatial, against
+validated poles of −0.113 (mean-field) and +0.643 (neighbour-driven). And splitting the P6b
+contrast on the same axis: **p = 0.05 (spatial) gives −0.52 ± 0.40, p = 0.15 gives
++0.34 ± 0.32** — both null, opposite signs. The model *can* express a position effect;
+there isn't one.
+
+Full narrative in `Daily Notes/2026-08-19.md`.
+
+### ▶ START HERE — three things, in this order
+
+**A. Complete the 2×2 to separate r from p** (below, item 29). One confound is doing real
+work in the §6.9 rewrite and two cells cannot break it.
+
+**B. Fix the paired SE** (item 19). Measured today: `corr(excess_t, excess_p) = 0.9824`, so
+`analysis_p6b.R:420`'s quadrature SE **overstates by 6.8×**. The point estimate does not
+move; the z-scores do, by ~7×.
+
+**C. Rewrite §6.6 and §6.9 against a null P6b** (item 2, now much larger).
+
+⚠️ Do **not** start Ch 2's `s*_I = s*_C` re-derivation yet — deferred by decision until GP's
+proofs have been read through properly.
+
+---
+
+## 📍 CURRENT STATE — 2026-08-19 am (superseded — the pre-analysis state)
 
 **Both arms landed and are verified.** Arrays `9392726` (production/warm-up) and `9392770`
 (placebo/random), focused grid, 2,160 cells each, **2,160/2,160 with output in both**.
@@ -181,7 +227,13 @@ too tight.
 per stratum × μ. `excess_table` already emits `nSeeds` — print it next to every interval
 and state the design effect once.
 
-🔴 **The live problem is bigger: `analysis_p6b.R:420` assumes the arms are independent.**
+🔴 **MEASURED 2026-08-19: the arms correlate at 0.9824 and the SE overstates by 6.8×.**
+`corr(excess_t, excess_p) = 0.9824` across the 54 stratum-μ points; sd(ex_t) = 10.41,
+sd(ex_p) = 10.35, **sd(diff) = 1.95**. Two independent routes to ρ agree (0.982 direct,
+0.978 backed out of the SE ratio). So the reported z-scores understate by ~7×. It cannot
+manufacture a P6b — it is conservative — but it must be fixed before anything is written up.
+
+🔴 **`analysis_p6b.R:420` assumes the arms are independent.**
 They are paired by construction — `GEN_SEED = SEED_OFFSET + task_id` with the same offset
 in both arms, so paired cells share network, deposits, warm-up, `seed1` and `seed2`.
 `se = sqrt(se_t^2 + se_p^2)` drops the covariance, which is large and positive because both
@@ -510,6 +562,68 @@ whether the extra decision noise raises or lowers aggregate P(run) is not obviou
 `REPOSITORY_REVIEW.md` but never simulated, and it is the SVB mechanism — the most
 policy-legible result in the chapter. Needs a seeding-rule change (highest-degree vs
 uniform-random shock), which is not currently a flag.
+
+---
+
+## 🔴 Open — what the P6b null now demands
+
+**29. Complete the 2×2 to separate r from p.** New 2026-08-19. The survey compared
+task_1147 (r 0.30, p 0.05) against task_817 (r 0.25, p 0.15) — which differ on **both**
+axes. 1147 had 94/250 one-tick cascades, 817 had 212/250, and higher r means a bigger vault,
+more withdrawals to fail, and therefore a longer cascade. **r explains that difference as
+well as p does.** Two more surveys break it, everything else held fixed (μ = 0.5,
+λ-gap = 0.8, σ = 3.0, α = 0.1, q = 0.0):
+
+```bash
+for T in 787 1177; do        # 787 = r 0.25 p 0.05 ; 1177 = r 0.30 p 0.15
+  julia --project=. scripts/dump_network.jl --manifest outputs/production/manifest.csv \
+      --task $T --out outputs/production/task_$T/network
+  python scripts/viz_cascade.py --task-dir outputs/production/task_$T \
+      --network outputs/production/task_$T/network_edges.csv --survey
+done
+```
+
+If the untestable fraction tracks **r** it is cascade length; if it tracks **p** it is
+small-world mixing collapsing the cascade into a single sweep. Both are real statements and
+they are different ones. ⚠️ The headline null does not depend on this — a spatial regime
+demonstrably exists and P6b is null inside it — but the §6.9 mechanism claim does.
+
+**30. Rewrite §6.9's percolation framing against a null P6b.** The forest-fire reading
+predicted an interior hump from the μ(1−μ) product of ignition × propagation. Propagation is
+real and spatial (rho = +0.50); the hump is not there. **The firebreak/lightning-rod duality
+does not survive contact with the decision rule**, and that is the finding, not a
+disappointment. Watts (2002), Granovetter (1978) and Bikhchandani et al. (1992) are cited in
+`theory/chapter2.tex` for this argument and the citations need to move or be re-framed with
+it.
+
+**31. The insurance interaction is computed and unread.**
+`p6b_treatment_minus_placebo__cascade__insurance.csv` holds the `depQuantile × λ-gap`
+contrast — the reduced-form answer to the committee's FDIC question, at zero extra
+simulation cost. ⚠️ Read it knowing that at q = 0.5, σ = 3.0 only **0.7% of deposit value**
+is insured, so the swept range is "uninsured to barely insured", not a retail backstop
+(that is item 9 in the 08-17 queue: add q = 0.9, 0.99).
+
+---
+
+## ✅ RESOLVED 2026-08-19 — the placebo arm did its job
+
+**6. Warm-up placebo — RAN, and it is the chapter's methodological contribution.** It
+converted a +0.91 pp within-arm chord excess, which read as preliminary P6b evidence on
+08-16, into a measured zero. P6a survived it to three significant figures (−50.0 agents in
+both arms), confirming P6a is composition; P6b did not survive it at all. The symmetry with
+Ch 1's surname placebo is now worth stating out loud in both chapters.
+
+**11. Newman–Watts vs Watts–Strogatz — CONFIRMED ON OUTPUT, not just source.**
+`dump_network.jl`'s first successful hopper run: mean degree **6.2440** against k(1+p) = 6.30
+at p = 0.05, and **6.9720** against 6.90 at p = 0.15 — not 6.0. §5's "rewiring probability"
+label is wrong and the k/p axes are confounded because E[deg] = k(1+p). The determinism
+self-check passed, so regeneration from `genSeed` is valid and the viz captions may say
+"regenerated from the cell's seed".
+
+**27. Narrowed again — production endogenous files are CLEAN.** All 30
+`bankRunEndogenous*.csv` across tasks 1147 and 817 reported no malformed rows. The 1.69%
+tearing was measured on a 435,934-row file; these are ~45k rows each. Tearing is confined to
+that dataset; production data is intact.
 
 ---
 
