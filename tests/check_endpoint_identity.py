@@ -67,6 +67,7 @@ from collections import defaultdict
 
 ENDPOINT_MU = ("0.0", "1.0")
 RESULT_FIELDS = 4          # key, result, nWithdrawn, depositWithdrawn
+EXPECTED_RUNS = 250        # runs per cell; see functions4.jl:495
 # Parameter columns that MUST agree between paired cells. assign_rule and
 # arm_tag are excluded on purpose -- those are the intervention.
 PAIRED_PARAM_COLS = ("reserve", "depq", "sigma", "k", "p", "alpha",
@@ -159,7 +160,7 @@ def read_agents(task_dir):
     return out
 
 
-def compare_cell(dir_a, dir_b):
+def compare_cell(dir_a, dir_b, expected=EXPECTED_RUNS):
     """Compare one paired cell. Returns a dict of counts and up to 3 examples."""
     ra, dup_a, unp_a = read_runs(dir_a)
     rb, dup_b, unp_b = read_runs(dir_b)
@@ -174,6 +175,15 @@ def compare_cell(dir_a, dir_b):
         "identical": 0, "differing": 0, "examples": [],
         "diff_fields": defaultdict(int),
     }
+    # A seed pair present in one arm and absent from the other is NOT evidence
+    # against the pairing — it is a run whose result row was never written (the
+    # check-off-before-write race fixed in 9be29d7). It is only benign if the
+    # arm that lacks it is correspondingly SHORT. A cell holding a full 250 rows
+    # that still fails to match is a genuine key divergence and must stay fatal.
+    short_a = max(0, expected - len(ra))          # runs production is missing
+    short_b = max(0, expected - len(rb))
+    res["short_a"], res["short_b"] = short_a, short_b
+    res["unexplained"] = max(0, len(kb - ka) - short_a) + max(0, len(ka - kb) - short_b)
     for sk in both:
         va, vb = ra[sk], rb[sk]
         if va == vb:
@@ -205,6 +215,9 @@ def main():
                     help="cap endpoint cells scanned (0 = all)")
     ap.add_argument("--check-agents", action="store_true",
                     help="also compare per-agent deposit/lambda/type at endpoints")
+    ap.add_argument("--expected", type=int, default=EXPECTED_RUNS,
+                    help=f"runs per cell (default {EXPECTED_RUNS}); used to tell a "
+                         "missing result row apart from a key divergence")
     ap.add_argument("--agent-cells", type=int, default=5,
                     help="how many endpoint cells to compare agent-wise (slow)")
     args = ap.parse_args()
@@ -274,24 +287,38 @@ def main():
     bad_cells, examples = [], []
     for tid in endpoint:
         r = compare_cell(os.path.join(args.arm_a, f"task_{tid}"),
-                         os.path.join(args.arm_b, f"task_{tid}"))
+                         os.path.join(args.arm_b, f"task_{tid}"), args.expected)
         if r.get("missing_dir"):
             tot["missing_dir"] += 1
             continue
         for k in ("matched_seeds", "only_a", "only_b", "identical",
-                  "differing", "dups", "unparsed"):
+                  "differing", "dups", "unparsed", "short_a", "short_b",
+                  "unexplained"):
             tot[k] += r[k]
-        if r["differing"] or r["only_a"] or r["only_b"]:
+        if r["differing"] or r["unexplained"]:
             bad_cells.append((tid, r))
             for e in r["examples"]:
                 if len(examples) < 6:
                     examples.append((tid, e))
 
-    print(f"  cells compared          : {len(endpoint) - tot['missing_dir']}")
+    n_cells = len(endpoint) - tot["missing_dir"]
+    print(f"  cells compared          : {n_cells}")
     print(f"  runs matched by seed    : {tot['matched_seeds']:,}")
     print(f"  IDENTICAL               : {tot['identical']:,}")
-    print(f"  DIFFERING               : {tot['differing']:,}")
-    print(f"  seed pair only in A / B : {tot['only_a']} / {tot['only_b']}")
+    print(f"  DIFFERING               : {tot['differing']:,}   <-- the claim under test")
+    print()
+    # Decompose the unmatched pairs. With a = runs A lost, b = runs B lost and
+    # c = pairs lost by BOTH: only_a = b - c, only_b = a - c. So the totals
+    # reconcile arithmetically and can be checked rather than hand-waved.
+    a, b = tot["short_a"], tot["short_b"]
+    both = (a + b) - (tot["only_a"] + tot["only_b"])
+    print(f"  unmatched seed pairs    : {tot['only_a'] + tot['only_b']}"
+          f"  (of {n_cells * args.expected:,} expected)")
+    print(f"    runs arm A never wrote: {a}")
+    print(f"    runs arm B never wrote: {b}")
+    print(f"    lost by BOTH arms     : {both}")
+    print(f"    UNEXPLAINED           : {tot['unexplained']}"
+          "   <-- must be 0; a full cell that still fails to match")
     if tot["dups"] or tot["unparsed"]:
         print(f"  duplicate / unparsable keys: {tot['dups']} / {tot['unparsed']}")
     if examples:
@@ -300,8 +327,13 @@ def main():
             print(f"    task_{tid} seed1={sk[0]} seed2={sk[1]}")
             print(f"      A: {va}\n      B: {vb}")
 
-    endpoints_ok = (tot["differing"] == 0 and tot["only_a"] == 0
-                    and tot["only_b"] == 0 and tot["matched_seeds"] > 0)
+    # The design claim is that every run present in BOTH arms is bit-identical.
+    # A run missing from one arm is a data-collection defect with a known cause,
+    # not a counterexample — provided the arm that lacks it is short by exactly
+    # that much. Conflating the two is what made the 2026-08-19 run report a red
+    # verdict on 215,957 identical runs and zero differing ones.
+    endpoints_ok = (tot["differing"] == 0 and tot["unexplained"] == 0
+                    and tot["matched_seeds"] > 0)
 
     # ---- optional: the same claim one level deeper ---------------------------
     agents_ok = None
@@ -334,7 +366,7 @@ def main():
         i_ident = i_diff = 0
         for tid in sample:
             r = compare_cell(os.path.join(args.arm_a, f"task_{tid}"),
-                             os.path.join(args.arm_b, f"task_{tid}"))
+                             os.path.join(args.arm_b, f"task_{tid}"), args.expected)
             if r.get("missing_dir"):
                 continue
             i_ident += r["identical"]
@@ -358,7 +390,15 @@ def main():
     print("VERDICT")
     print("=" * 74)
     ok = True
-    print(f"  endpoints identical      : {'YES' if endpoints_ok else 'NO'}")
+    print(f"  endpoints identical      : {'YES' if endpoints_ok else 'NO'}"
+          + ("" if endpoints_ok else
+             ("   (DIFFERING > 0)" if tot["differing"]
+              else "   (unexplained unmatched pairs)")))
+    if endpoints_ok and (tot["only_a"] or tot["only_b"]):
+        print(f"    ...on the {tot['matched_seeds']:,} runs present in both arms. The "
+              f"{tot['only_a'] + tot['only_b']} unmatched pairs are")
+        print("    fully accounted for by cells that finished short (9be29d7), and are")
+        print("    dropped by analysis_p6b.R with the same accounting.")
     ok &= endpoints_ok
     if agents_ok is not None:
         print(f"  endpoint agents identical: {'YES' if agents_ok else 'NO'}")

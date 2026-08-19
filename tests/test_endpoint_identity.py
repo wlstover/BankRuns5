@@ -99,7 +99,11 @@ def build_arm(root, name, rule, tids, sha="ef96a99c573fccc8",
 def run(a, b, extra=()):
     """Returns (rc, flat) with flat whitespace-collapsed, so a phrase assertion
     does not fail merely because the script wrapped it across two lines."""
-    r = subprocess.run([sys.executable, SCRIPT, "--arm-a", a, "--arm-b", b, *extra],
+    # The fixtures build RUNS-per-cell, not the production 250. Without passing
+    # it the script treats every cell as massively short and "explains" any key
+    # divergence away — which would make fixture C2 vacuous.
+    r = subprocess.run([sys.executable, SCRIPT, "--arm-a", a, "--arm-b", b,
+                        "--expected", str(RUNS), *extra],
                        capture_output=True, text=True)
     return r.returncode, " ".join((r.stdout + r.stderr).split())
 
@@ -136,12 +140,35 @@ def main():
     check("B endpoints reported NO", "endpoints identical : NO" in out)
     check("B prints the offending run", "seed1=" in out)
 
-    # ---- C: an endpoint run missing from one arm ----------------------------
+    # ---- C: a run missing from one arm, that arm correspondingly short ------
+    # This is the 9be29d7 teardown race, not a counterexample to the pairing.
+    # The 2026-08-19 production run tripped the old rule and reported a red
+    # verdict over 215,957 identical runs and zero differing ones.
     root = os.path.join(tmp, "C"); os.makedirs(root)
     a = build_arm(root, "production", "warmup", TIDS)
     b = build_arm(root, "placebo", "random", TIDS, drop_in=1)
     rc, out = run(a, b)
-    check("C unmatched endpoint seed fails", rc != 0, f"rc={rc}")
+    check("C missing run in a SHORT cell still passes", rc == 0, f"rc={rc}")
+    check("C accounts for the unmatched pair", "unmatched seed pairs : 1" in out)
+    check("C reports zero unexplained", "UNEXPLAINED : 0" in out)
+    check("C says what the verdict is over", "present in both arms" in out)
+
+    # ---- C2: unmatched pair in a FULL cell -> must stay fatal ----------------
+    # Same row COUNT in both arms, different seed pairs. Nothing is short, so
+    # nothing excuses it: the cells do not correspond and the contrast is
+    # meaningless. This is the case the relaxed rule must NOT swallow.
+    root = os.path.join(tmp, "C2"); os.makedirs(root)
+    a = build_arm(root, "production", "warmup", TIDS)
+    b = build_arm(root, "placebo", "random", TIDS)
+    p2 = os.path.join(b, "task_1", "bankRunResults2.csv")
+    ls2 = open(p2).read().splitlines()
+    f2 = ls2[0].split(",")
+    f2[0] = f2[0].rsplit("-", 1)[0] + "-999999"      # a seed2 production never ran
+    ls2[0] = ",".join(f2)
+    open(p2, "w").write("\n".join(ls2) + "\n")
+    rc, out = run(a, b)
+    check("C2 unmatched pair in a FULL cell is fatal", rc != 0, f"rc={rc}")
+    check("C2 counts it as unexplained", "UNEXPLAINED : 0" not in out)
 
     # ---- D: interior identical => the intervention never fired --------------
     root = os.path.join(tmp, "D"); os.makedirs(root)
