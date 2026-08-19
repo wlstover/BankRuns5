@@ -296,7 +296,10 @@ def main() -> int:
         rc1, out1 = run_survey(d_one, g2)
         ok("UNTESTABLE runs : 4" in out1 and "testable runs : 0 / 4" in out1,
            "single-tick cascades are counted UNTESTABLE, not scored as zero")
-        ok("only one endogenous tick" in out1, "survey names why they are untestable")
+        ok("cascade finished in one endogenous tick" in out1,
+           "survey names why they are untestable")
+        ok("run '20" not in out1,
+           "reason labels are not split on the timestamp's colons")
         ok(rc1 != 0, f"an unanswerable cell exits non-zero (rc={rc1})")
         ok("MEAN-FIELD" not in out1,
            "an all-untestable cell does NOT return a mean-field verdict")

@@ -136,7 +136,20 @@ def survey(args) -> int:
                             ticks=sorted(d["tick"].unique().tolist()))
         w, rho, pv, why = cv.propagation_rho(run, graph)
         if why is not None:
-            reasons[why.split(":")[0][:52]] += 1
+            # Classify on a stable phrase, NOT by splitting the message: the run
+            # key is an ISO timestamp and contains colons, so why.split(":")[0]
+            # printed "run '2026-08-18T02" as a category on 2026-08-19.
+            if "only one endogenous tick" in why:
+                code = "cascade finished in one endogenous tick"
+            elif "no exogenous withdrawals" in why:
+                code = "no exogenous shock recorded for this run"
+            elif "are nodes in the supplied graph" in why:
+                code = "graph does not match this run"
+            elif "reachable" in why:
+                code = "no endogenous withdrawal reachable from the shock"
+            else:
+                code = why[:60]
+            reasons[code] += 1
             continue
         rows.append({"key": k, "rho": rho, "p": pv, "n_withdrawals": len(w),
                      "n_ticks": int(w["tick"].nunique()),
