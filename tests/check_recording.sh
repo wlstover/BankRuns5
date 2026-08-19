@@ -8,9 +8,9 @@
 # than merely the shell.
 #
 # Usage:
-#   ./scripts/check_recording.sh                                   # arm 'smoke', task 1
-#   ./scripts/check_recording.sh --tag smoke-placebo --rule random
-#   ./scripts/check_recording.sh --tag depth1000 --depth 1000
+#   ./tests/check_recording.sh                                   # arm 'smoke', task 1
+#   ./tests/check_recording.sh --tag smoke-placebo --rule random
+#   ./tests/check_recording.sh --tag depth1000 --depth 1000
 #
 # Logs are auto-discovered in /scratch/$USER; override with --log / --errlog.
 #

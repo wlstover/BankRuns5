@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ground-truth fixtures for scripts/check_endpoint_identity.py.
+"""Ground-truth fixtures for tests/check_endpoint_identity.py.
 
 The failure this check exists to prevent is a FALSE GREEN, so most of these
 fixtures are worlds where the naive answer is "identical" and the correct answer
@@ -16,7 +16,7 @@ is "refuse". Tested two-sided throughout.
   I  self-compare (arm A against itself)                             -> FAIL (fatal)
   J  correct world, but the positive control is disabled             -> FAIL (not proven)
 
-Run:  python3 test/test_endpoint_identity.py
+Run:  python3 tests/test_endpoint_identity.py
 """
 
 import os
@@ -26,7 +26,7 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(HERE, os.pardir, "scripts", "check_endpoint_identity.py")
+SCRIPT = os.path.join(HERE, "check_endpoint_identity.py")   # sibling since the 2026-08-19 move
 
 MANIFEST_COLS = ("task_id,reserve,depq,sigma,k,p,alpha,mu,lambdaI,lambdaC,"
                  "arm_tag,assign_rule,mc_depth,seed_offset,params_sha,submitted_at")

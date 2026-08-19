@@ -1,5 +1,5 @@
 # Run from the BankRuns5 repo root:
-#     julia test/test_runsize.jl
+#     julia tests/test_runsize.jl
 #
 # These tests EXTRACT the relevant block out of functions4.jl by text marker and
 # eval it, rather than re-implementing it — so they exercise the shipped source.

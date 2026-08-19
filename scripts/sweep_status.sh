@@ -3,9 +3,9 @@
 # sweep_status.sh — at-a-glance progress and failure readout for running arms.
 #
 # Distinct from the other two checkers:
-#   check_sweep_run.py   post-hoc verifier: did the tasks finish and land data?
-#   check_recording.sh   acceptance gate for a single-cell smoke arm
-#   sweep_status.sh      THIS — a mid-flight progress and failure monitor
+#   scripts/check_sweep_run.py  post-hoc verifier: did the tasks finish and land data?
+#   tests/check_recording.sh    acceptance gate for a single-cell smoke arm
+#   scripts/sweep_status.sh     THIS — a mid-flight progress and failure monitor
 #
 # Usage:
 #   ./scripts/sweep_status.sh                          # auto-discover arms in outputs/

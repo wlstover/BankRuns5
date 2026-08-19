@@ -47,11 +47,11 @@ Three things fall out of one comparison:
 
 Usage
 -----
-    python3 scripts/check_endpoint_identity.py \\
+    python3 tests/check_endpoint_identity.py \\
         --arm-a outputs/production --arm-b outputs/placebo
 
     # deeper: also compare per-agent deposits, lambdas and types at the endpoints
-    python3 scripts/check_endpoint_identity.py \\
+    python3 tests/check_endpoint_identity.py \\
         --arm-a outputs/production --arm-b outputs/placebo \\
         --check-agents --agent-cells 5
 

@@ -1,5 +1,5 @@
 # Run from the BankRuns5 repo root:
-#     julia test/test_name_collisions.jl
+#     julia tests/test_name_collisions.jl
 #
 # Guards the failure class that killed job 9363073_1 on 2026-08-13.
 #

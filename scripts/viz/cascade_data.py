@@ -343,7 +343,7 @@ def load_run(task_dir: Path, key: str | None = None,
             f"Production output does not have this problem — parameterGen.jl:127-128 "
             f"keys each run <timestamp>-<seed1>-<seed2> with seed2 sampled without "
             f"replacement. Use a production task dir, or the fixtures in "
-            f"test/test_cascade_reader.py."
+            f"tests/test_cascade_reader.py."
         )
 
     mu_obs = float((a["agentType"] == "I").mean())

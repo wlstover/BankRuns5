@@ -3,13 +3,13 @@
 #
 # Property-based test demonstrating the vault-deposit conservation invariant
 # in the BankRuns5 model. This is a single-invariant prototype; if the workflow
-# proves useful, expand into a full test/ directory under Pkg's Test framework.
+# proves useful, expand into a full tests/ directory under Pkg's Test framework.
 #
 # Run from BankRuns5/:
-#     julia --project=. test/test_conservation.jl
+#     julia --project=. tests/test_conservation.jl
 #
 # Or, if no Project.toml is configured for tests yet:
-#     julia test/test_conservation.jl
+#     julia tests/test_conservation.jl
 #
 # Invariant tested:
 #     For every reachable state of a Model `mod`,

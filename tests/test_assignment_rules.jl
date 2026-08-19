@@ -1,5 +1,5 @@
 # Run from the BankRuns5 repo root:
-#     julia test/test_assignment_rules.jl
+#     julia tests/test_assignment_rules.jl
 #
 # These tests EXTRACT the relevant block out of functions4.jl by text marker and
 # eval it, rather than re-implementing it — so they exercise the shipped source.

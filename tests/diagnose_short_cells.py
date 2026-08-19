@@ -41,9 +41,9 @@ frame, and that is what this script measures.
 
 Usage
 -----
-    python3 scripts/diagnose_short_cells.py --arm-dir outputs/production
-    python3 scripts/diagnose_short_cells.py --arm-dir outputs/placebo --check-agents
-    python3 scripts/diagnose_short_cells.py --arm-dir outputs/production \\
+    python3 tests/diagnose_short_cells.py --arm-dir outputs/production
+    python3 tests/diagnose_short_cells.py --arm-dir outputs/placebo --check-agents
+    python3 tests/diagnose_short_cells.py --arm-dir outputs/production \\
             --tasks 1006,1040,1071 --check-agents -v
 
 Reads only. Writes nothing.

@@ -62,7 +62,7 @@ The two placebo NODE_FAILs (`_364`, `_365`) requeued and both hold a full 250 ru
 ```bash
 git pull
 # 0. the precondition — must pass before any of the rest means anything
-python3 scripts/check_endpoint_identity.py \
+python3 tests/check_endpoint_identity.py \
     --arm-a outputs/production --arm-b outputs/placebo --check-agents
 # 1. then the pipeline
 ./scripts/run_all.sh --consolidate --tag production
@@ -83,7 +83,7 @@ arms by construction.
 ⚠️ The check also samples interior μ as a **positive control**, and refuses to pass without
 it: interior cells MUST differ, or `ASSIGN_RULE` never reached the model and endpoint
 identity is trivially true. Validated on ten ground-truth worlds
-(`test/test_endpoint_identity.py`, 20 PASS / 0 FAIL), seven of which are false-green traps.
+(`tests/test_endpoint_identity.py`, 20 PASS / 0 FAIL), seven of which are false-green traps.
 
 📌 **If step 0 passes, the chord cancels.** excess_J(μ) = rate_J(μ) − chord_J(μ), and equal
 endpoints give chord_t ≡ chord_p, so
@@ -123,7 +123,7 @@ git pull
 ./scripts/run_all.sh --tag smoke-placebo --assignment random \
     --reserve 0.25 --depq 0.0 --sigma 2.0 --p 0.05 --alpha 0.1 --mu 0.5 \
     --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00
-./scripts/check_recording.sh --tag smoke-placebo --rule random
+./tests/check_recording.sh --tag smoke-placebo --rule random
 
 # and, on the smoke arm that already passed, the analysis stage nobody has ever seen
 ./scripts/run_all.sh --analyze --tag smoke
@@ -226,7 +226,7 @@ Item 5 is unblocked.
 the legacy comparison survives. Outputs suffixed `__cascade__`/`__binary__` and
 `__headline__`/`__insurance__` — deliberately NOT reusing the old filenames, because
 keeping a name while changing what it measures is this repo's signature failure.
-Validated by `test/test_p6b_continuous.R` (6 fixtures, 22 PASS / 0 FAIL), which is
+Validated by `tests/test_p6b_continuous.R` (6 fixtures, 22 PASS / 0 FAIL), which is
 committed this time — the 08-16 fixtures were built in-session and lost.
 Three guards added while there: refuse blank `nWithdrawn` (legacy rows) rather than
 dropping them, refuse mixed `mcDepth`, and refuse `--compare` against the arm's own tag.
@@ -393,7 +393,7 @@ requirement; figures degrade to a warning and every CSV is still written.
 
 **26. Visualisation module for run dynamics — added 2026-08-17.**
 `scripts/viz_cascade.py` + `scripts/viz/` + `scripts/dump_network.jl`, validated by
-`test/test_cascade_reader.py` (26 PASS). Four views of a single run: cascade timeline by
+`tests/test_cascade_reader.py` (26 PASS). Four views of a single run: cascade timeline by
 type, vault depletion, propagation distance, and the cascade on the real network (static
 panels for the chapter, GIF for the defense).
 
@@ -417,7 +417,7 @@ edge hash per task: one line, worth batching with item 12. Captions must say "re
 from the cell's seed".
 
 **✅ 27. NARROWED 2026-08-19 — the results files do NOT tear. The endogenous ones do.**
-`scripts/diagnose_short_cells.py` read every `bankRunResults*.csv` in both arms — 4,320
+`tests/diagnose_short_cells.py` read every `bankRunResults*.csv` in both arms — 4,320
 cells, ~1.08M rows — and found **zero malformed lines**. Tearing does not explain the
 249/250 and does not touch the P6b outcome, because item 21 moved that outcome to
 `nWithdrawn`, which lives in the 4-column results row.

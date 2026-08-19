@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ground-truth fixtures for scripts/diagnose_short_cells.py.
+"""Ground-truth fixtures for tests/diagnose_short_cells.py.
 
 The diagnostic has to tell three stories apart on real data, so it is tested the
 way scripts/viz_cascade.py's view 3 was: TWO-SIDED. A detector permanently stuck
@@ -16,7 +16,7 @@ Fixtures, and what each one is:
   task_7  253 rows                              -> a --restart top-up
   task_8  no bankRunParametersFin.csv           -> master never exited cleanly
 
-Run:  python3 test/test_diagnose_short_cells.py
+Run:  python3 tests/test_diagnose_short_cells.py
 """
 
 import os
@@ -26,7 +26,7 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(HERE, os.pardir, "scripts", "diagnose_short_cells.py")
+SCRIPT = os.path.join(HERE, "diagnose_short_cells.py")   # sibling since the 2026-08-19 move
 
 N = 250
 NWORKERS = 15

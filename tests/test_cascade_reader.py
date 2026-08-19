@@ -2,7 +2,7 @@
 """test_cascade_reader.py — ground-truth fixtures for the cascade viz module.
 
 Production-shaped synthetic output with KNOWN answers, in the style of
-test/test_p6b_continuous.R. Each fixture exercises a way the reader could be
+tests/test_p6b_continuous.R. Each fixture exercises a way the reader could be
 silently wrong.
 
   A  clean production-shaped run       -> loads, N and mu correct
@@ -19,7 +19,7 @@ rows in outputs/test_run/bankRunEndogenous1.csv have 0, 1 or 2 fields instead of
 short rows with NaN would draw a picture of the corruption and nothing would
 look wrong.
 
-Usage:  python3 test/test_cascade_reader.py
+Usage:  python3 tests/test_cascade_reader.py
 """
 
 from __future__ import annotations

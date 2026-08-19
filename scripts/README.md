@@ -15,6 +15,34 @@ scripts/run_all.sh          orchestrator — the only thing you invoke
 └── analysis_p6b.R          afterok chaser — the P6b test (see --compare)
 ```
 
+## Tests and diagnostics live in `tests/`
+
+`scripts/` is the pipeline — what SLURM runs. `tests/` is what a human runs to
+check the work:
+
+```bash
+./tests/run_tests.sh          # every harness, one verdict
+./tests/run_tests.sh --list   # what would run
+```
+
+⚠️ A suite that **could not run** is reported as SKIPPED and makes the overall
+result non-green. An uninstalled `data.table`, or a Julia that does not match the
+`julia/1.8.0` this repo pins, proves nothing about the code — treating it as a
+pass is the 2026-08-16 failure in miniature.
+
+Two verifiers stay in `scripts/` on purpose, because the pipeline invokes them:
+`check_sweep_run.py` (submitted by `run_all.sh` as an `afterany` chaser) and
+`sweep_status.sh` (mid-flight monitoring). A production sweep must not depend on
+a `tests/` directory.
+
+| Where | What |
+|---|---|
+| `tests/check_recording.sh` | acceptance gate for a single-cell smoke arm |
+| `tests/check_endpoint_identity.py` | arms identical at μ ∈ {0,1}, differing inside |
+| `tests/diagnose_short_cells.py` | locates the missing run in a 249/250 cell |
+| `scripts/check_sweep_run.py` | post-hoc: did the array tasks finish and land data? |
+| `scripts/sweep_status.sh` | mid-flight progress and failure readout |
+
 ## Quick start
 
 ```bash
@@ -89,7 +117,7 @@ deposit-insurance backstop dampens social-signal weighting. Check `nSeeds` in
 that output before quoting it: it pools proportionally fewer paramSeeds than
 the headline. Disable with `BANKRUN_SKIP_INTERACTION=1`.
 
-Validate any change to this script with `Rscript test/test_p6b_continuous.R`
+Validate any change to this script with `Rscript tests/test_p6b_continuous.R`
 (6 ground-truth fixtures; fixture B is the one that matters — a curved P6a with
 no P6b, which the contrast must refuse).
 

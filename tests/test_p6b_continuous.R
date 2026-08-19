@@ -6,7 +6,7 @@
 # WHY THIS FILE EXISTS
 # --------------------
 # The four fixtures that validated the binary version of analysis_p6b.R on
-# 2026-08-16 were built in-session and never committed — test/ held only Julia
+# 2026-08-16 were built in-session and never committed — tests/ held only Julia
 # tests. So the one artefact proving the estimator works could not be re-run.
 # This commits them, and extends them to the continuous outcome, where the
 # estimator is a mean rather than a proportion.
@@ -32,7 +32,7 @@
 # whose |S*| is blank, and pooling Monte Carlo depths.
 #
 # USAGE
-#   Rscript test/test_p6b_continuous.R
+#   Rscript tests/test_p6b_continuous.R
 #
 # Requires data.table. Does NOT require ggplot2 — the analysis script degrades
 # to CSV-only when the plotting stack is absent, and this test relies on that.
