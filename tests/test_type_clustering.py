@@ -125,6 +125,19 @@ def main():
     check("A exits 0", rc == 0, f"rc={rc}")
     check("A verdict CLUSTERED", "CLUSTERED." in out and "NOT CLUSTERED" not in out)
     check("A internal check passes", "identical — same warm-up" in out)
+    check("A prints a correlogram", "CORRELOGRAM" in out)
+    # A contiguous arc of I stays contiguous at 2 and 3 hops, so clustering must
+    # persist across lags. A lag-1-only statistic could not tell that apart from
+    # a checkerboard, and the subcritical cascade reaches radius 2-3.
+    import re as _re
+    rows = _re.findall(r" (\d) ([+-][\d.]+) *([+-][\d.]+)", out)
+    lagvals = {int(l): (float(t), float(pp)) for l, t, pp in rows}
+    check("A clustering persists to lag 3",
+          all(lagvals.get(L, (0, 0))[0] > 0.2 for L in (1, 2, 3)),
+          f"{ {k: v[0] for k, v in lagvals.items()} }")
+    check("A placebo is flat at every lag",
+          all(abs(lagvals.get(L, (0, 0))[1]) < 0.05 for L in (1, 2, 3)),
+          f"{ {k: v[1] for k, v in lagvals.items()} }")
 
     # ── B. random in BOTH arms — the case that looks like a discovery ─────
     print("\n=== Fixture B: no spatial structure in either arm ===")

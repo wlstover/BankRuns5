@@ -97,6 +97,40 @@ def morans_i(values, edges, n_nodes):
 
 # ------------------------------------------------------------------ file input
 
+def lag_pairs(edges, n_nodes, max_lag):
+    """Node pairs at each graph distance 1..max_lag, by BFS from every node.
+
+    Lag 1 is plain adjacency — "does my neighbour relay or absorb?" — which is
+    the right scale for a firebreak. But the 2026-08-19 cascades are SUBCRITICAL
+    (0 of 108,000 runs exceeded 950 of 1000 agents; the survival function's
+    log-log slope steepens to -5.03), so they burn a patch of radius 2-3 and
+    die. Clustering has to exist AT THAT SCALE to block one. A correlogram shows
+    the scale; a single lag-1 number does not.
+
+    Depends only on the graph, so it is computed once and reused across runs.
+    """
+    from collections import deque
+    adj = [[] for _ in range(n_nodes)]
+    for u, v in edges:
+        adj[u].append(v); adj[v].append(u)
+    out = {L: [] for L in range(1, max_lag + 1)}
+    for s in range(n_nodes):
+        dist = {s: 0}
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            if dist[u] >= max_lag:
+                continue
+            for w in adj[u]:
+                if w not in dist:
+                    dist[w] = dist[u] + 1
+                    q.append(w)
+        for t, d in dist.items():
+            if d >= 1 and t > s:          # each unordered pair once
+                out[d].append((s, t))
+    return out
+
+
 def read_edges(path, n_hint=None):
     """Edge list from dump_network.jl (src,dst), returned 0-indexed."""
     edges, nodes = [], set()
@@ -147,10 +181,10 @@ def read_agents(task_dir, max_runs=None):
 
 # --------------------------------------------------------------------- per-arm
 
-def arm_stats(task_dir, edges, n_nodes, max_runs, label):
+def arm_stats(task_dir, edges, n_nodes, max_runs, label, lagsets=None):
     runs = read_agents(task_dir, max_runs)
     out = {"label": label, "type": [], "lam": [], "skipped": 0, "n_runs": 0,
-           "single_type": 0}
+           "single_type": 0, "lags": {L: [] for L in (lagsets or {})}}
     for key, rows in runs.items():
         rows.sort(key=lambda t: t[0])
         idxs = [r[0] for r in rows]
@@ -172,6 +206,10 @@ def arm_stats(task_dir, edges, n_nodes, max_runs, label):
             out["single_type"] += 1        # mu = 0 or 1: undefined, not zero
         else:
             out["type"].append(it)
+            for L, pairs in (lagsets or {}).items():
+                iv, _ = morans_i(types, pairs, n_nodes)
+                if iv is not None:
+                    out["lags"][L].append(iv)
         if il is not None:
             out["lam"].append(il)
         out["n_runs"] += 1
@@ -198,6 +236,10 @@ def main():
                          "leaves only the analytic E[I] reference, which is weaker.")
     ap.add_argument("--network", required=True, help="edges CSV from dump_network.jl")
     ap.add_argument("--runs", type=int, default=None, help="cap runs per arm")
+    ap.add_argument("--lags", type=int, default=3, metavar="L",
+                    help="also report a correlogram: Moran's I at graph distances "
+                         "1..L (default 3, matching the radius a subcritical "
+                         "cascade actually reaches). 0 disables.")
     ap.add_argument("--out", default=None, help="write per-run values to this CSV")
     args = ap.parse_args()
 
@@ -209,8 +251,13 @@ def main():
           f"mean degree {2*len(edges)/n_nodes:.3f}")
     print("=" * 72)
 
-    a = arm_stats(args.arm_a, edges, n_nodes, args.runs, "treatment")
-    b = arm_stats(args.arm_b, edges, n_nodes, args.runs, "placebo") if args.arm_b else None
+    lagsets = lag_pairs(edges, n_nodes, args.lags) if args.lags else {}
+    if lagsets:
+        print("  correlogram lags: " + ", ".join(
+            f"d={L} ({len(p):,} pairs)" for L, p in sorted(lagsets.items())))
+    a = arm_stats(args.arm_a, edges, n_nodes, args.runs, "treatment", lagsets)
+    b = (arm_stats(args.arm_b, edges, n_nodes, args.runs, "placebo", lagsets)
+         if args.arm_b else None)
 
     exp_i = -1.0 / (n_nodes - 1)
     print(f"\n  E[I] under no spatial autocorrelation = {exp_i:+.5f}\n")
@@ -229,6 +276,19 @@ def main():
             print(f"\n  {arm['label']}: {arm['skipped']} run(s) skipped "
                   f"(agent set does not match the graph), "
                   f"{arm['single_type']} single-type (I undefined, NOT zero)")
+
+    if lagsets and a["lags"].get(1):
+        print("\n  CORRELOGRAM — Moran's I by graph distance (agentType)")
+        print(f"    {'lag':>4}{'treatment':>12}{'placebo':>12}{'difference':>13}")
+        for L in sorted(lagsets):
+            sa, sb = summarise(a["lags"][L]), summarise(b["lags"][L]) if b else None
+            if not sa:
+                continue
+            dv = f"{sa['mean'] - sb['mean']:+13.5f}" if sb else " " * 13
+            pv = f"{sb['mean']:+12.5f}" if sb else " " * 12
+            print(f"    {L:>4}{sa['mean']:>+12.5f}{pv}{dv}")
+        print("    Lag 1 is what a firebreak sees. Lags 2-3 are the radius a")
+        print("    subcritical cascade actually reaches before dying.")
 
     ok = True
     print("\n" + "-" * 72)
