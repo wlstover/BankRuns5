@@ -311,12 +311,27 @@ def main():
     # c = pairs lost by BOTH: only_a = b - c, only_b = a - c. So the totals
     # reconcile arithmetically and can be checked rather than hand-waved.
     a, b = tot["short_a"], tot["short_b"]
-    both = (a + b) - (tot["only_a"] + tot["only_b"])
+    designed = n_cells * args.expected
+    # c = pairs BOTH arms lost. Three ways to get it, all of which must agree:
+    #   only_a = b - c,  only_b = a - c,  designed = matched + only_a + only_b + c
+    # ⚠️ (a + b) - (only_a + only_b) is 2c, NOT c. That slip printed "lost by
+    # BOTH arms: 2" against a true value of 1 on 2026-08-19; harmless to the
+    # verdict, wrong in the report, and exactly why the three are cross-checked
+    # here instead of one being trusted.
+    c_direct = designed - tot["matched_seeds"] - tot["only_a"] - tot["only_b"]
+    c_from_a = b - tot["only_a"]
+    c_from_b = a - tot["only_b"]
     print(f"  unmatched seed pairs    : {tot['only_a'] + tot['only_b']}"
-          f"  (of {n_cells * args.expected:,} expected)")
+          f"  (of {designed:,} expected)")
     print(f"    runs arm A never wrote: {a}")
     print(f"    runs arm B never wrote: {b}")
-    print(f"    lost by BOTH arms     : {both}")
+    print(f"    lost by BOTH arms     : {c_direct}")
+    if not (c_direct == c_from_a == c_from_b):
+        print(f"    ⚠️ ACCOUNTING DOES NOT RECONCILE: c = {c_direct} / {c_from_a} /"
+              f" {c_from_b} by three routes that must agree.")
+        print("       Duplicate keys, unparsable keys, or a cell holding MORE than")
+        print(f"       --expected runs (a --restart top-up) will do this. dups="
+              f"{tot['dups']} unparsed={tot['unparsed']}.")
     print(f"    UNEXPLAINED           : {tot['unexplained']}"
           "   <-- must be 0; a full cell that still fails to match")
     if tot["dups"] or tot["unparsed"]:

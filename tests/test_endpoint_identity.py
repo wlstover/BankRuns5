@@ -152,6 +152,22 @@ def main():
     check("C accounts for the unmatched pair", "unmatched seed pairs : 1" in out)
     check("C reports zero unexplained", "UNEXPLAINED : 0" in out)
     check("C says what the verdict is over", "present in both arms" in out)
+    check("C both-arms count is c, not 2c", "lost by BOTH arms : 0" in out)
+    check("C accounting reconciles", "DOES NOT RECONCILE" not in out)
+
+    # ---- C3: BOTH arms lose the SAME run -> c must be 1, not 2 --------------
+    # The discriminating case. With c = 0 the buggy formula (a+b)-(only_a+only_b)
+    # and the correct one agree, so fixture C cannot catch it. Here both arms
+    # drop the same seed pair: a = b = 1, only_a = only_b = 0, so the buggy
+    # formula returns 2 where the truth is 1.
+    root = os.path.join(tmp, "C3"); os.makedirs(root)
+    a = build_arm(root, "production", "warmup", TIDS, drop_in=1)
+    b = build_arm(root, "placebo", "random", TIDS, drop_in=1)
+    rc, out = run(a, b)
+    check("C3 same run lost by both arms still passes", rc == 0, f"rc={rc}")
+    check("C3 counts it ONCE, not twice", "lost by BOTH arms : 1" in out)
+    check("C3 no unmatched pairs remain", "unmatched seed pairs : 0" in out)
+    check("C3 accounting reconciles", "DOES NOT RECONCILE" not in out)
 
     # ---- C2: unmatched pair in a FULL cell -> must stay fatal ----------------
     # Same row COUNT in both arms, different seed pairs. Nothing is short, so
