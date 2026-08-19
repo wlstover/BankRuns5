@@ -46,7 +46,40 @@ it; `git clean -fd` on hopper would destroy it.
 
 ---
 
-## 📍 CURRENT STATE — 2026-08-15. **▶ START HERE.**
+## 📍 CURRENT STATE — 2026-08-19. **▶ START HERE.**
+
+**Both arms landed and are verified.** Arrays `9392726` (production/warm-up) and `9392770`
+(placebo/random), focused grid, 2,160 cells each, **2,160/2,160 with output in both**.
+`params_sha=ef96a99c573fccc8` identical across arms — the contrast is well-defined, and
+that was the one failure that would have been unrecoverable rather than merely expensive.
+The two placebo NODE_FAILs (`_364`, `_365`) requeued and both hold a full 250 runs.
+
+**The 249/250 is understood, fixed, and does not affect these arms** — see item 28. It cost
+128 runs of 1,080,000 (0.012%). No re-run.
+
+### ▶ START HERE — consolidate, then the contrast
+
+```bash
+git pull                                    # 9be29d7 + 1ec2b0c
+./scripts/run_all.sh --consolidate --tag production
+./scripts/run_all.sh --consolidate --tag placebo
+./scripts/run_all.sh --analyze --tag production --compare placebo
+```
+
+⚠️ **Read `endpoint_contamination.csv` before the headline.** At μ = 0 and μ = 1 only one
+type is present, so P6b is zero by construction and any between-arm gap there is
+contamination, not signal. The contrast is only interpretable if those endpoints agree.
+
+⚠️ And the outcome is now cascade size: the headline files are suffixed `__cascade__`, with
+`__binary__` retained so the legacy comparison survives (item 21).
+
+Still open behind this: item 19 (cluster at `seed1`, or state the effective n — the
+re-consolidation is when the numbers get rebuilt anyway) and items 1–4, which are the
+legacy sweep rather than these arms.
+
+---
+
+## 📍 CURRENT STATE — 2026-08-15. (superseded — kept for the smoke-run narrative)
 
 **The smoke run passed.** Job `9368644_1` COMPLETED in 51:48, stderr empty,
 `check_recording.sh` returns **17 PASS / 0 FAIL / 0 WARN**, and check 6's decisive
@@ -333,21 +366,43 @@ byte-identical to what the sweep used**. Airtight verification needs the model t
 edge hash per task: one line, worth batching with item 12. Captions must say "regenerated
 from the cell's seed".
 
-**🔴 27. Are `bankRunResults*.csv` torn? This may BE the 249/250.** New 2026-08-17.
-`bankRunEndogenous1.csv` is measurably **1.69% malformed** — 3,656 blank rows, 3,652
-one-field, 63 two-field out of 435,934. Fifteen workers append with no coordination, so
-lines interleave and tear. **If the results file tears the same way, a torn line reads as a
-missing run** — exactly the "finished one run short" signature on five production cells.
-That is a cheaper and more likely explanation than the item-18 `checkOff` lock race.
+**✅ 27. NARROWED 2026-08-19 — the results files do NOT tear. The endogenous ones do.**
+`scripts/diagnose_short_cells.py` read every `bankRunResults*.csv` in both arms — 4,320
+cells, ~1.08M rows — and found **zero malformed lines**. Tearing does not explain the
+249/250 and does not touch the P6b outcome, because item 21 moved that outcome to
+`nWithdrawn`, which lives in the 4-column results row.
 
-Check it directly on a completed cell:
+⚠️ **What survives of this item:** `bankRunEndogenous1.csv` really is **1.69% malformed**
+(3,656 blank, 3,652 one-field, 63 two-field of 435,934). Fifteen workers append with no
+coordination; a results row is one line per *run* and an endogenous row is one line per
+*decision*, so the collision rate differs by orders of magnitude. That still matters for
+`scripts/viz_cascade.py` and for any legacy \|S*\| extraction (item 3), which have the
+endogenous files as their only source. Strict readers only — a padding reader hides it.
 
-```bash
-python3 scripts/viz_cascade.py --audit outputs/production/task_26
-```
+**✅ 28. RESOLVED 2026-08-19 — the 249/250 was a check-off-before-write race.** New today.
+`modelCall()` called `checkOff` *before* writing its result row and then waited on the
+check-off with a `sleep(1)` poll, while `finMain0001.jl:149` exits the master loop the
+instant `sum(completed)` reaches nrow and falls off the end of the script — tearing down
+the worker pool with the last worker still inside that poll.
 
-If results rows are torn, the fix is output-side (per-worker files, or a lock) and it is
-silently costing runs at scale.
+Diagnosed positionally, which is what separates it from tearing: **120 of the 128 missing
+runs sit in the last 20 rows of the frame** (93.75% against an 8% positionally-random null,
+35.8 sigma, p = 1.7e-120). All 128 are marked `completed` in the master's own ledger and
+all 128 have their 1,000 agent rows on disk, so the run executed and only the result row
+was lost. Fixed in `9be29d7`: write first, then check off, plus a future drain before the
+master exits. Validated by *execution* — a reduction of both files loses exactly one row in
+6 of 12 trials under the shipped order, never more than one, and zero in 12 of 12 under the
+corrected order.
+
+⚠️ **hopper needs `git pull` before the next arm is submitted.** The two finished arms are
+unaffected and are **not** worth re-running: 128 lost runs of 1,080,000 is 0.012%, and a
+249-run cell mis-states its own failure rate by at most 0.12 pp.
+
+📌 One line for §5's methods, and it is the honest version of the caveat: the lost run is
+by construction *the last to finish in its cell*, so the loss is selected on run duration
+rather than random. The tail of the position distribution is the evidence — a run pulled at
+frame position 179 that still finished last was ~5x the typical duration. At 0.012% of runs
+this changes nothing, but it should be stated as selection rather than as attrition.
 
 ---
 
@@ -445,7 +500,7 @@ Known inefficiencies, none urgent:
 | 15 | Workers poll `rowPull`/`checkOff` at `sleep(1)` granularity | ~100 s dead time per task |
 | 16 | Load-imbalance tail: 50 runs over 15 workers = 3.33 rounds, last round leaves ~10 idle | matters because run lengths are uneven — high reserve survives longer, which is where the TIMEOUTs clustered |
 | 17 | `cores=16` hardcoded in `finMain0001.jl:13` **and** independently in `--cpus-per-task`; nothing enforces agreement | silent over/under-subscription if either changes |
-| 18 | `checkOff` is not under `rowLock` though `rowPull` is | safe in practice (master-side green threads, no yield), but asymmetric |
+| 18 | ✅ **CLOSED 2026-08-19.** `checkOff` is not under `rowLock` though `rowPull` is — but it cannot race. It runs on process 1 via `@spawnat`, master-side tasks are cooperatively scheduled on one thread, and the assignment has no yield point. Refuted empirically too: a dropped check-off would leave the row incomplete and the master would spin to walltime, and **no** missing run was unmarked. Asymmetric, not racy | none |
 
 `model3_ws_homogeneous.jl:222` already does Level 2 with a plain `pmap` and
 `Sys.CPU_THREADS` — no busy-wait, automatic load balancing. It is the homogeneous-agent
