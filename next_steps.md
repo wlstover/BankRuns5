@@ -109,6 +109,32 @@ produces short-range assortativity rather than cultural regions, and cascade out
 insensitive to it. That is sharper than a bare null because it says *what kind* of position
 structure was tested.
 
+### ⚠️ AND THE MECHANISM IS PERCOLATION, NOT CLUSTERING DEPTH
+
+Building the figure changed the argument. The warm-up **does** build a wall — 391
+individualists in one connected block, and **294 even under random assignment**. At μ = 0.5
+with ⟨k⟩ = 6.3 the within-type mean degree is ≈ 3.1, far above threshold, so both types
+percolate however they are arranged.
+
+The real mechanism is that **the collectivists are never cut**. Site-percolation threshold
+p_c = ⟨k⟩/(⟨k²⟩−⟨k⟩) = **0.19**; collectivists occupy 50% of nodes.
+
+| world | collectivists in ONE component |
+|---|---|
+| treatment | 71% |
+| placebo | 74% |
+| REGIONS counterfactual (Moran's I = +0.92) | **99%** |
+
+📌 Even maximal clustering leaves them connected — the Newman–Watts shortcuts reconnect
+whatever the arcs cut. **A cascade always has a route, so clustering cannot block it at this
+density and this μ, however deep it runs.** Stronger than the one-hop result because it does
+not depend on the clustering measurement at all.
+
+🔴 **This inverts §6.9 and item 5.** §6.9 says the P6b peak "appears on dense networks and
+vanishes on sparse ones" — backwards. Density pushes further above p_c. If P6b lives
+anywhere it is on **sparse** networks (k = 2, 3) or at **μ near 0.8**, where 1 − μ approaches
+p_c. The grid's closest interior point is μ = 0.75, and it was null.
+
 ### ▶ START HERE — three things, in this order
 
 **A. Complete the 2×2 to separate r from p** (below, item 29). One confound is doing real
@@ -576,10 +602,12 @@ finding about the model, and it would qualify the percolation framing in §6.9.
 The symmetry with Ch 1's surname placebo is worth saying out loud when pitching it to
 Schuler.
 
-**5 (was 6, DEMOTED; prior lowered 2026-08-19). P6b at k = 10, 50**
-⚠️ Still worth running, but the prior is now lower: clustering decays to nothing by two
-hops, and a denser network will not create regions either — it will add shortcuts that
-shorten paths further. Run item 32 first; it is minutes against days.
+**5 (was 6; DIRECTION INVERTED 2026-08-19). P6b at k = 10, 50 — testing the wrong way.**
+🔴 §6.9's prediction that the P6b peak appears on *dense* networks is backwards. The site
+percolation threshold is p_c = ⟨k⟩/(⟨k²⟩−⟨k⟩) = 0.19 at k = 6, and denser networks push
+*further above* it, making blocking less possible, not more. **The arm worth running is
+`--k 2 3 4`**, which approaches the threshold from the other side, optionally with μ near
+0.8 where 1 − μ → p_c. Original text:
  (action 27).
 `./scripts/run_all.sh --k 6 10 50 --tag p6b-density` (6,480 cells). §6.9 predicts the P6b
 interior peak appears on dense networks and vanishes on sparse ones — and the focused
