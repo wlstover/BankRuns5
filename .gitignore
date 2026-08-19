@@ -21,3 +21,15 @@ __pycache__/
 # R packages for the analysis stage, installed by scripts/bootstrap_r_libs.sh.
 # Compiled objects, ~200 MB, and specific to hopper R version + toolchain.
 .Rlib/
+
+# LaTeX byproducts of the superseded Sweave draft (draft/draft.Rnw). The three
+# sources — draft.Rnw, draft.tex, draft.pdf — are tracked; everything below is
+# regenerable and was only ever tracked by accident. Added 2026-08-19 with the
+# draft/ move.
+draft/draft.bbl
+draft/draft.log
+draft/draft.maf
+draft/draft.mtc
+draft/draft.mtc0
+draft/draft.synctex.gz
+draft/draft-concordance.tex

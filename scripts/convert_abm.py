@@ -1,5 +1,5 @@
 """
-convert_abm.py — Convert paper_draft.md to abm_chapter.tex (chapter partial).
+convert_abm.py — Convert draft/paper_draft.md to draft/abm_chapter.tex (chapter partial).
 
 The .md remains the canonical prose source; .tex is generated. Do not edit
 abm_chapter.tex directly.
@@ -15,7 +15,7 @@ Pipeline:
          In body text: $\\command$ form. In verbatim blocks: ASCII spelling.
        - Strip stray \\tightlist directives that some classes don't define.
     3. Prepend the chapter header and Schuler co-author note.
-    4. Write to BankRuns5/abm_chapter.tex.
+    4. Write to BankRuns5/draft/abm_chapter.tex.
 
 Run from BankRuns5/:
     python scripts/convert_abm.py
@@ -27,8 +27,12 @@ import sys
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
-SOURCE_MD = BASE / "paper_draft.md"
-TARGET_TEX = BASE / "abm_chapter.tex"
+# Both live in draft/ since the 2026-08-19 reorganisation. dissertation.tex
+# \input{}s the target from there, so moving one without the other silently
+# breaks the dissertation build.
+DRAFT_DIR = BASE / "draft"
+SOURCE_MD = DRAFT_DIR / "paper_draft.md"
+TARGET_TEX = DRAFT_DIR / "abm_chapter.tex"
 
 # --- Mappings ----------------------------------------------------------------
 
@@ -173,7 +177,7 @@ SECTION_LABELS = {
 }
 
 HEADER = r"""% ============================================================================
-% CHAPTER 3 PARTIAL --- generated from BankRuns5/paper_draft.md via pandoc
+% CHAPTER 3 PARTIAL --- generated from BankRuns5/draft/paper_draft.md via pandoc
 % then post-processed. Do not edit the .md and the .tex independently; the
 % .md remains the canonical prose source. To regenerate this file:
 %   python scripts/convert_abm.py

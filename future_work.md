@@ -2,7 +2,7 @@
 
 _Created 2026-07-14. Purpose: durably capture proposed additions to the agent-based-model
 chapter so they don't evaporate between sessions (they were discussed once and never written
-down). Each item is anchored to the concrete model mechanics in `paper_draft.md` /
+down). Each item is anchored to the concrete model mechanics in `draft/paper_draft.md` /
 `functions4.jl` so the framing stays accurate._
 
 **Provenance note:** items 1–4 below were reconstructed from a prior discussion that was not
@@ -30,7 +30,7 @@ Two facts drive most of what follows:
   §4.3). This is the target of the *social/group learning* extension.
 - **Step 3's `D = 1000` clone-and-resimulate per agent per tick is the dominant compute cost**
   and the reason the production sweep sits in the "aggressive-pressure" regime that **cannot
-  test P6b** (`paper_draft.md` §6.6, ~L466). Anything that cheapens or differentiates this
+  test P6b** (`draft/paper_draft.md` §6.6, ~L466). Anything that cheapens or differentiates this
   step (neural surrogate; differentiable ABM) directly unlocks the higher-reserve / lower-
   intensity sweep the paper already says it needs.
 
@@ -336,7 +336,7 @@ memory problem, and then their whole stack applies.
   observable is a cascade size, not a binary failure); and Ch 2 turns out to admit partial runs
   analytically (2026-08-16 note). **|S\*| is the moment that connects all three chapters.**
 
-**Bibliography (in `banking.bib`, added 2026-07-14 from `~/ProtonDrive/Library/ABM`):**
+**Bibliography (in `draft/banking.bib`, added 2026-07-14 from `~/ProtonDrive/Library/ABM`):**
 
 - `dyer2023gradient` — Dyer, Quera-Bofarull, Chopra, Farmer, Calinescu & Wooldridge,
   *Gradient-Assisted Calibration for Financial Agent-Based Models*, ICAIF '23, pp. 288–296.

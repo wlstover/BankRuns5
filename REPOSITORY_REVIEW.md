@@ -71,13 +71,17 @@ BankRuns5/
 │   └── finAnalysis.R       # (Legacy/other project — anti-trust model analysis)
 │
 ├── Paper and Documentation
-│   ├── paper_draft.md      # Main paper draft (Markdown, findings-oriented)
 │   ├── REPOSITORY_REVIEW.md # Repository overview, model structure, theoretical development
-│   ├── draft.Rnw           # Main paper source (R Sweave / LaTeX)
-│   ├── draft.tex           # Compiled LaTeX
-│   ├── draft.pdf           # Compiled PDF
-│   ├── draft.bbl           # Bibliography (compiled)
-│   └── banking.bib         # BibTeX references
+│   ├── next_steps.md       # Forward tracker: open items, HPC runbook
+│   ├── future_work.md      # Proposed extensions
+│   └── draft/              # the paper (moved here 2026-08-19)
+│       ├── paper_draft.md  # CANONICAL Ch 3 prose (Markdown)
+│       ├── abm_chapter.tex # generated from paper_draft.md by scripts/convert_abm.py;
+│       │                   #   \input{} by the dissertation — do not hand-edit
+│       ├── draft.Rnw       # superseded Sweave source
+│       ├── draft.tex       # superseded, compiled from draft.Rnw
+│       ├── draft.pdf       # superseded, compiled PDF
+│       └── banking.bib     # BibTeX references (Ch 3)
 │
 └── Infrastructure
     ├── run_sweep.sh        # Bash script to execute the full parameter sweep (local)
@@ -318,7 +322,7 @@ A deeper, partially-completed analysis script. Extends `analysis2.R` with:
 
 ### LaTeX Paper and Bibliography
 
-#### `draft.Rnw`
+#### `draft/draft.Rnw`
 The main academic paper, written in **R Sweave** format (a mix of LaTeX and R chunks). The paper's argument structure:
 
 1. **Introduction** — Bank runs as self-fulfilling prophecies; the role of psychology; the argument for agent-based modeling.
@@ -330,7 +334,7 @@ The main academic paper, written in **R Sweave** format (a mix of LaTeX and R ch
 
 ---
 
-#### `banking.bib`
+#### `draft/banking.bib`
 BibTeX file with 16 references spanning the Diamond-Dybvig tradition, including Diamond (1983, 2007), White (1999), Postlewaite & Vives (1987), Kinateder & Kiss (2014), Nosal & Wallace (2009), Green & Lin (2000), Peck & Shell (2003), Smith & Shubik (2014), Galbraith, and Bookstaber.
 
 ---
@@ -822,7 +826,7 @@ The 2023 collapse of Silicon Valley Bank directly validates specific model featu
 
 - Work through DD artifact theorem algebra formally (f\* calculation under c₁ = 1).
 - Formalize the critical ρ\* corollary from Theorem 2.
-- Fill in Model Results and Deposit Insurance subsections in draft.tex.
-- Fill in Literature Review section in draft.tex.
+- Fill in Model Results and Deposit Insurance subsections in draft/draft.tex.
+- Fill in Literature Review section in draft/draft.tex.
 - Simulation results to accompany theorems (Model 3 sweep already done).
 - Proposition on high-degree trigger needs simulation validation.

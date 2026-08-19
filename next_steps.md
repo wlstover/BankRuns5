@@ -521,7 +521,7 @@ Batch these into one message; several have been queued since 2026-08-09.
 |---|---|---|
 | 9 | `additionalWithdrawals` subtracts a **local** neighbour count from a **population** estimate. Probably intentional ("how many *more*"), but the mixed scale should be confirmed, not explained on our feet | `functions4.jl:391` |
 | 10 | `warmup.jl`'s header describes `w = 2·sim − 1` but `influenceWeight()` computes a normalised dot product. They agree at the ±1 poles and **disagree in the interior**, which is exactly where the λ tallies accumulate | `warmup.jl` |
-| 11 | Newman–Watts vs classic Watts–Strogatz mislabel in §5's parameter table | `paper_draft.md` |
+| 11 | Newman–Watts vs classic Watts–Strogatz mislabel in §5's parameter table | `draft/paper_draft.md` |
 | 12 | Today's edits to his model code: σ + assignRule + mcDepth in the params dump, \|S*\| instrumentation, the `ASSIGN_RULE` switch (default path bit-identical to published) | `parameterGen.jl`, `functions4.jl`, `finMain0001.jl` |
 | 13 | Diagnostic: under the dot product, moderate agents have w ≈ 0 and the tie (`w > 0` ⇒ adopt, else resist) sends w = 0 to **resist** — so moderates may be classified individualist on *weak opinions* rather than *boundary position* | `warmup.jl` |
 
@@ -571,10 +571,10 @@ processes oversubscribes 16 CPUs. It needs an explicit split (fewer runs in flig
   Wiring it back in is a real decision, not a bugfix — it truncates partial rows.
 - **`sweep.slurm`** is marked deprecated in place; retire it once the new path has run
   clean on HPC once.
-- **`paper_draft.md` §5.1's "Monte Carlo depth D is fixed at 1,000"** is deliberately
+- **`draft/paper_draft.md` §5.1's "Monte Carlo depth D is fixed at 1,000"** is deliberately
   unchanged — it correctly describes the sweep that produced the current §6.6 numbers.
   Update it together with item 2, when new numbers land.
-- **`paper_draft.md` §7 / `abm_chapter.tex`** carry an uncommitted edit removing the
+- **`draft/paper_draft.md` §7 / `draft/abm_chapter.tex`** carry an uncommitted edit removing the
   religiosity-channel sentences. Commit with the rest.
 - **`future_work.md`** (tracked) holds the four proposed extensions: adaptive-λ social
   learning, NN surrogate for the MC inner loop, differentiable ABM, validation
