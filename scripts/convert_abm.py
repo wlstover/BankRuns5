@@ -15,9 +15,11 @@ Pipeline:
          In body text: $\\command$ form. In verbatim blocks: ASCII spelling.
        - Strip stray \\tightlist directives that some classes don't define.
     3. Prepend the chapter header and Schuler co-author note.
-    4. Write to BankRuns5/draft/abm_chapter.tex.
+    4. Write to draft/abm_chapter.tex. The dissertation repo
+       (~/papers/bank_run_dissertation) snapshots it with its
+       scripts/chapters.py, which runs this script.
 
-Run from BankRuns5/:
+Run from the repo root (~/papers/bank_runs_abm):
     python scripts/convert_abm.py
 """
 
@@ -27,9 +29,9 @@ import sys
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
-# Both live in draft/ since the 2026-08-19 reorganisation. dissertation.tex
-# \input{}s the target from there, so moving one without the other silently
-# breaks the dissertation build.
+# Both live in draft/ since the 2026-08-19 reorganisation. The dissertation's
+# scripts/chapters.py reads the target from there, so moving it means updating
+# the "abm" entry in that script's CHAPTERS table.
 DRAFT_DIR = BASE / "draft"
 SOURCE_MD = DRAFT_DIR / "paper_draft.md"
 TARGET_TEX = DRAFT_DIR / "abm_chapter.tex"
@@ -177,7 +179,7 @@ SECTION_LABELS = {
 }
 
 HEADER = r"""% ============================================================================
-% CHAPTER 3 PARTIAL --- generated from BankRuns5/draft/paper_draft.md via pandoc
+% CHAPTER 3 PARTIAL --- generated from bank_runs_abm/draft/paper_draft.md via pandoc
 % then post-processed. Do not edit the .md and the .tex independently; the
 % .md remains the canonical prose source. To regenerate this file:
 %   python scripts/convert_abm.py

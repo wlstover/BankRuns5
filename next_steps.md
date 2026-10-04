@@ -1,6 +1,6 @@
 # Next Steps — Chapter 3 (ABM)
 
-_Forward-looking tracker for `BankRuns5`, mirroring `celsius/next_steps.md`. Evidence and
+_Forward-looking tracker for `BankRuns5`, mirroring `~/papers/bank_runs_celsius/next_steps.md`. Evidence and
 dated narrative live in the daily notes; this file holds open items only.
 Created 2026-08-13._
 
@@ -470,7 +470,7 @@ whether GP admits a partial run at all:
 Either is publishable and the second is already the chapter's stated position. What is
 not acceptable is writing §6 without knowing which one we are claiming.
 
-Source material: `chapter2.tex`, `theory/gp_walkthrough.tex` and `theory/fig_v.py` (the
+Source material: `chapter2.tex`, `~/papers/bank_runs_theory/gp_walkthrough.tex` and `fig_v.py` there (the
 2026-08-14 derivation from primitives, verified numerically), `REPOSITORY_REVIEW.md`
 §Role in Endogenous Decision-Making for the coupled fixed point.
 
@@ -666,7 +666,7 @@ predicted an interior hump from the μ(1−μ) product of ignition × propagatio
 real and spatial (rho = +0.50); the hump is not there. **The firebreak/lightning-rod duality
 does not survive contact with the decision rule**, and that is the finding, not a
 disappointment. Watts (2002), Granovetter (1978) and Bikhchandani et al. (1992) are cited in
-`theory/chapter2.tex` for this argument and the citations need to move or be re-framed with
+`~/papers/bank_runs_theory/chapter2.tex` for this argument and the citations need to move or be re-framed with
 it.
 
 **31. The insurance interaction is computed and unread.**

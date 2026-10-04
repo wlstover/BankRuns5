@@ -2,7 +2,7 @@
 
 One argument-driven entry point — `scripts/run_all.sh` — submits the sweep and
 chains verification, consolidation, and analysis behind it. The design is ported
-from `celsius/scripts/run_all.sh` so both dissertation chapters are operated the
+from `bank_runs_celsius/scripts/run_all.sh` so both dissertation chapters are operated the
 same way.
 
 ```
