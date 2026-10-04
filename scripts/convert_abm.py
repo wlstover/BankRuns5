@@ -14,10 +14,14 @@ Pipeline:
        - Replace Unicode Greek/math characters with LaTeX equivalents.
          In body text: $\\command$ form. In verbatim blocks: ASCII spelling.
        - Strip stray \\tightlist directives that some classes don't define.
-    3. Prepend the chapter header and Schuler co-author note.
-    4. Write to draft/abm_chapter.tex. The dissertation repo
-       (~/papers/bank_run_dissertation) snapshots it with its
-       scripts/chapters.py, which runs this script.
+    3. Prepend the chapter header and the acknowledgment of Schuler's model code
+       and Diamond-Dybvig critique.
+    4. Write to draft/abm_chapter.tex.
+
+The dissertation's Chapter 3 was forked from this output on 2026-10-04 and is
+now edited in ~/papers/bank_run_dissertation/chapters/abm/chapter.tex; this
+script no longer feeds the dissertation (a re-fork would discard the chapter's
+edits: scripts/chapters.py fork abm --force).
 
 Run from the repo root (~/papers/bank_runs_abm):
     python scripts/convert_abm.py
@@ -29,9 +33,7 @@ import sys
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
-# Both live in draft/ since the 2026-08-19 reorganisation. The dissertation's
-# scripts/chapters.py reads the target from there, so moving it means updating
-# the "abm" entry in that script's CHAPTERS table.
+# Both live in draft/ since the 2026-08-19 reorganisation.
 DRAFT_DIR = BASE / "draft"
 SOURCE_MD = DRAFT_DIR / "paper_draft.md"
 TARGET_TEX = DRAFT_DIR / "abm_chapter.tex"
@@ -189,7 +191,10 @@ HEADER = r"""% =================================================================
 \chapter{Virtualizing a Run: An Agent-Based Model of Bank Runs with Cultural Heterogeneity}
 \label{ch:abm}
 
-\noindent\textit{This chapter is co-authored with John S.\ Schuler (George Mason University, Computational and Data Sciences). The base ABM framework and Diamond-Dybvig critique are Schuler's contribution; the cultural heterogeneity extension and integration with the empirical results of Chapter~\ref{ch:celsius} are joint work.}
+\noindent\textit{The simulations in this chapter build on agent-based model code written by
+John S.\ Schuler (George Mason University, Computational and Data Sciences). The critique of
+the Diamond-Dybvig model in Section~\ref{sec:abm_dd} is also due to him. I gratefully
+acknowledge both contributions.}
 
 """
 
