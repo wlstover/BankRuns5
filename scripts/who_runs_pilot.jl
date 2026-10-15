@@ -17,6 +17,7 @@ using Distributions, Graphs, Random, LinearAlgebra,
       CSV, DataFrames, StatsBase, Dates, Distributed, Printf
 
 const ROOT = dirname(@__DIR__)
+include(joinpath(ROOT, "settings.jl"))
 include(joinpath(ROOT, "objects.jl"))
 include(joinpath(ROOT, "warmup.jl"))
 include(joinpath(ROOT, "functions4.jl"))

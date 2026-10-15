@@ -31,6 +31,7 @@ using StatsBase     # functions4.jl references `sample`/weights helpers
 
 # Load the model code. Pulled in by relative path so the test runs from BankRuns5/.
 const BANKRUNS5_ROOT = abspath(joinpath(@__DIR__, ".."))
+include(joinpath(BANKRUNS5_ROOT, "settings.jl"))
 include(joinpath(BANKRUNS5_ROOT, "objects.jl"))
 include(joinpath(BANKRUNS5_ROOT, "functions4.jl"))
 

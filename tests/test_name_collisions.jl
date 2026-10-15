@@ -3,7 +3,7 @@
 #
 # Guards the failure class that killed job 9363073_1 on 2026-08-13.
 #
-# finMain0001.jl includes objects.jl / warmup.jl / functions4.jl @everywhere
+# finMain0001.jl includes settings.jl / objects.jl / warmup.jl / functions4.jl @everywhere
 # (lines 84-88), and THEN includes parameterGen.jl into Main (line 130). Every
 # `function foo(...)` in the first group binds `foo` as a CONSTANT in Main. If
 # parameterGen.jl (or finMain0001.jl itself) later does a top-level `foo = ...`,
@@ -20,7 +20,7 @@
 #
 # Static check, no dependencies, no Julia session that loads the model.
 
-const DEFINERS = ["objects.jl", "warmup.jl", "functions4.jl"]   # included first, @everywhere
+const DEFINERS = ["settings.jl", "objects.jl", "warmup.jl", "functions4.jl"]   # included first, @everywhere
 const ASSIGNERS = ["parameterGen.jl", "finMain0001.jl"]         # included into Main afterwards
 
 read_lf(f) = replace(read(f, String), "\r\n" => "\n")           # Schuler's files are CRLF

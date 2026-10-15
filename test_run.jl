@@ -14,6 +14,7 @@
 using Distributions, Graphs, Random, LinearAlgebra,
       CSV, DataFrames, StatsBase, Dates, Distributed, Printf
 
+include("settings.jl")
 include("objects.jl")
 include("warmup.jl")
 include("functions4.jl")

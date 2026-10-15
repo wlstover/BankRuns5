@@ -22,10 +22,11 @@ using CSV, DataFrames, Distributions, Distributed, Graphs, Random, StatsBase
 const ROOT = abspath(joinpath(@__DIR__, ".."))
 const PUBLISHED_COMMIT = "bc5df60"     # last commit before the public-signal change
 
-"""Load objects.jl + a functions4.jl source into a fresh module with its own globals."""
+"""Load settings.jl + objects.jl + a functions4.jl source into a fresh module with its own globals."""
 function load_model(name::Symbol, functions_src::AbstractString; depth::Int=30)
     m = Module(name)
     Core.eval(m, :(using CSV, DataFrames, Distributions, Distributed, Graphs, Random, StatsBase))
+    Base.include(m, joinpath(ROOT, "settings.jl"))   # unused by the published source; harmless
     Base.include(m, joinpath(ROOT, "objects.jl"))
     path = joinpath(mktempdir(), "functions4.jl")
     write(path, functions_src)

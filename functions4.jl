@@ -367,15 +367,15 @@ function modelRun(mod::Model)
     # make a copy of the model
     simModel=clone(mod)
 
-    # Public-signal settings (Level 1, 2026-10-08; parsed in finMain0001.jl). The
-    # fallbacks are the published model, so scripts that include this file
-    # without finMain0001.jl (test_run.jl, tests/) behave exactly as before.
-    pubAlpha   = @isdefined(PUBLIC_ALPHA)     ? PUBLIC_ALPHA     : 0.0
-    pubBias    = @isdefined(PUBLIC_BIAS)      ? PUBLIC_BIAS      : 0.0
-    pubRho     = @isdefined(PUBLIC_RHO)       ? PUBLIC_RHO       : 1.0
-    weightPhi  = @isdefined(WEIGHT_PHI)       ? WEIGHT_PHI       : 1.0
-    freshClone = @isdefined(FRESH_CLONE)      ? FRESH_CLONE      : false
-    skipWithdrawn = freshClone || (@isdefined(FIX_DOUBLE_COUNT) ? FIX_DOUBLE_COUNT : false)
+    # Switch settings (parsed in finMain0001.jl; defaults in settings.jl, which
+    # are the published model, so scripts that include this file without
+    # finMain0001.jl behave exactly as before).
+    pubAlpha   = switchValue(:PUBLIC_ALPHA)
+    pubBias    = switchValue(:PUBLIC_BIAS)
+    pubRho     = switchValue(:PUBLIC_RHO)
+    weightPhi  = switchValue(:WEIGHT_PHI)
+    freshClone = switchValue(:FRESH_CLONE)
+    skipWithdrawn = freshClone || switchValue(:FIX_DOUBLE_COUNT)
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0
     nAgents = length(mod.agtList)
     publicPoint = 0

@@ -29,6 +29,8 @@ cores = nprocs()
 @everywhere using StatsBase
 @everywhere using JLD2
 @everywhere using Dates
+# Switch defaults and ENV parsers (envFloat, envBool, SWITCH_DEFAULTS).
+@everywhere include("settings.jl")
 #@everywhere workerCore=1
 
 # Broadcast command-line args to all workers (workers don't get ARGS by default).
@@ -102,27 +104,13 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #   BANKRUN_FRESH_CLONE   true|false  each decision simulates from the CURRENT bank
 #                         state instead of the post-shock snapshot (implies the
 #                         double-count fix; default false).
-function envFloat(name, default, lo, hi; loOpen=false)
-    s = strip(get(ENV, name, ""))
-    isempty(s) && return default
-    v = tryparse(Float64, s)
-    ok = v !== nothing && (loOpen ? v > lo : v >= lo) && v <= hi
-    ok || error("$name must be a number in $(loOpen ? "(" : "[")$lo,$hi], got \"$s\"")
-    return v
-end
-function envBool(name)
-    s = lowercase(strip(get(ENV, name, "")))
-    isempty(s) && return false
-    s in ("true", "1") && return true
-    s in ("false", "0") && return false
-    error("$name must be true|false, got \"$s\"")
-end
-const PUBLIC_ALPHA      = envFloat("BANKRUN_PUBLIC_ALPHA", 0.0, 0.0, 1.0)
-const PUBLIC_BIAS       = envFloat("BANKRUN_PUBLIC_BIAS",  0.0, 0.0, 1.0)
-const PUBLIC_RHO        = envFloat("BANKRUN_PUBLIC_RHO",   1.0, 0.0, 1.0)
-const WEIGHT_PHI        = envFloat("BANKRUN_WEIGHT_PHI",   1.0, 0.0, 1.0; loOpen=true)
-const FIX_DOUBLE_COUNT  = envBool("BANKRUN_FIX_DOUBLE_COUNT")
-const FRESH_CLONE       = envBool("BANKRUN_FRESH_CLONE")
+# Defaults live in settings.jl (SWITCH_DEFAULTS).
+const PUBLIC_ALPHA      = envFloat("BANKRUN_PUBLIC_ALPHA", SWITCH_DEFAULTS.PUBLIC_ALPHA, 0.0, 1.0)
+const PUBLIC_BIAS       = envFloat("BANKRUN_PUBLIC_BIAS",  SWITCH_DEFAULTS.PUBLIC_BIAS,  0.0, 1.0)
+const PUBLIC_RHO        = envFloat("BANKRUN_PUBLIC_RHO",   SWITCH_DEFAULTS.PUBLIC_RHO,   0.0, 1.0)
+const WEIGHT_PHI        = envFloat("BANKRUN_WEIGHT_PHI",   SWITCH_DEFAULTS.WEIGHT_PHI,   0.0, 1.0; loOpen=true)
+const FIX_DOUBLE_COUNT  = envBool("BANKRUN_FIX_DOUBLE_COUNT", SWITCH_DEFAULTS.FIX_DOUBLE_COUNT)
+const FRESH_CLONE       = envBool("BANKRUN_FRESH_CLONE",      SWITCH_DEFAULTS.FRESH_CLONE)
 @everywhere const PUBLIC_ALPHA     = $PUBLIC_ALPHA
 @everywhere const PUBLIC_BIAS      = $PUBLIC_BIAS
 @everywhere const PUBLIC_RHO       = $PUBLIC_RHO
