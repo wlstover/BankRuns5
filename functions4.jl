@@ -354,6 +354,82 @@ function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},ad
     return (result,result < agt.deposit)
 end
 
+# ---- Per-agent decision step ----
+# Split out of modelRun on 2026-10-15 so each piece (and each future switch) lives
+# in one function. The order of random draws is unchanged: beliefDraws (one
+# rand(exogProb, depth)), then simulateStay (one shuffle per draw, inside
+# subModelRun). The other three steps draw nothing.
+
+# The neighbours who have withdrawn, and the neighbour-signal point estimate of
+# total withdrawals: the withdrawn share of neighbours times N, clamped to [0, N-1].
+function neighbourSignal(mod::Model, agt::Agent)
+    neighbors = neighborList(mod, agt)
+    withdrawnNeighbors::Array{Agent} = filter(n -> !n.banked, neighbors)
+    nAgents = length(mod.agtList)
+    propWithdrawn = isempty(neighbors) ? 0.0 : (length(withdrawnNeighbors) / length(neighbors))
+    neighbourEstimateRaw = round(Int64, propWithdrawn * nAgents)
+    neighbourEstimate = clamp(neighbourEstimateRaw, 0, nAgents - 1)
+    if neighbourEstimate != neighbourEstimateRaw
+        println(
+            "Clamp triggered. key=", mod.key,
+            " neighbourEstimateRaw=", neighbourEstimateRaw,
+            " neighbourEstimate=", neighbourEstimate,
+            " N=", nAgents,
+            " neighbors=", length(neighbors),
+            " withdrawnNeighbors=", length(withdrawnNeighbors),
+            " propWithdrawn=", propWithdrawn
+        )
+    end
+    return withdrawnNeighbors, neighbourEstimate
+end
+
+# The agent's own prior: `depth` draws of total population withdrawals from the
+# exogenous withdrawal distribution (truncated Geometric), independent of what
+# the agent observes.
+beliefDraws(mod::Model, depth::Integer) = rand(mod.exogProb, depth)
+
+# Blend each prior draw with the social signal, then convert to the number of
+# additional withdrawals the agent anticipates beyond those already out.
+#   social = α·publicPoint + (1−α)·neighbourEstimate,   ω_t = λ·φ^(t−1)
+# λ = agt.individualism is the weight on the social signal, so a higher λ is a
+# more collectivist agent: λ_I (0.1–0.3) relies mostly on its own prior, λ_C
+# (0.5–0.9) mostly follows the social signal. With α = 0 and φ = 1 (the
+# defaults) this is the published expression, λ·neighbourEstimate.
+function anticipatedWithdrawals(agt::Agent, priorDraws, neighbourEstimate, publicPoint,
+                                alreadyOut, nAgents, t; pubAlpha, weightPhi)
+    λ = agt.individualism
+    ω = weightPhi == 1.0 ? λ : λ * weightPhi^(t-1)
+    socialPoint = pubAlpha == 0.0 ? Float64(neighbourEstimate) :
+        pubAlpha * Float64(publicPoint) + (1.0 - pubAlpha) * Float64(neighbourEstimate)
+    blendedTotal = round.(Int64, (1.0 .- ω) .* Float64.(priorDraws) .+ ω .* socialPoint)
+    blendedTotal = clamp.(blendedTotal, 0, nAgents - 1)
+    return max.(0, blendedTotal .- alreadyOut)
+end
+
+# P(full deposit | stay): the share of sub-simulations, one per prior draw, in
+# which the agent is paid in full when it withdraws after the anticipated others.
+function simulateStay(decisionModel::simModel, agt::Agent, withdrawnNeighbors::Array{Agent},
+                      additionalWithdrawals; skipWithdrawn::Bool)
+    lossStay = Bool[subModelRun(clone(decisionModel), agt, withdrawnNeighbors, additionalWithdrawals[k];
+                                skipWithdrawn=skipWithdrawn)[2] for k in eachindex(additionalWithdrawals)]
+    return 1 - mean(lossStay)
+end
+
+# P(full deposit | withdraw now). Withdrawing now involves no random draw, so this
+# is exactly 1.0 (the vault or the insurance cap covers the deposit) or 0.0.
+# Until 2026-10-15 it was recomputed `depth` times with identical results.
+function payoffIfWithdrawNow(decisionModel::simModel, agt::Agent)
+    baseMod = clone(decisionModel)
+    currAgt = filter(x -> x.idx == agt.idx, baseMod.agtList)[1]
+    received = withdraw(baseMod, currAgt)
+    return received < agt.deposit ? 0.0 : 1.0
+end
+
+# Withdraw if withdrawing now is strictly more likely to pay in full than staying,
+# or if even withdrawing now cannot pay in full (salvage what is left).
+decide(probFullDepositWD, probFullDepositStay) =
+    probFullDepositWD > probFullDepositStay || probFullDepositWD == 0.0
+
 # now the main model function
 function modelRun(mod::Model)
     runState::Bool=false
@@ -364,8 +440,9 @@ function modelRun(mod::Model)
 
     exogWithdrawals(mod)
     
-    # make a copy of the model
-    simModel=clone(mod)
+    # Post-shock snapshot that every decision simulates from (the "stale
+    # clone"), unless BANKRUN_FRESH_CLONE.
+    staleClone=clone(mod)
 
     # Switch settings (parsed in finMain0001.jl; defaults in settings.jl, which
     # are the published model, so scripts that include this file without
@@ -421,97 +498,27 @@ function modelRun(mod::Model)
         stillBanking=Random.shuffle(mod.theBank.bankingList)
         # each agent observes the percentage of its neighbors that have withdrawn
         for agt in stillBanking
-            # get the neighbors of the agent
-            neighbors=neighborList(mod,agt)
-            withdrawnNeighbors::Array{Agent}=Agent[]
-            for n in neighbors
-                if !n.banked
-                    push!(withdrawnNeighbors,n)
-                end
-            end
-            # now calculate the proportion of neighbors that have withdrawn
-            propWithdrawn = isempty(neighbors) ? 0.0 : (length(withdrawnNeighbors) / length(neighbors))
-            # Infer total withdrawals in population from neighbor sample.
-            totalWithdrawn=round(Int64,propWithdrawn*length(mod.agtList))
-            # Draw possible total withdrawals and convert to additional (endogenous) count.
-            totalWithdrawnRaw = totalWithdrawn
-            totalWithdrawn = clamp(totalWithdrawn, 0, length(mod.agtList)-1)
-            if totalWithdrawn != totalWithdrawnRaw
-                println(
-                    "Clamp triggered. key=", mod.key,
-                    " totalWithdrawnRaw=", totalWithdrawnRaw,
-                    " totalWithdrawn=", totalWithdrawn,
-                    " N=", length(mod.agtList),
-                    " neighbors=", length(neighbors),
-                    " withdrawnNeighbors=", length(withdrawnNeighbors),
-                    " propWithdrawn=", propWithdrawn
-                )
-            end
-            totalWithdrawnPoint = totalWithdrawn  # clamped neighbor-signal point estimate
-            # Draw from the exogenous withdrawal distribution (truncated Geometric) — the agent's own prior
-            # belief about total population withdrawals, independent of local observation.
-            # Blend with the neighbor-signal point estimate via individualism λ:
-            #   λ=0 (individualist): ignores neighbor signal, relies on own MC prior.
-            #   λ=1 (collectivist):  follows neighbor signal, ignores own MC prior.
-            # Low λ_I (0.1–0.3) → individualists weight social signal weakly → self-reliant.
-            # High λ_C (0.5–0.9) → collectivists weight social signal heavily → herd behavior.
-            mcDraws = rand(mod.exogProb, depth)
-            λ = agt.individualism
-            # Level 1 (2026-10-08). The social signal mixes the common public
-            # announcement with the local neighbour estimate, and the weight on it
-            # may decay:
-            #   social = α·publicPoint + (1−α)·neighbourPoint,   ω_t = λ·φ^(t−1)
-            # With α = 0 and φ = 1 both lines reduce exactly to the published
-            # expression (λ·neighbourPoint), so defaults are bit-identical.
-            ω = weightPhi == 1.0 ? λ : λ * weightPhi^(t-1)
-            socialPoint = pubAlpha == 0.0 ? Float64(totalWithdrawnPoint) :
-                pubAlpha * Float64(publicPoint) + (1.0 - pubAlpha) * Float64(totalWithdrawnPoint)
-            blendedTotal = round.(Int64, (1.0 .- ω) .* Float64.(mcDraws) .+ ω .* socialPoint)
-            blendedTotal = clamp.(blendedTotal, 0, length(mod.agtList)-1)
+            withdrawnNeighbors, neighbourEstimate = neighbourSignal(mod, agt)
+            priorDraws = beliefDraws(mod, depth)
             # With a fresh clone every withdrawal so far is already in the
             # submodel, so the extra count is measured against the true total
             # rather than against the observed neighbours.
             alreadyOut = freshClone ? length(mod.theBank.withdrawHistory) : length(withdrawnNeighbors)
-            additionalWithdrawals=max.(0, blendedTotal .- alreadyOut)
+            additionalWithdrawals = anticipatedWithdrawals(agt, priorDraws, neighbourEstimate, publicPoint,
+                                                           alreadyOut, nAgents, t;
+                                                           pubAlpha=pubAlpha, weightPhi=weightPhi)
             # BANKRUN_FRESH_CLONE: simulate from the current state, not the
             # post-shock snapshot taken once above (the "stale clone").
-            decisionModel = freshClone ? clone(mod) : simModel
-            # Monte Carlo: compare outcomes if the agent withdraws now vs. stays.
-            subModResults=[]
-            initWithdrawResults=[]
-            for k in 1:depth
-                push!(subModResults,subModelRun(clone(decisionModel),agt,withdrawnNeighbors,additionalWithdrawals[k];
-                                                skipWithdrawn=skipWithdrawn))
-                baseMod=clone(decisionModel)
-                currAgt=filter(x->x.idx==agt.idx,baseMod.agtList)[1]
-                push!(initWithdrawResults,withdraw(baseMod,currAgt))
-            end
-            # now, have the agent calculate its probability of getting less than its deposit
-            resultsStay::Array{Bool}=Bool[]
-            for el in subModResults
-                push!(resultsStay,el[2])
-            end
-            resultsWD::Array{Bool}=Bool[]
-            for el in initWithdrawResults
-                push!(resultsWD,el < agt.deposit)
-            end
-
-            # now calculate the probability of getting less than its deposit
-            # should this be 1-?
-            probLessThanDepositStay=1-mean(resultsStay)
-            probLessThanDepositWD=1-mean(resultsWD)
-            # now if the probability is greater than the threshold, withdraw
-            if probLessThanDepositWD > probLessThanDepositStay || probLessThanDepositWD==0.0
-                withdraw(mod,agt)
-                reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=true,deposit=agt.deposit,
-                tick=t,vault=mod.theBank.vault,wdProb=probLessThanDepositWD,stayProb=probLessThanDepositStay)
-                CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
-                halt=false
-            else
-                reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=false,deposit=agt.deposit,
-                tick=t,vault=mod.theBank.vault,wdProb=probLessThanDepositWD,stayProb=probLessThanDepositStay)
-                CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
-            end
+            decisionModel = freshClone ? clone(mod) : staleClone
+            probFullDepositStay = simulateStay(decisionModel, agt, withdrawnNeighbors, additionalWithdrawals;
+                                               skipWithdrawn=skipWithdrawn)
+            probFullDepositWD = payoffIfWithdrawNow(decisionModel, agt)
+            withdrew = decide(probFullDepositWD, probFullDepositStay)
+            withdrew && withdraw(mod, agt)
+            reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=withdrew,deposit=agt.deposit,
+                tick=t,vault=mod.theBank.vault,wdProb=probFullDepositWD,stayProb=probFullDepositStay)
+            CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
+            withdrew && (halt = false)
 
             if mod.theBank.vault<=0.0
                 # if the bank is bankrupt, we need to stop the simulation
