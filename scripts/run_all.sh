@@ -346,15 +346,21 @@ echo "======================================================================"
 # on task_id instead of parsing the headerless Julia dump positionally. That
 # positional parse is what mislabelled k/p/r/q in the 2026-04 sweep; keying on a
 # manifest written at submission time removes the whole failure class.
+# The BANKRUN_* model switches (settings.jl) reach the tasks through
+# --export=ALL from the submitting shell; their raw values are recorded in the
+# last six columns, where an empty field means the published default.
 if [[ $DO_SWEEP -eq 1 ]] && [[ $DRY_RUN -eq 0 ]]; then
     params_sha=$(sha256sum "$PARAMS_FILE" | cut -c1-16)
     submitted_at=$(date -Is)
     {
-        echo "task_id,reserve,depq,sigma,k,p,alpha,mu,lambdaI,lambdaC,arm_tag,assign_rule,mc_depth,seed_offset,params_sha,submitted_at"
+        echo "task_id,reserve,depq,sigma,k,p,alpha,mu,lambdaI,lambdaC,arm_tag,assign_rule,mc_depth,seed_offset,params_sha,submitted_at,public_alpha,public_bias,public_rho,weight_phi,fix_double_count,fresh_clone"
         awk -v tag="$TAG" -v rule="$ASSIGN_RULE" -v depth="$MC_DEPTH" \
             -v off="$SEED_OFFSET" -v sha="$params_sha" -v ts="$submitted_at" \
-            '{printf "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n", \
-              NR,$1,$2,$3,$4,$5,$6,$7,$8,$9,tag,rule,depth,off,sha,ts}' "$PARAMS_FILE"
+            -v pa="${BANKRUN_PUBLIC_ALPHA:-}" -v pb="${BANKRUN_PUBLIC_BIAS:-}" \
+            -v pr="${BANKRUN_PUBLIC_RHO:-}" -v wp="${BANKRUN_WEIGHT_PHI:-}" \
+            -v dc="${BANKRUN_FIX_DOUBLE_COUNT:-}" -v fc="${BANKRUN_FRESH_CLONE:-}" \
+            '{printf "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n", \
+              NR,$1,$2,$3,$4,$5,$6,$7,$8,$9,tag,rule,depth,off,sha,ts,pa,pb,pr,wp,dc,fc}' "$PARAMS_FILE"
     } > "$MANIFEST"
     note "manifest: ${MANIFEST} ($(($(wc -l < "$MANIFEST") - 1)) rows, params sha ${params_sha})"
 elif [[ $DO_SWEEP -eq 1 ]]; then

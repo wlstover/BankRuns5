@@ -600,7 +600,7 @@ function modelCall()
             mod=modelGen(startIndex[:key],
                          startIndex[:seed1],
                          startIndex[:seed2],
-                                1000,
+                                nv(startIndex[:network]),   # agent count = network size (parameterGen.jl agtCnts)
                                 .1,
                                 startIndex[:network],
                                 startIndex[:depositDist],
