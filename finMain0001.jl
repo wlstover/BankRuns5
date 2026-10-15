@@ -104,6 +104,14 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #   BANKRUN_FRESH_CLONE   true|false  each decision simulates from the CURRENT bank
 #                         state instead of the post-shock snapshot (implies the
 #                         double-count fix; default false).
+#
+# schuler-sync switches (2026-10-15; Schuler's BankRunsFinal changes, see
+# settings.jl and functions4.jl decide / beliefDraws):
+#   BANKRUN_TIEBREAK      legacy|schuler|strict  decision rule at the margin
+#                         (legacy = published: also withdraw when P_WD == 0).
+#   BANKRUN_BELIEF        geometric|point  the agent's own prior draws (geometric =
+#                         published: the exogenous truncated Geometric).
+#   BANKRUN_BELIEF_P0     p0 ∈ (0,1)  withdrawal probability of the point prior.
 # Defaults live in settings.jl (SWITCH_DEFAULTS).
 const PUBLIC_ALPHA      = envFloat("BANKRUN_PUBLIC_ALPHA", SWITCH_DEFAULTS.PUBLIC_ALPHA, 0.0, 1.0)
 const PUBLIC_BIAS       = envFloat("BANKRUN_PUBLIC_BIAS",  SWITCH_DEFAULTS.PUBLIC_BIAS,  0.0, 1.0)
@@ -111,14 +119,21 @@ const PUBLIC_RHO        = envFloat("BANKRUN_PUBLIC_RHO",   SWITCH_DEFAULTS.PUBLI
 const WEIGHT_PHI        = envFloat("BANKRUN_WEIGHT_PHI",   SWITCH_DEFAULTS.WEIGHT_PHI,   0.0, 1.0; loOpen=true)
 const FIX_DOUBLE_COUNT  = envBool("BANKRUN_FIX_DOUBLE_COUNT", SWITCH_DEFAULTS.FIX_DOUBLE_COUNT)
 const FRESH_CLONE       = envBool("BANKRUN_FRESH_CLONE",      SWITCH_DEFAULTS.FRESH_CLONE)
+const TIEBREAK          = envChoice("BANKRUN_TIEBREAK", SWITCH_DEFAULTS.TIEBREAK, TIEBREAK_CHOICES)
+const BELIEF            = envChoice("BANKRUN_BELIEF",   SWITCH_DEFAULTS.BELIEF,   BELIEF_CHOICES)
+const BELIEF_P0         = envFloat("BANKRUN_BELIEF_P0", SWITCH_DEFAULTS.BELIEF_P0, 0.0, 1.0; loOpen=true)
 @everywhere const PUBLIC_ALPHA     = $PUBLIC_ALPHA
 @everywhere const PUBLIC_BIAS      = $PUBLIC_BIAS
 @everywhere const PUBLIC_RHO       = $PUBLIC_RHO
 @everywhere const WEIGHT_PHI       = $WEIGHT_PHI
 @everywhere const FIX_DOUBLE_COUNT = $FIX_DOUBLE_COUNT
 @everywhere const FRESH_CLONE      = $FRESH_CLONE
+@everywhere const TIEBREAK         = $TIEBREAK
+@everywhere const BELIEF           = $BELIEF
+@everywhere const BELIEF_P0        = $BELIEF_P0
 println("public signal: alpha=", PUBLIC_ALPHA, " bias=", PUBLIC_BIAS, " rho=", PUBLIC_RHO,
         " phi=", WEIGHT_PHI, " fixDoubleCount=", FIX_DOUBLE_COUNT, " freshClone=", FRESH_CLONE)
+println("decision: tiebreak=", TIEBREAK, " belief=", BELIEF, " beliefP0=", BELIEF_P0)
 
 @everywhere include("objects.jl")
 

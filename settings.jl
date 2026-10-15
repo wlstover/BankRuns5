@@ -19,7 +19,13 @@ const SWITCH_DEFAULTS = (
     WEIGHT_PHI       = 1.0,    # social-weight decay: ω_t = λ·φ^(t-1)
     FIX_DOUBLE_COUNT = false,  # skip already-withdrawn agents in sub-simulations
     FRESH_CLONE      = false,  # simulate from the current state, not the post-shock snapshot
+    # schuler-sync (2026-10-15): Schuler's BankRunsFinal changes, as switches.
+    TIEBREAK         = "legacy",     # decision rule at the margin; see decide() in functions4.jl
+    BELIEF           = "geometric",  # the agent's own prior draws; see beliefDraws()
+    BELIEF_P0        = 0.02,         # withdrawal probability of the "point" prior (Schuler's p0)
 )
+const TIEBREAK_CHOICES = ("legacy", "schuler", "strict")
+const BELIEF_CHOICES   = ("geometric", "point")
 
 """The value of switch `name` in this module, or its default if it is not set."""
 switchValue(name::Symbol) =
@@ -41,4 +47,10 @@ function envBool(name, default=false)
     s in ("true", "1") && return true
     s in ("false", "0") && return false
     error("$name must be true|false, got \"$s\"")
+end
+function envChoice(name, default, choices)
+    s = lowercase(strip(get(ENV, name, "")))
+    isempty(s) && return default
+    s in choices || error("$name must be one of $(join(choices, "|")), got \"$s\"")
+    return String(s)
 end

@@ -383,10 +383,19 @@ function neighbourSignal(mod::Model, agt::Agent)
     return withdrawnNeighbors, neighbourEstimate
 end
 
-# The agent's own prior: `depth` draws of total population withdrawals from the
-# exogenous withdrawal distribution (truncated Geometric), independent of what
-# the agent observes.
-beliefDraws(mod::Model, depth::Integer) = rand(mod.exogProb, depth)
+# The agent's own prior: `depth` draws of total population withdrawals,
+# independent of what the agent observes (BANKRUN_BELIEF).
+#   geometric (published): the exogenous withdrawal distribution, truncated
+#              Geometric(0.1) on [0, 1000].
+#   point:     Binomial(N−1, p0), Schuler's PointEstimateBelief without the
+#              neighbour fraction (BankRunsFinal network.jl). Neighbour
+#              information enters only through the λ blend, as in the rest of
+#              the model (option (a), decided 2026-10-15). p0 = BANKRUN_BELIEF_P0.
+function beliefDraws(mod::Model, depth::Integer; belief::String="geometric", p0::Float64=0.02)
+    belief == "geometric" && return rand(mod.exogProb, depth)
+    belief == "point" && return rand(Binomial(length(mod.agtList) - 1, p0), depth)
+    error("unknown belief law \"$belief\"")
+end
 
 # Blend each prior draw with the social signal, then convert to the number of
 # additional withdrawals the agent anticipates beyond those already out.
@@ -425,10 +434,26 @@ function payoffIfWithdrawNow(decisionModel::simModel, agt::Agent)
     return received < agt.deposit ? 0.0 : 1.0
 end
 
-# Withdraw if withdrawing now is strictly more likely to pay in full than staying,
-# or if even withdrawing now cannot pay in full (salvage what is left).
-decide(probFullDepositWD, probFullDepositStay) =
-    probFullDepositWD > probFullDepositStay || probFullDepositWD == 0.0
+# The decision rule (BANKRUN_TIEBREAK). All three withdraw when withdrawing now
+# is strictly more likely to pay in full than staying; they differ at the margin.
+#   legacy (published): also withdraw when even withdrawing now cannot pay in
+#           full (P_WD == 0: salvage what is left). The monotonicity argument
+#           in REPOSITORY_REVIEW.md §9.7 relies on this clause.
+#   schuler: Schuler's BankRunsFinal certainty rule: never withdraw when staying
+#           pays in full for sure (P_stay == 1); otherwise P_WD > P_stay.
+#   strict: P_WD > P_stay only.
+# P_WD is exactly 0 or 1 (payoffIfWithdrawNow), so schuler and strict make the
+# same decisions: P_WD > P_stay already fails when P_stay == 1. Both differ from
+# legacy only when the vault cannot cover the agent now (P_WD == 0), where they
+# stay and legacy withdraws.
+function decide(probFullDepositWD, probFullDepositStay; tiebreak::String="legacy")
+    tiebreak == "legacy" &&
+        return probFullDepositWD > probFullDepositStay || probFullDepositWD == 0.0
+    tiebreak == "schuler" &&
+        return probFullDepositStay != 1.0 && probFullDepositWD > probFullDepositStay
+    tiebreak == "strict" && return probFullDepositWD > probFullDepositStay
+    error("unknown tie-break rule \"$tiebreak\"")
+end
 
 # now the main model function
 function modelRun(mod::Model)
@@ -453,6 +478,9 @@ function modelRun(mod::Model)
     weightPhi  = switchValue(:WEIGHT_PHI)
     freshClone = switchValue(:FRESH_CLONE)
     skipWithdrawn = freshClone || switchValue(:FIX_DOUBLE_COUNT)
+    tiebreak   = switchValue(:TIEBREAK)
+    belief     = switchValue(:BELIEF)
+    beliefP0   = switchValue(:BELIEF_P0)
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0
     nAgents = length(mod.agtList)
     publicPoint = 0
@@ -466,6 +494,14 @@ function modelRun(mod::Model)
                   DataFrame(key=mod.key, publicAlpha=pubAlpha, publicBias=pubBias,
                             publicRho=pubRho, weightPhi=weightPhi,
                             fixDoubleCount=skipWithdrawn, freshClone=freshClone),
+                  writeheader=false, append=true)
+    end
+    # The schuler-sync switches are logged to their own file, only when one is
+    # non-default, so runs at the earlier switches write exactly what they did
+    # (tests/test_switch_identity.jl).
+    if tiebreak != SWITCH_DEFAULTS.TIEBREAK || belief != SWITCH_DEFAULTS.BELIEF
+        CSV.write(dataDir*"/"*"bankRunDecisionParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, tiebreak=tiebreak, belief=belief, beliefP0=beliefP0),
                   writeheader=false, append=true)
     end
 
@@ -499,7 +535,7 @@ function modelRun(mod::Model)
         # each agent observes the percentage of its neighbors that have withdrawn
         for agt in stillBanking
             withdrawnNeighbors, neighbourEstimate = neighbourSignal(mod, agt)
-            priorDraws = beliefDraws(mod, depth)
+            priorDraws = beliefDraws(mod, depth; belief=belief, p0=beliefP0)
             # With a fresh clone every withdrawal so far is already in the
             # submodel, so the extra count is measured against the true total
             # rather than against the observed neighbours.
@@ -513,7 +549,7 @@ function modelRun(mod::Model)
             probFullDepositStay = simulateStay(decisionModel, agt, withdrawnNeighbors, additionalWithdrawals;
                                                skipWithdrawn=skipWithdrawn)
             probFullDepositWD = payoffIfWithdrawNow(decisionModel, agt)
-            withdrew = decide(probFullDepositWD, probFullDepositStay)
+            withdrew = decide(probFullDepositWD, probFullDepositStay; tiebreak=tiebreak)
             withdrew && withdraw(mod, agt)
             reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=withdrew,deposit=agt.deposit,
                 tick=t,vault=mod.theBank.vault,wdProb=probFullDepositWD,stayProb=probFullDepositStay)

@@ -213,7 +213,7 @@ and consolidation joins on `task_id`. Positional parsing survives only as a
 fallback for the legacy 2026-04 sweep, and warns when it is used.
 
 Since 2026-10-15 the manifest also records the `BANKRUN_*` model switches
-(`settings.jl`) in its last six columns (`public_alpha` … `fresh_clone`): the raw
+(`settings.jl`) in its last nine columns (`public_alpha` … `belief_p0`): the raw
 value exported by the submitting shell, empty meaning the published default.
 Manifests written before that lack these columns; readers go by header name.
 
