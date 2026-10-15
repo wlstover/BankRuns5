@@ -17,10 +17,12 @@ mixed populations (0 < mu < 1), by lambda gap and by run outcome:
 Uncertainty: each statistic is computed per run as I minus C, then averaged over
 runs (mean +- 1.96 SE across runs), so within-run correlation is respected.
 
-NB the ABM's lambda is the weight on the PRIVATE signal (type I = high lambda),
-the opposite orientation to Ch 1's omega (weight on the public signal).
+NB the ABM's lambda is the weight on the SOCIAL signal (neighbours' withdrawals),
+so type I has the LOW lambda, the same orientation as Ch 1's omega (weight on
+the public signal). Corrected 2026-10-15; this docstring had it reversed.
 
-Run: python3 scripts/who_runs_pilot.py  (writes outputs/who_runs_pilot/summary.csv)
+Run: python3 scripts/who_runs_pilot.py [outputs/who_runs_pilot_<tag>]
+     (writes <dir>/summary.csv; default dir outputs/who_runs_pilot)
 """
 
 from pathlib import Path
@@ -28,7 +30,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-D = Path(__file__).resolve().parent.parent / "outputs" / "who_runs_pilot"
+import sys
+
+D = (Path(sys.argv[1]).resolve() if len(sys.argv) > 1
+     else Path(__file__).resolve().parent.parent / "outputs" / "who_runs_pilot")
 
 
 def load():

@@ -8,9 +8,12 @@
 #  run by run. (test_run/ was appended to by ~6 invocations under the same keys.)
 #  Analysis: scripts/who_runs_pilot.py.
 #
-#  Model settings are the published defaults: no public signal, legacy double
-#  count, stale sub-simulation clone (functions4.jl fallbacks).
-#  REPS can be overridden: WHO_RUNS_REPS=40 julia --project=. scripts/...
+#  Model settings: the BANKRUN_* switches are read from ENV exactly as
+#  finMain0001.jl reads them (defaults in settings.jl = the published model).
+#  WHO_RUNS_TAG names the output directory, outputs/who_runs_pilot_<tag>
+#  (default: outputs/who_runs_pilot). REPS: WHO_RUNS_REPS (default 20).
+#    WHO_RUNS_TAG=fixes BANKRUN_FRESH_CLONE=true WHO_RUNS_REPS=40 \
+#        julia --project=. scripts/who_runs_pilot.jl
 ################################################################################
 
 using Distributions, Graphs, Random, LinearAlgebra,
@@ -36,7 +39,19 @@ const WS_P      = 0.05
 const MU_VALS      = [0.0, 0.25, 0.5, 0.75, 1.0]
 const LAMBDA_PAIRS = [(0.1, 0.9), (0.2, 0.8), (0.3, 0.5)]
 
-const OUT_DIR = joinpath(ROOT, "outputs", "who_runs_pilot")
+# Switches, parsed as in finMain0001.jl.
+const PUBLIC_ALPHA     = envFloat("BANKRUN_PUBLIC_ALPHA", SWITCH_DEFAULTS.PUBLIC_ALPHA, 0.0, 1.0)
+const PUBLIC_BIAS      = envFloat("BANKRUN_PUBLIC_BIAS",  SWITCH_DEFAULTS.PUBLIC_BIAS,  0.0, 1.0)
+const PUBLIC_RHO       = envFloat("BANKRUN_PUBLIC_RHO",   SWITCH_DEFAULTS.PUBLIC_RHO,   0.0, 1.0)
+const WEIGHT_PHI       = envFloat("BANKRUN_WEIGHT_PHI",   SWITCH_DEFAULTS.WEIGHT_PHI,   0.0, 1.0; loOpen=true)
+const FIX_DOUBLE_COUNT = envBool("BANKRUN_FIX_DOUBLE_COUNT", SWITCH_DEFAULTS.FIX_DOUBLE_COUNT)
+const FRESH_CLONE      = envBool("BANKRUN_FRESH_CLONE",      SWITCH_DEFAULTS.FRESH_CLONE)
+const TIEBREAK         = envChoice("BANKRUN_TIEBREAK", SWITCH_DEFAULTS.TIEBREAK, TIEBREAK_CHOICES)
+const BELIEF           = envChoice("BANKRUN_BELIEF",   SWITCH_DEFAULTS.BELIEF,   BELIEF_CHOICES)
+const BELIEF_P0        = envFloat("BANKRUN_BELIEF_P0", SWITCH_DEFAULTS.BELIEF_P0, 0.0, 1.0; loOpen=true)
+
+const TAG = strip(get(ENV, "WHO_RUNS_TAG", ""))
+const OUT_DIR = joinpath(ROOT, "outputs", isempty(TAG) ? "who_runs_pilot" : "who_runs_pilot_$TAG")
 if isdir(OUT_DIR) && !isempty(readdir(OUT_DIR))
     error("$OUT_DIR is not empty; move it aside first (the model appends to its CSVs)")
 end
@@ -70,6 +85,8 @@ function run_sweep()
 end
 
 println("Who-runs pilot: N=$N_AGENTS depth=$DEPTH_MC reps=$REPS -> $OUT_DIR")
+println("switches: alpha=$PUBLIC_ALPHA bias=$PUBLIC_BIAS rho=$PUBLIC_RHO phi=$WEIGHT_PHI ",
+        "fixDoubleCount=$FIX_DOUBLE_COUNT freshClone=$FRESH_CLONE tiebreak=$TIEBREAK belief=$BELIEF p0=$BELIEF_P0")
 t0 = time()
 CSV.write(joinpath(OUT_DIR, "results.csv"), run_sweep())
 @printf("done in %.1f min\n", (time() - t0) / 60)
