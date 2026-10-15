@@ -30,5 +30,5 @@ parameterGen.jl  -text
 objects.jl       -text
 
 # restart.jl is also CRLF-origin and is not currently wired in
-# (finMain0001.jl:90); pin it so it does not drift while dormant.
+# (finMain0001.jl does not include it); pin it so it does not drift while dormant.
 restart.jl       -text

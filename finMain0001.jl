@@ -53,7 +53,7 @@ println("assignment rule: ", ASSIGN_RULE)
 # major parameters
 #
 # Monte Carlo depth: the number of clone-and-resimulate draws each agent runs
-# per decision (functions4.jl:423,433). Set by scripts/run_all.sh --depth.
+# per decision (functions4.jl modelRun). Set by scripts/run_all.sh --depth.
 #
 # ⚠️ DEFAULT LOWERED 1000 -> 100 on 2026-08-13. This is a modelling change, not
 # just a speed knob. The decision rule is P̂_WD > P̂_stay, and both sides are
@@ -67,7 +67,7 @@ println("assignment rule: ", ASSIGN_RULE)
 # different depth are NOT directly comparable to it. `depth` is recorded in the
 # manifest and in the parameter dump so any comparison can condition on it.
 # Parsed once on the master and broadcast, rather than each worker reading ENV
-# for itself — same pattern as ASSIGN_RULE below. If workers resolved it
+# for itself — same pattern as ASSIGN_RULE above. If workers resolved it
 # independently, a divergent environment on one node would give that node's
 # agents a different decision precision, silently and unrecoverably.
 # `get(ENV, k, default)` returns "" for a SET-BUT-EMPTY variable, not the
@@ -143,89 +143,36 @@ for c in 2:cores
 end
 sleep(5)
 
-#println(depth)
-# now, we summarize the model  
+# Model outline:
+# generate the agents, their network, their deposits and the bank;
+# an exogenous number of agents withdraw;
+# each agent observes the share of its neighbours that have withdrawn, takes it
+# as a sample of the population, and estimates its probability of getting its
+# full deposit back, randomising over which agents withdraw and its place in line.
+# The structs are generated once, so the sweep uses process-based parallelism.
 
-# model initialization
-# generate the agents and their network 
-# generate their deposits
-# generate the bank 
-
-# now the model begins and an exogenous number of agents withdraw
-
-# each agent observes the percentage of its neighbors that have withdrawn
-# and takes this as a random sample of the population
-# the agent then calculates its probability of getting its full deposit back 
-# while randomizing over which agents withdraw
-# and its own place in line 
-
-# now, the structs are generated once and for all
-# so we can use processes based parallelism 
-
-# first, check if there are any jld2 files in the data directory
 dataDir = CLI_ARGS[1]
 @everywhere dataDir = $dataDir
-#@everywhere dataDir="/Users/l25-n05917-res/ResearchCode/BankRunDataNew"
-# If this is a fresh run, run the parameter generation code
-
-# bring in the parameter generation code
-# define jointFrame to keep global scope
-#jointFrame=DataFrame()
-# check if there is a jld2 file in the data directory
-#jld2_files = readdir(dataDir, join=true)
-#jld2_files = filter(file -> occursin(".jld2", file), jld2_files)
-#if isempty(jld2_files)
-# if there are no jld2 files, we need to generate the parameters
+# Parameter generation runs on the master. restart.jl (resuming from saved
+# parameters) is not wired in; see scripts/run_all.sh on --restart.
 if myid() == 1
     include("parameterGen.jl")
 end
-# if there are jld2 files, we need to load the parameters
-#@everywhere include("restart.jl")
-
-
-
 
 # Work queue for distributed sweep: each worker pulls a row, runs, and checks it off.
 coreDict=Dict()
-resultDict=Dict()
-rowDict=Dict()
 for j in 2:cores
     coreDict[j]=nothing
 end
-#workerCore=1
-#modelCall()
-#exit()
-# how many rows do we have in the control file?
 while sum(jointFrame.completed) < size(jointFrame,1)
         for c in keys(coreDict)
-            #println(sum(jointFrame.completed))
-            #println("Core")
-            #println(c)
-            #println(coreDict[c])
-            #println(isReady(coreDict[c]))
-            #println(isnothing(coreDict[c]))
-            #readline()
             if isnothing(coreDict[c])
-                # if the core dictionary is nothing, we send it the parameters
-                #println("Sending Parameters")
-                #println("core")
-                #println(c)
-                #println(coreDict[c])
-                # read parameters from the first row
-                # step 1: get the index of the first non-started row
-                
+                # idle worker: start a run on the next unstarted row
                 coreDict[c]=@spawnat c modelCall()
-                #println(coreDict[c])
-                #println(resultDict==:complete)
             elseif isReady(coreDict[c])
-                #println("Ready")
-                #println(coreDict[c])
                 coreDict[c]=fetch(coreDict[c])
-                #println(coreDict[c])
-                #println(sum(jointFrame.completed) < size(jointFrame,1))
-                #println(sum(jointFrame.completed))
             end
-        end    
+        end
 end
 # Belt and braces behind the functions4.jl write/checkOff reorder (2026-08-19).
 # The loop above exits on sum(completed), which a worker sets from inside

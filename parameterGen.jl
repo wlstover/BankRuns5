@@ -14,24 +14,8 @@
 #using Distributions
 #using Graphs
 
-# we need to sweep for parameters with the following behavior:
-# Under the assumption of perfect information, the probability of bank failure is 0. 
-
-
-
-##### PARAMETERS ######
-# SEED
-# AGENT COUNT
-# WITHDRAWAL PERIODS :number of periods over which exogenous withdrawals become manifest
-# search DEPTH (number or simulation rounds agents run when predicting probability
-#       of default)
-# RESERVE RATIO
-# DEPOSIT DISTRIBUTION OBJECT
-
-# Graph OBJECT
-# Types are Watts-Strogatz, Barabasi-Albert, Erdos-Renyi, and complete
-# and a vector of the needed parameters for each
-# GRAPHS for each graph, a and b in (0,1)
+# Builds jointFrame, one row per run: the parameter cell, its network,
+# distributions and seeds. Included by finMain0001.jl on the master only.
 
 genSeed=parse(Int, CLI_ARGS[2])
 Random.seed!(genSeed)
@@ -130,8 +114,6 @@ jointFrame.started.=false
 jointFrame.completed.=false
 save_object(dataDir*"/key"*string(genSeed)*string(Dates.now())*".jld2", jointFrame)
 println(jointFrame)
-# subset to 16 rows
-#jointFrame=jointFrame[1:30,:]
 # Deposit-distribution parameters, pulled out of the Distribution object so
 # they land in the parameter dump alongside everything else.
 # ⚠️ ADDED 2026-08-13. Before this, sigma was written ONLY to

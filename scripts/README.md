@@ -179,7 +179,7 @@ surplus cells are reported as warnings, deliberately, so the job going red alway
 means something.
 
 **`--restart` is a top-up, not a resume.** `restart.jl` is not wired in
-(`finMain0001.jl:90`), so a re-submitted task appends a fresh 50-run block under
+(`finMain0001.jl` does not include it), so a re-submitted task appends a fresh 50-run block under
 new keys. The extra runs are valid draws; they are not a continuation. This is the
 mechanism behind the ~612-runs-per-cell surplus in the 2026-04 sweep against a
 documented 50.
@@ -187,7 +187,7 @@ documented 50.
 ## ⚠️ Column names changed 2026-08-13
 
 `consolidate_results.py` used to name the parameter columns positionally and the
-positions were wrong — `parameterGen.jl:135` writes `(k, p, r, q)` where the old
+positions were wrong — `parameterGen.jl` (the `bankRunParametersInit.csv` write) writes `(k, p, r, q)` where the old
 header read `(agtCnt, reserveRatio, depositInsurance, exogProb)`. Anything keyed
 on `reserveRatio` was keyed on the Watts–Strogatz rewiring probability.
 

@@ -11,7 +11,7 @@ masked crashes — it is chasing the failure mode the 2026-04 sweep actually hit
   * TIMEOUT at the walltime, leaving a task directory with some of its 50 runs.
     ~25% of runs carried no terminal outcome record and nobody noticed for
     months, because the array job's per-task states were never aggregated.
-  * Silent replication surplus. restart.jl is not wired in (finMain0001.jl:90),
+  * Silent replication surplus. restart.jl is not wired in (finMain0001.jl does not include it),
     so a re-submitted task appends a fresh 50-run block under new keys instead
     of resuming. The 2026-04 sweep accumulated ~612 runs/cell against a
     documented 50 — more precision than claimed, but the documented figure was
@@ -56,7 +56,8 @@ from pathlib import Path
 # on 2026-08-15; this file was missed.
 EXPECTED_RUNS_PER_CELL = 250
 
-# bankRunParametersInit.csv width. 12 = pre-sigma-fix; 14 = with lognMu/lognSigma.
+# bankRunParametersInit.csv width. 12 = pre-sigma-fix; 14 = with lognMu/lognSigma;
+# 16 = with assignRule/mcDepth (current).
 LEGACY_PARAM_COLS = 12
 
 BAD_SLURM_STATES = ("TIMEOUT", "FAILED", "OUT_OF_MEMORY", "CANCELLED", "NODE_FAIL")

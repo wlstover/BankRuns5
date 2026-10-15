@@ -305,7 +305,6 @@ function exogWithdrawals(mod::Model)
     global dataDir
     global workerCore
     for agt in withdrawList
-        #println("Exogenous Withdrawal Agent ",agt.idx)
         withdraw(mod,agt)
         reportRow=DataFrame(key=mod.key,agent=agt.idx,exogenous=true,deposit=agt.deposit,tick=0,vault=mod.theBank.vault)
         CSV.write(dataDir*"/"*"bankRunExogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
@@ -323,7 +322,6 @@ end
 function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},additionalWithdrawals::Int64;
                      skipWithdrawn::Bool=false)
     # Phase 1: force withdrawals of observed (exogenous) neighbors in the submodel.
-    #println("Agent ",agt.idx," sees ",length(withdrawingAgents)," withdrawing agents and anticipates ",additionalWithdrawals," additional withdrawals.")
     #
     # ⚠️ DOUBLE COUNT (found 2026-10-08). The submodel is cloned AFTER the
     # exogenous shock, so exogenously withdrawn neighbours are already out of it
@@ -343,7 +341,6 @@ function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},ad
     # if the current agent is among them, we skip it. 
     numWithdrawn::Int64=0
     idx::Int64=1
-    #println(additionalWithdrawals)
     while numWithdrawn < additionalWithdrawals && idx <= length(stillBanking)
         if stillBanking[idx].idx!=agt.idx
             withdraw(mod,stillBanking[idx])
@@ -352,11 +349,8 @@ function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},ad
         idx+=1
     end
     # Now simulate the focal agent withdrawing.
-    #println("Chk")
-    #println(agt in mod.agtList
     currAgt=filter(x->x.idx==agt.idx,mod.agtList)[1]
     result=withdraw(mod,currAgt)
-    #println("Agent ",agt.idx," Deposit was ",agt.deposit," with result ", result)
     return (result,result < agt.deposit)
 end
 
@@ -406,7 +400,6 @@ function modelRun(mod::Model)
     if mod.theBank.vault<=0.0
         # if the bank is bankrupt, we need to stop the simulation
         runState=true
-        #println("Bankrupt at tick ",t," with vault ",mod.theBank.vault)
         return (runState, runSetSize(mod)...)
     end
     while !halt && !runState
@@ -428,23 +421,18 @@ function modelRun(mod::Model)
         stillBanking=Random.shuffle(mod.theBank.bankingList)
         # each agent observes the percentage of its neighbors that have withdrawn
         for agt in stillBanking
-            #println("Running Agent ",agt.idx)
             # get the neighbors of the agent
             neighbors=neighborList(mod,agt)
-            #println("Agent ",agt.idx," has ",length(neighbors)," neighbors")
             withdrawnNeighbors::Array{Agent}=Agent[]
             for n in neighbors
                 if !n.banked
                     push!(withdrawnNeighbors,n)
                 end
             end
-            #println("Agent ",agt.idx," has ",length(withdrawnNeighbors)," withdrawn neighbors")
             # now calculate the proportion of neighbors that have withdrawn
             propWithdrawn = isempty(neighbors) ? 0.0 : (length(withdrawnNeighbors) / length(neighbors))
-            #println("Prop Withdrawn for Agent ",agt.idx," is ",propWithdrawn)
             # Infer total withdrawals in population from neighbor sample.
             totalWithdrawn=round(Int64,propWithdrawn*length(mod.agtList))
-            #println("Total Withdrawn for Agent ",agt.idx," is ",totalWithdrawn)
             # Draw possible total withdrawals and convert to additional (endogenous) count.
             totalWithdrawnRaw = totalWithdrawn
             totalWithdrawn = clamp(totalWithdrawn, 0, length(mod.agtList)-1)
@@ -460,7 +448,7 @@ function modelRun(mod::Model)
                 )
             end
             totalWithdrawnPoint = totalWithdrawn  # clamped neighbor-signal point estimate
-            # Draw from the untruncated exogenous distribution — the agent's own prior
+            # Draw from the exogenous withdrawal distribution (truncated Geometric) — the agent's own prior
             # belief about total population withdrawals, independent of local observation.
             # Blend with the neighbor-signal point estimate via individualism λ:
             #   λ=0 (individualist): ignores neighbor signal, relies on own MC prior.
@@ -491,10 +479,7 @@ function modelRun(mod::Model)
             # Monte Carlo: compare outcomes if the agent withdraws now vs. stays.
             subModResults=[]
             initWithdrawResults=[]
-            global depth
-            #println("Simulating for agent ",agt.idx)
             for k in 1:depth
-                #println("Simulating for agent ",agt.idx)
                 push!(subModResults,subModelRun(clone(decisionModel),agt,withdrawnNeighbors,additionalWithdrawals[k];
                                                 skipWithdrawn=skipWithdrawn))
                 baseMod=clone(decisionModel)
@@ -510,24 +495,19 @@ function modelRun(mod::Model)
             for el in initWithdrawResults
                 push!(resultsWD,el < agt.deposit)
             end
-            #println("submodel results for agent ",agt.idx," are ",subModResults)
-            #println("initial withdrawal results for agent ",agt.idx," are ",initWithdrawResults)
 
             # now calculate the probability of getting less than its deposit
             # should this be 1-?
             probLessThanDepositStay=1-mean(resultsStay)
             probLessThanDepositWD=1-mean(resultsWD)
             # now if the probability is greater than the threshold, withdraw
-            global dataDir
             if probLessThanDepositWD > probLessThanDepositStay || probLessThanDepositWD==0.0
-                #println("Endogenous Withdawal Agent ",agt.idx," at p(WD)=",probLessThanDepositWD, " where deposit was ",agt.deposit," and vault was ",mod.theBank.vault," and P(Stay)=",probLessThanDepositStay, " at tick=",t)
                 withdraw(mod,agt)
                 reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=true,deposit=agt.deposit,
                 tick=t,vault=mod.theBank.vault,wdProb=probLessThanDepositWD,stayProb=probLessThanDepositStay)
                 CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
                 halt=false
             else
-                #println("No Endogenous Withdawal Agent ",agt.idx," at p(WD)=",probLessThanDepositWD, " where deposit was ",agt.deposit," and vault was ",mod.theBank.vault," and P(Stay)=",probLessThanDepositStay, " at tick=",t)
                 reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=false,deposit=agt.deposit,
                 tick=t,vault=mod.theBank.vault,wdProb=probLessThanDepositWD,stayProb=probLessThanDepositStay)
                 CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
@@ -538,11 +518,7 @@ function modelRun(mod::Model)
                 runState=true
                 break
             end
-            #readline()   
         end
-        #if  !halt && !runState
-        #    println("Halting at tick ",t," with vault ",mod.theBank.vault)
-        #end
     end
     return (runState, runSetSize(mod)...)
 end
@@ -573,9 +549,6 @@ end
 
 function isReady(arg::Future)
     return isready(arg)
-end
-function isReady(arg::Symbol)
-    return false
 end
 function isReady(arg::Nothing)
     return false
@@ -665,5 +638,4 @@ end
 function myCore(c)
     global workerCore
     workerCore=c
-    #println("Worker Core is ",workerCore)
 end

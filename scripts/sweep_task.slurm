@@ -13,7 +13,7 @@
 #   PARAMS_FILE            absolute path to the arm's params file
 #   ARM_DIR                absolute path to the arm's output root
 #   ARM_TAG                arm name (for logging)
-#   BANKRUN_ASSIGN_RULE    warmup | random | reverse (read by functions4.jl)
+#   BANKRUN_ASSIGN_RULE    warmup | random | reverse (parsed in finMain0001.jl, used in functions4.jl modelGen)
 #   BANKRUN_MC_DEPTH       Monte Carlo draws per agent decision (finMain0001.jl)
 #   SEED_OFFSET            added to the array index to form GEN_SEED
 #

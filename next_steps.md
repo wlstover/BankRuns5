@@ -409,7 +409,7 @@ delete the raw dirs. That converts ~200 GB into a few hundred MB of the parts we
 ## 🔴 Open — blocking the chapter's numbers
 
 **1. Re-consolidate the legacy sweep under the corrected mapping.** The mapping is
-confirmed from `parameterGen.jl:135` and four independent value checks (2026-08-13 note).
+confirmed from `parameterGen.jl` (the `bankRunParametersInit.csv` write) and four independent value checks (2026-08-13 note).
 This produces the numbers §6.2 and §6.6 need, and settles two small discrepancies against the
 08-10 note: reserve swing 52.7 pp (note: 52.5) and `p` levels 76.16/77.74 (note:
 71.40/73.09, same ~1.6 pp gap).
@@ -752,7 +752,7 @@ processes oversubscribes 16 CPUs. It needs an explicit split (fewer runs in flig
 
 ## ⚪ Deferred / documented, not blocking
 
-- **`restart.jl` is not wired in** (`finMain0001.jl:90`). `--restart` is therefore a
+- **`restart.jl` is not wired in** (`finMain0001.jl` does not include it). `--restart` is therefore a
   *top-up*: a re-submitted task appends a fresh 50-run block under new keys rather than
   resuming. Documented in the header, warned at submit time, reported by the verifier.
   Wiring it back in is a real decision, not a bugfix — it truncates partial rows.

@@ -160,7 +160,7 @@ The main simulation loop:
 3. Loop over still-banking agents (shuffled each tick):
    - Observe what fraction of network neighbors have withdrawn.
    - Infer total expected withdrawals across the population (`totalWithdrawnPoint`).
-   - **Blended belief formation:** Draw `depth` samples from the untruncated exogenous distribution (agent's own MC prior). Blend each draw with the neighbor-signal point estimate using the agent's λ: `blendedTotal = (1−λ) × mcDraw + λ × totalWithdrawnPoint`. This yields per-agent heterogeneous additional withdrawal estimates:
+   - **Blended belief formation:** Draw `depth` samples from the exogenous withdrawal distribution, truncated Geometric(0.1) on [0, 1000] (agent's own MC prior). Blend each draw with the neighbor-signal point estimate using the agent's λ: `blendedTotal = (1−λ) × mcDraw + λ × totalWithdrawnPoint`. This yields per-agent heterogeneous additional withdrawal estimates:
      - λ near 0 (individualist): ignores neighbor signal, relies on own MC prior.
      - λ near 1 (collectivist): follows neighbor signal, ignores own MC prior.
    - Run `depth=1000` Monte Carlo trials for both the "withdraw now" and "stay" strategies.
@@ -434,7 +434,7 @@ The swept parameters λ_I and λ_C are constrained so that λ_I < λ_C (individu
 
 #### Role in Endogenous Decision-Making
 
-During the bank-run phase, each agent's λ controls belief formation about total population withdrawals. The agent draws `depth` samples from the untruncated exogenous Geometric distribution (its own MC prior), then blends each with the neighbor-signal point estimate:
+During the bank-run phase, each agent's λ controls belief formation about total population withdrawals. The agent draws `depth` samples from the exogenous truncated Geometric distribution (its own MC prior), then blends each with the neighbor-signal point estimate:
 
 $$\text{blendedTotal}_k = (1 - \lambda) \times \text{mcDraw}_k + \lambda \times \text{totalWithdrawnPoint}$$
 
@@ -473,7 +473,7 @@ After exogenous withdrawals, the remaining banked agents iteratively reconsider 
 2. For each agent:
    a. **Observe neighbors:** Count how many network neighbors have withdrawn (`withdrawnNeighbors`).
    b. **Infer population state:** Scale to estimate total withdrawals population-wide as `propWithdrawn × N` (`totalWithdrawnPoint`), clamped to [0, N−1].
-   c. **Blended belief formation:** Draw `depth = 1000` samples from the untruncated exogenous Geometric distribution (the agent's own MC prior). Blend each draw with the neighbor-signal point estimate using the agent's individualism λ: `blendedTotal = (1−λ) × mcDraw + λ × totalWithdrawnPoint`. Compute additional withdrawals as `max(0, blendedTotal − withdrawnNeighborCount)`. Individualists (low λ) rely on their own prior; collectivists (high λ) follow the neighbor signal.
+   c. **Blended belief formation:** Draw `depth` samples (default 100 since 2026-08-13; 1000 in the 2026-04 sweep) from the exogenous truncated Geometric distribution (the agent's own MC prior). Blend each draw with the neighbor-signal point estimate using the agent's individualism λ: `blendedTotal = (1−λ) × mcDraw + λ × totalWithdrawnPoint`. Compute additional withdrawals as `max(0, blendedTotal − withdrawnNeighborCount)`. Individualists (low λ) rely on their own prior; collectivists (high λ) follow the neighbor signal.
    d. **Monte Carlo: "withdraw now" strategy:** For each of the 1,000 blended samples, clone the current model state and simulate the focal agent withdrawing immediately. Record whether the payout equals the full deposit.
    e. **Monte Carlo: "stay" strategy:** For each sample, additionally force the sampled additional agents to withdraw, then simulate the focal agent withdrawing. Record whether the payout equals the full deposit.
    f. **Decision rule:** If `P(full payout | withdraw now) > P(full payout | stay)` or if `P(full payout | withdraw now) == 0`, **withdraw**. Otherwise, stay.

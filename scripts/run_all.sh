@@ -51,8 +51,8 @@
 # destroys the attribution the variant was launched to measure.
 #
 # ── ⚠️ WHAT --restart ACTUALLY DOES ──────────────────────────────────────────
-# It is a TOP-UP, not a resume. restart.jl is not wired in (finMain0001.jl:90
-# has the include commented out), so a re-submitted task runs parameterGen.jl
+# It is a TOP-UP, not a resume. restart.jl is not wired in (finMain0001.jl
+# does not include it), so a re-submitted task runs parameterGen.jl
 # again, draws fresh seeds, and APPENDS a new 50-run block to whatever the task
 # already holds. Those runs are valid draws — they are simply extra
 # replications, not a continuation. This is the mechanism behind the ~6x

@@ -7,7 +7,7 @@ directories into one row-per-simulation CSV.
 ⚠️ WHY THIS FILE WAS REWRITTEN (2026-08-13)
 -------------------------------------------
 The previous version assigned column names POSITIONALLY to the headerless
-bankRunParametersInit.csv dump, and the positions were wrong. parameterGen.jl:135
+bankRunParametersInit.csv dump, and the positions were wrong. parameterGen.jl (the bankRunParametersInit.csv write)
 writes
 
     seed1, iteration, graphParams1, graphParams2, reserveRatio,
@@ -68,7 +68,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 
-# bankRunParametersInit.csv positions. Authoritative source: parameterGen.jl:135.
+# bankRunParametersInit.csv positions. Authoritative source: parameterGen.jl (the bankRunParametersInit.csv write).
 INIT_POS = {
     "paramSeed": 0,
     "replication": 1,
@@ -132,7 +132,7 @@ def consolidate(arm_dir, manifest_path, out_path):
     else:
         print("Manifest      : NONE — falling back to positional parsing of the")
         print("                Julia dump. This is the legacy path; parameters are")
-        print("                mapped per parameterGen.jl:135, NOT per the old header.")
+        print("                mapped per parameterGen.jl (the bankRunParametersInit.csv write), NOT per the old header.")
 
     total_rows = 0
     missing_fin = missing_results = 0
