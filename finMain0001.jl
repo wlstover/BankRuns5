@@ -82,6 +82,56 @@ end
 @everywhere depth::Int64 = $MC_DEPTH
 println("Monte Carlo depth: ", MC_DEPTH)
 
+# Public signal (Level 1, added 2026-10-08; see functions4.jl modelRun). Every
+# default reproduces the model as published bit-for-bit: no new random draws,
+# and the blend reduces to the old expression. Parsed once on the master and
+# broadcast, same pattern as MC_DEPTH. Empty export == absent.
+#
+#   BANKRUN_PUBLIC_ALPHA  α ∈ [0,1]  share of the social signal that is the common
+#                         public announcement rather than the local neighbour
+#                         share. 0 = local only (published model), 1 = common only.
+#   BANKRUN_PUBLIC_BIAS   b ∈ [0,1]  spin: the announcement understates withdrawals
+#                         by b·N at tick 1 ("funds are safe").
+#   BANKRUN_PUBLIC_RHO    ρ ∈ [0,1]  spin persistence: understatement b·ρ^(t-1)·N.
+#                         1 = the error persists, < 1 = it corrects.
+#   BANKRUN_WEIGHT_PHI    φ ∈ (0,1]  social-weight decay: ω_t = λ·φ^(t-1).
+#                         1 = the weight persists (published model).
+#   BANKRUN_FIX_DOUBLE_COUNT  true|false  skip already-withdrawn agents when a
+#                         sub-simulation replays observed withdrawals (fixes the
+#                         double count of exogenous neighbours; default false).
+#   BANKRUN_FRESH_CLONE   true|false  each decision simulates from the CURRENT bank
+#                         state instead of the post-shock snapshot (implies the
+#                         double-count fix; default false).
+function envFloat(name, default, lo, hi; loOpen=false)
+    s = strip(get(ENV, name, ""))
+    isempty(s) && return default
+    v = tryparse(Float64, s)
+    ok = v !== nothing && (loOpen ? v > lo : v >= lo) && v <= hi
+    ok || error("$name must be a number in $(loOpen ? "(" : "[")$lo,$hi], got \"$s\"")
+    return v
+end
+function envBool(name)
+    s = lowercase(strip(get(ENV, name, "")))
+    isempty(s) && return false
+    s in ("true", "1") && return true
+    s in ("false", "0") && return false
+    error("$name must be true|false, got \"$s\"")
+end
+const PUBLIC_ALPHA      = envFloat("BANKRUN_PUBLIC_ALPHA", 0.0, 0.0, 1.0)
+const PUBLIC_BIAS       = envFloat("BANKRUN_PUBLIC_BIAS",  0.0, 0.0, 1.0)
+const PUBLIC_RHO        = envFloat("BANKRUN_PUBLIC_RHO",   1.0, 0.0, 1.0)
+const WEIGHT_PHI        = envFloat("BANKRUN_WEIGHT_PHI",   1.0, 0.0, 1.0; loOpen=true)
+const FIX_DOUBLE_COUNT  = envBool("BANKRUN_FIX_DOUBLE_COUNT")
+const FRESH_CLONE       = envBool("BANKRUN_FRESH_CLONE")
+@everywhere const PUBLIC_ALPHA     = $PUBLIC_ALPHA
+@everywhere const PUBLIC_BIAS      = $PUBLIC_BIAS
+@everywhere const PUBLIC_RHO       = $PUBLIC_RHO
+@everywhere const WEIGHT_PHI       = $WEIGHT_PHI
+@everywhere const FIX_DOUBLE_COUNT = $FIX_DOUBLE_COUNT
+@everywhere const FRESH_CLONE      = $FRESH_CLONE
+println("public signal: alpha=", PUBLIC_ALPHA, " bias=", PUBLIC_BIAS, " rho=", PUBLIC_RHO,
+        " phi=", WEIGHT_PHI, " fixDoubleCount=", FIX_DOUBLE_COUNT, " freshClone=", FRESH_CLONE)
+
 @everywhere include("objects.jl")
 
 @everywhere include("warmup.jl")

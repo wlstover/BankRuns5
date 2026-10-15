@@ -42,6 +42,17 @@ SEED_OFFSET="${SEED_OFFSET:-1000}"
 
 export BANKRUN_ASSIGN_RULE   # read by finMain0001.jl -> functions4.jl modelGen
 export BANKRUN_MC_DEPTH      # read by finMain0001.jl, broadcast to workers
+# Public-signal switches (Level 1, 2026-10-08; see finMain0001.jl). Unset or
+# empty = the published model. They reach this script through --export=ALL, so
+# set them in the submitting shell. run_all.sh has no flags or manifest columns
+# for them yet: a non-default run is identifiable from its outputs only through
+# bankRunPublicParams<core>.csv.
+export BANKRUN_PUBLIC_ALPHA="${BANKRUN_PUBLIC_ALPHA:-}"
+export BANKRUN_PUBLIC_BIAS="${BANKRUN_PUBLIC_BIAS:-}"
+export BANKRUN_PUBLIC_RHO="${BANKRUN_PUBLIC_RHO:-}"
+export BANKRUN_WEIGHT_PHI="${BANKRUN_WEIGHT_PHI:-}"
+export BANKRUN_FIX_DOUBLE_COUNT="${BANKRUN_FIX_DOUBLE_COUNT:-}"
+export BANKRUN_FRESH_CLONE="${BANKRUN_FRESH_CLONE:-}"
 
 module load julia/1.8.0
 
@@ -83,6 +94,7 @@ fi
 
 echo "======================================================================"
 echo "arm=${ARM_TAG}  task=${SLURM_ARRAY_TASK_ID}  assign=${BANKRUN_ASSIGN_RULE}  mcDepth=${BANKRUN_MC_DEPTH}"
+echo "public: alpha=${BANKRUN_PUBLIC_ALPHA:-0} bias=${BANKRUN_PUBLIC_BIAS:-0} rho=${BANKRUN_PUBLIC_RHO:-1} phi=${BANKRUN_WEIGHT_PHI:-1} fixDoubleCount=${BANKRUN_FIX_DOUBLE_COUNT:-false} freshClone=${BANKRUN_FRESH_CLONE:-false}"
 echo "reserve=$reserve depq=$depq sigma=$sigma k=$k p=$p alpha=$alpha mu=$mu"
 echo "lambdaI=$lambdaI lambdaC=$lambdaC  genSeed=$GEN_SEED"
 echo "outdir=${TASK_DIR}"

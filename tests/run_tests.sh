@@ -36,7 +36,7 @@ done
 
 PY_TESTS=(test_diagnose_short_cells.py test_endpoint_identity.py test_cascade_reader.py
           test_type_clustering.py)
-JL_TESTS=(test_assignment_rules.jl test_conservation.jl test_name_collisions.jl test_runsize.jl)
+JL_TESTS=(test_assignment_rules.jl test_conservation.jl test_name_collisions.jl test_runsize.jl test_public_signal.jl)
 R_TESTS=(test_p6b_continuous.R)
 
 if [[ ${LIST_ONLY} -eq 1 ]]; then

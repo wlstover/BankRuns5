@@ -320,12 +320,21 @@ function index(agt::simAgent)
     return agt.idx
 end
 
-function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},additionalWithdrawals::Int64)
+function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},additionalWithdrawals::Int64;
+                     skipWithdrawn::Bool=false)
     # Phase 1: force withdrawals of observed (exogenous) neighbors in the submodel.
     #println("Agent ",agt.idx," sees ",length(withdrawingAgents)," withdrawing agents and anticipates ",additionalWithdrawals," additional withdrawals.")
+    #
+    # ⚠️ DOUBLE COUNT (found 2026-10-08). The submodel is cloned AFTER the
+    # exogenous shock, so exogenously withdrawn neighbours are already out of it
+    # (banked=false, deposit already off the vault). withdraw() does not check
+    # `banked`, so replaying them here takes their deposit off the vault a second
+    # time. skipWithdrawn=true (BANKRUN_FIX_DOUBLE_COUNT / BANKRUN_FRESH_CLONE)
+    # skips them; the default keeps the published behaviour bit-for-bit.
     for idx in index.(withdrawingAgents)
         # get the agent
         currAgt=mod.agtList[idx]
+        skipWithdrawn && !currAgt.banked && continue
         # withdraw the agent
         withdraw(mod,currAgt)
     end
@@ -364,6 +373,31 @@ function modelRun(mod::Model)
     # make a copy of the model
     simModel=clone(mod)
 
+    # Public-signal settings (Level 1, 2026-10-08; parsed in finMain0001.jl). The
+    # fallbacks are the published model, so scripts that include this file
+    # without finMain0001.jl (test_run.jl, tests/) behave exactly as before.
+    pubAlpha   = @isdefined(PUBLIC_ALPHA)     ? PUBLIC_ALPHA     : 0.0
+    pubBias    = @isdefined(PUBLIC_BIAS)      ? PUBLIC_BIAS      : 0.0
+    pubRho     = @isdefined(PUBLIC_RHO)       ? PUBLIC_RHO       : 1.0
+    weightPhi  = @isdefined(WEIGHT_PHI)       ? WEIGHT_PHI       : 1.0
+    freshClone = @isdefined(FRESH_CLONE)      ? FRESH_CLONE      : false
+    skipWithdrawn = freshClone || (@isdefined(FIX_DOUBLE_COUNT) ? FIX_DOUBLE_COUNT : false)
+    publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0
+    nAgents = length(mod.agtList)
+    publicPoint = 0
+    global dataDir
+    global workerCore
+    # Settings are logged once per run, only for non-default runs, so a default
+    # run writes exactly the files it always did (bankRunParametersInit.csv's
+    # width is checked by tests/check_recording.sh and scripts/check_sweep_run.py).
+    if publicOn || skipWithdrawn
+        CSV.write(dataDir*"/"*"bankRunPublicParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, publicAlpha=pubAlpha, publicBias=pubBias,
+                            publicRho=pubRho, weightPhi=weightPhi,
+                            fixDoubleCount=skipWithdrawn, freshClone=freshClone),
+                  writeheader=false, append=true)
+    end
+
     # now, whenever an agent withdraws, we reset a state variable since this means all other agents will
     # re-examing their decision to bank
     halt::Bool=false
@@ -378,6 +412,19 @@ function modelRun(mod::Model)
     while !halt && !runState
         halt=true
         t=t+1
+        # The platform's announcement for this tick: the true number withdrawn so
+        # far, understated by the spin b·ρ^(t-1)·N. Announced once at the start of
+        # the tick, so it lags withdrawals made within the tick. Common to all
+        # agents (contrast the neighbour share, which is local). No RNG draws.
+        if publicOn
+            trueWithdrawn = length(mod.theBank.withdrawHistory)
+            publicPoint = clamp(round(Int64, trueWithdrawn - pubBias * pubRho^(t-1) * nAgents),
+                                0, nAgents-1)
+            CSV.write(dataDir*"/"*"bankRunPublic"*string(workerCore)*".csv",
+                      DataFrame(key=mod.key, tick=t, trueWithdrawn=trueWithdrawn,
+                                publicPoint=publicPoint),
+                      writeheader=false, append=true)
+        end
         stillBanking=Random.shuffle(mod.theBank.bankingList)
         # each agent observes the percentage of its neighbors that have withdrawn
         for agt in stillBanking
@@ -422,9 +469,25 @@ function modelRun(mod::Model)
             # High λ_C (0.5–0.9) → collectivists weight social signal heavily → herd behavior.
             mcDraws = rand(mod.exogProb, depth)
             λ = agt.individualism
-            blendedTotal = round.(Int64, (1.0 .- λ) .* Float64.(mcDraws) .+ λ .* Float64(totalWithdrawnPoint))
+            # Level 1 (2026-10-08). The social signal mixes the common public
+            # announcement with the local neighbour estimate, and the weight on it
+            # may decay:
+            #   social = α·publicPoint + (1−α)·neighbourPoint,   ω_t = λ·φ^(t−1)
+            # With α = 0 and φ = 1 both lines reduce exactly to the published
+            # expression (λ·neighbourPoint), so defaults are bit-identical.
+            ω = weightPhi == 1.0 ? λ : λ * weightPhi^(t-1)
+            socialPoint = pubAlpha == 0.0 ? Float64(totalWithdrawnPoint) :
+                pubAlpha * Float64(publicPoint) + (1.0 - pubAlpha) * Float64(totalWithdrawnPoint)
+            blendedTotal = round.(Int64, (1.0 .- ω) .* Float64.(mcDraws) .+ ω .* socialPoint)
             blendedTotal = clamp.(blendedTotal, 0, length(mod.agtList)-1)
-            additionalWithdrawals=max.(0, blendedTotal .- length(withdrawnNeighbors))
+            # With a fresh clone every withdrawal so far is already in the
+            # submodel, so the extra count is measured against the true total
+            # rather than against the observed neighbours.
+            alreadyOut = freshClone ? length(mod.theBank.withdrawHistory) : length(withdrawnNeighbors)
+            additionalWithdrawals=max.(0, blendedTotal .- alreadyOut)
+            # BANKRUN_FRESH_CLONE: simulate from the current state, not the
+            # post-shock snapshot taken once above (the "stale clone").
+            decisionModel = freshClone ? clone(mod) : simModel
             # Monte Carlo: compare outcomes if the agent withdraws now vs. stays.
             subModResults=[]
             initWithdrawResults=[]
@@ -432,8 +495,9 @@ function modelRun(mod::Model)
             #println("Simulating for agent ",agt.idx)
             for k in 1:depth
                 #println("Simulating for agent ",agt.idx)
-                push!(subModResults,subModelRun((clone(simModel),agt,withdrawnNeighbors,additionalWithdrawals[k])...))
-                baseMod=clone(simModel)
+                push!(subModResults,subModelRun(clone(decisionModel),agt,withdrawnNeighbors,additionalWithdrawals[k];
+                                                skipWithdrawn=skipWithdrawn))
+                baseMod=clone(decisionModel)
                 currAgt=filter(x->x.idx==agt.idx,baseMod.agtList)[1]
                 push!(initWithdrawResults,withdraw(baseMod,currAgt))
             end
