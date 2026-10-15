@@ -354,6 +354,71 @@ function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},ad
     return (result,result < agt.deposit)
 end
 
+# ---- Sparse sub-simulation (2026-10-15) ----
+# A sub-simulation only needs the vault, who is still banked, and the deposits
+# of the agents it withdraws, so it does not clone the model or rebuild the
+# banking list on every withdrawal (Schuler's LargeSparseNetworkModel idea,
+# BankRunsFinal). It reproduces subModelRun on a clone of the same state
+# exactly: the same vault subtractions in the same order, the same insurance
+# cap, and the same random draw (one shuffle of a vector of the same length;
+# shuffle! consumes the RNG by length only). tests/test_switch_identity.jl
+# checks this byte for byte; tests/test_sparse_submodel.jl checks it draw by draw.
+struct SubState
+    vault::Float64
+    deposits::Vector{Float64}       # by agent idx
+    banked::BitVector               # by agent idx
+    bankedIdx::Vector{Int}          # banked agents in banking-list order
+    nHistory::Int                   # withdrawals already in the state
+    histMax::Float64                # largest deposit among them (-Inf if none)
+    adaptive::Bool                  # adaptive insurance (depositInsurance outside [0,1))
+    quantileCap::Float64            # quantile insurance cap otherwise
+end
+
+# The state clone() would produce: banking list and history are the banked and
+# withdrawn agents in agent order, whatever order the source lists hold.
+function SubState(agtList, vault::Float64, depositInsurance::Float64, depositDistribution)
+    deps = [a.deposit for a in agtList]
+    banked = BitVector([a.banked for a in agtList])
+    out = [a.deposit for a in agtList if !a.banked]
+    adaptive = !(0.0 <= depositInsurance < 1.0)
+    return SubState(vault, deps, banked, [a.idx for a in agtList if a.banked],
+                    length(out), isempty(out) ? -Inf : maximum(out), adaptive,
+                    adaptive ? 0.0 : quantile(depositDistribution, depositInsurance))
+end
+SubState(mod::simModel) = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution)
+SubState(mod::Model)    = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution)
+
+# Same signature and result as subModelRun(clone(decisionModel), ...).
+function subModelRunSparse(s::SubState, agt::Agent, withdrawingAgents::Array{Agent},
+                           additionalWithdrawals::Int64; skipWithdrawn::Bool=false)
+    vault, nHist, histMax = s.vault, s.nHistory, s.histMax
+    removed = Int[]
+    # Phase 1: replay the observed withdrawals (the double count when not skipped).
+    for nb in withdrawingAgents
+        i = nb.idx
+        skipWithdrawn && !s.banked[i] && continue
+        s.banked[i] && push!(removed, i)
+        nHist += 1; histMax = max(histMax, s.deposits[i]); vault -= s.deposits[i]
+    end
+    # Phase 2: the anticipated additional withdrawals, in a random order.
+    stillBanking = isempty(removed) ? copy(s.bankedIdx) : filter(i -> !(i in removed), s.bankedIdx)
+    Random.shuffle!(stillBanking)
+    numWithdrawn, j = 0, 1
+    while numWithdrawn < additionalWithdrawals && j <= length(stillBanking)
+        i = stillBanking[j]
+        if i != agt.idx
+            nHist += 1; histMax = max(histMax, s.deposits[i]); vault -= s.deposits[i]
+            numWithdrawn += 1
+        end
+        j += 1
+    end
+    # Phase 3: the focal agent withdraws (withdraw()'s payout rule).
+    cap = s.adaptive ? (nHist == 0 ? 0.0 : histMax) : s.quantileCap
+    dep = s.deposits[agt.idx]
+    result = dep > vault ? max(0.0, vault, min(dep, cap)) : dep
+    return (result, result < agt.deposit)
+end
+
 # ---- Per-agent decision step ----
 # Split out of modelRun on 2026-10-15 so each piece (and each future switch) lives
 # in one function. The order of random draws is unchanged: beliefDraws (one
@@ -417,20 +482,22 @@ end
 
 # P(full deposit | stay): the share of sub-simulations, one per prior draw, in
 # which the agent is paid in full when it withdraws after the anticipated others.
-function simulateStay(decisionModel::simModel, agt::Agent, withdrawnNeighbors::Array{Agent},
+# Uses the sparse sub-simulation (identical results to subModelRun on clones).
+function simulateStay(s::SubState, agt::Agent, withdrawnNeighbors::Array{Agent},
                       additionalWithdrawals; skipWithdrawn::Bool)
-    lossStay = Bool[subModelRun(clone(decisionModel), agt, withdrawnNeighbors, additionalWithdrawals[k];
-                                skipWithdrawn=skipWithdrawn)[2] for k in eachindex(additionalWithdrawals)]
+    lossStay = Bool[subModelRunSparse(s, agt, withdrawnNeighbors, additionalWithdrawals[k];
+                                      skipWithdrawn=skipWithdrawn)[2] for k in eachindex(additionalWithdrawals)]
     return 1 - mean(lossStay)
 end
 
 # P(full deposit | withdraw now). Withdrawing now involves no random draw, so this
 # is exactly 1.0 (the vault or the insurance cap covers the deposit) or 0.0.
 # Until 2026-10-15 it was recomputed `depth` times with identical results.
-function payoffIfWithdrawNow(decisionModel::simModel, agt::Agent)
-    baseMod = clone(decisionModel)
-    currAgt = filter(x -> x.idx == agt.idx, baseMod.agtList)[1]
-    received = withdraw(baseMod, currAgt)
+# (withdraw()'s payout rule on the decision state, without a clone.)
+function payoffIfWithdrawNow(s::SubState, agt::Agent)
+    cap = s.adaptive ? (s.nHistory == 0 ? 0.0 : s.histMax) : s.quantileCap
+    dep = s.deposits[agt.idx]
+    received = dep > s.vault ? max(0.0, s.vault, min(dep, cap)) : dep
     return received < agt.deposit ? 0.0 : 1.0
 end
 
@@ -466,8 +533,8 @@ function modelRun(mod::Model)
     exogWithdrawals(mod)
     
     # Post-shock snapshot that every decision simulates from (the "stale
-    # clone"), unless BANKRUN_FRESH_CLONE.
-    staleClone=clone(mod)
+    # clone"), unless BANKRUN_FRESH_CLONE. Held in sparse form (SubState).
+    staleState=SubState(clone(mod))
 
     # Switch settings (parsed in finMain0001.jl; defaults in settings.jl, which
     # are the published model, so scripts that include this file without
@@ -545,10 +612,10 @@ function modelRun(mod::Model)
                                                            pubAlpha=pubAlpha, weightPhi=weightPhi)
             # BANKRUN_FRESH_CLONE: simulate from the current state, not the
             # post-shock snapshot taken once above (the "stale clone").
-            decisionModel = freshClone ? clone(mod) : staleClone
-            probFullDepositStay = simulateStay(decisionModel, agt, withdrawnNeighbors, additionalWithdrawals;
+            decisionState = freshClone ? SubState(mod) : staleState
+            probFullDepositStay = simulateStay(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
                                                skipWithdrawn=skipWithdrawn)
-            probFullDepositWD = payoffIfWithdrawNow(decisionModel, agt)
+            probFullDepositWD = payoffIfWithdrawNow(decisionState, agt)
             withdrew = decide(probFullDepositWD, probFullDepositStay; tiebreak=tiebreak)
             withdrew && withdraw(mod, agt)
             reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=withdrew,deposit=agt.deposit,
