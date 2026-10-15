@@ -92,10 +92,19 @@ HEADER = [
     "seed", "key", "armTag", "assignRule", "mcDepth", "completed", "bankRun",
     "nWithdrawn", "depositWithdrawn",
     # Added 2026-10-15 (bankRunVault*.csv; blank for runs written before then).
-    # drainShare = depositWithdrawn / vaultInit, the Ch 3 outcome that does not
-    # depend on the tie-break rule (vault <= 0 does; see next_steps.md).
+    # drainShare = 1 - max(vaultFinal, 0) / vaultInit, the share of the vault
+    # paid out, in [0, 1]. The Ch 3 run-size outcome that does not depend on the
+    # tie-break rule (vault <= 0 does). Not depositWithdrawn / vaultInit, which
+    # exceeds 1 when withdrawn deposits outrun the vault (heavy-tailed deposits).
     "vaultInit", "vaultFinal", "drainShare",
 ]
+
+# Who-runs summary, one row per run x type (bankRunTypes*.csv, since 2026-10-15),
+# written next to the main output as consolidated_types.csv.
+TYPES_FIELDS = ["n", "nExog", "nEndog", "depTotal", "depExog", "depEndog", "paidExog",
+                "paidEndog", "depStayers", "posSumEndog", "nFirstQuarter"]
+TYPES_HEADER = ["task_id", "key", "armTag", "reserveRatio", "depQuantile", "sigma", "k", "p",
+                "mu", "lambdaI", "lambdaC", "type"] + TYPES_FIELDS
 
 
 def load_manifest(path):
@@ -147,9 +156,13 @@ def consolidate(arm_dir, manifest_path, out_path):
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(out_path, "w", newline="") as out_f:
+    types_path = out_path.with_name("consolidated_types.csv")
+    types_rows = 0
+    with open(out_path, "w", newline="") as out_f, open(types_path, "w", newline="") as types_f:
         writer = csv.writer(out_f)
         writer.writerow(HEADER)
+        types_writer = csv.writer(types_f)
+        types_writer.writerow(TYPES_HEADER)
 
         for i, task_dir in enumerate(task_dirs):
             tid = task_id_of(task_dir)
@@ -244,6 +257,18 @@ def consolidate(arm_dir, manifest_path, out_path):
                         if len(row) >= 3:
                             vaults[row[0]] = (row[1], row[2])
 
+            for tf in task_dir.glob("bankRunTypes*.csv"):
+                with open(tf, newline="") as fh:
+                    for row in csv.reader(fh):
+                        if len(row) != 2 + len(TYPES_FIELDS) or row[0] not in params:
+                            continue
+                        rec = params[row[0]]
+                        types_writer.writerow([
+                            tid, row[0], arm_tag, rec["reserveRatio"], rec["depQuantile"],
+                            rec["sigma"], rec["k"], rec["p"], rec["mu"], rec["lambdaI"],
+                            rec["lambdaC"], row[1]] + row[2:])
+                        types_rows += 1
+
             for key, rec in params.items():
                 completed = "true" if key in completed_keys else ""
                 if not completed:
@@ -254,8 +279,8 @@ def consolidate(arm_dir, manifest_path, out_path):
                 v_init, v_final = vaults.get(key, ("", ""))
                 drain = ""
                 try:
-                    if float(v_init) > 0 and dep_wd != "":
-                        drain = repr(float(dep_wd) / float(v_init))
+                    if float(v_init) > 0 and v_final != "":
+                        drain = repr(1.0 - max(float(v_final), 0.0) / float(v_init))
                 except ValueError:
                     pass
 
@@ -272,6 +297,7 @@ def consolidate(arm_dir, manifest_path, out_path):
                 print(f"  {i+1}/{len(task_dirs)} dirs, {total_rows:,} rows...")
 
     print(f"\nDone. {total_rows:,} rows -> {out_path}")
+    print(f"  who-runs rows (run x type):        {types_rows:,} -> {types_path}")
     print(f"  Missing fin files:                 {missing_fin}")
     print(f"  Missing bankRunResults*.csv files: {missing_results}")
     print(f"  Init keys with no completion mark: {unmatched_completed}")

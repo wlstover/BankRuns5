@@ -56,6 +56,7 @@ export BANKRUN_FRESH_CLONE="${BANKRUN_FRESH_CLONE:-}"
 export BANKRUN_TIEBREAK="${BANKRUN_TIEBREAK:-}"     # schuler-sync (settings.jl)
 export BANKRUN_BELIEF="${BANKRUN_BELIEF:-}"
 export BANKRUN_BELIEF_P0="${BANKRUN_BELIEF_P0:-}"
+export BANKRUN_LOG="${BANKRUN_LOG:-}"           # full | summary (2026-10-15)
 
 module load julia/1.8.0
 
@@ -98,7 +99,7 @@ fi
 echo "======================================================================"
 echo "arm=${ARM_TAG}  task=${SLURM_ARRAY_TASK_ID}  assign=${BANKRUN_ASSIGN_RULE}  mcDepth=${BANKRUN_MC_DEPTH}"
 echo "public: alpha=${BANKRUN_PUBLIC_ALPHA:-0} bias=${BANKRUN_PUBLIC_BIAS:-0} rho=${BANKRUN_PUBLIC_RHO:-1} phi=${BANKRUN_WEIGHT_PHI:-1} fixDoubleCount=${BANKRUN_FIX_DOUBLE_COUNT:-false} freshClone=${BANKRUN_FRESH_CLONE:-false}"
-echo "decision: tiebreak=${BANKRUN_TIEBREAK:-legacy} belief=${BANKRUN_BELIEF:-geometric} beliefP0=${BANKRUN_BELIEF_P0:-0.02}"
+echo "decision: tiebreak=${BANKRUN_TIEBREAK:-legacy} belief=${BANKRUN_BELIEF:-geometric} beliefP0=${BANKRUN_BELIEF_P0:-0.02} log=${BANKRUN_LOG:-full}"
 echo "reserve=$reserve depq=$depq sigma=$sigma k=$k p=$p alpha=$alpha mu=$mu"
 echo "lambdaI=$lambdaI lambdaC=$lambdaC  genSeed=$GEN_SEED"
 echo "outdir=${TASK_DIR}"

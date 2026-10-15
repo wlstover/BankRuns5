@@ -213,9 +213,30 @@ and consolidation joins on `task_id`. Positional parsing survives only as a
 fallback for the legacy 2026-04 sweep, and warns when it is used.
 
 Since 2026-10-15 the manifest also records the `BANKRUN_*` model switches
-(`settings.jl`) in its last nine columns (`public_alpha` … `belief_p0`): the raw
+(`settings.jl`) in its switch columns (`public_alpha` … `log`): the raw
 value exported by the submitting shell, empty meaning the published default.
 Manifests written before that lack these columns; readers go by header name.
+
+## Output size: `BANKRUN_LOG=summary` and replay (2026-10-15)
+
+At N = 1000 the per-agent and per-decision logs (`agents<core>.csv`,
+`bankRunEndogenous<core>.csv`, `bankRunExogenous<core>.csv`) are ~0.3 MB per run,
+~150 GB per 2,160-cell arm. With `BANKRUN_LOG=summary` a task writes only the
+run-level files (`bankRunResults`, `bankRunVault`) and the who-runs summary
+`bankRunTypes<core>.csv` (one row per run × type: counts by how each agent left,
+deposits, payouts, position in the withdrawal order), ~80 MB per arm.
+`consolidate_results.py` writes it to `consolidated_types.csv`.
+
+Every run is reproducible from its manifest row and key, so the full logs of any
+run are regenerated on demand, with the same commit and Manifest (the manifest
+records `git_commit`):
+
+    julia --project=. scripts/replay_run.jl --manifest outputs/<tag>/manifest.csv \
+          --task <N> --key '<key>' --out outputs/replay
+
+`tests/test_replay.jl` checks that a replay reproduces the stored results, vault
+and who-runs rows byte for byte and that the summary agrees with the full logs.
+Default is `full` (unchanged behaviour); production arms use `summary`.
 
 ## Pulling results back to local
 

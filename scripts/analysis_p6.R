@@ -200,7 +200,8 @@ cat("\nWrote p6_mu_lambdagap.png + .csv\n")
 # ── 1b. P6 on the share of the vault drained (added 2026-10-15) ─────────────
 # P(run) above is `vault <= 0`, which under the Schuler tie-break never occurs
 # even when cascades are the same size (2026-10-15 pilot, next_steps.md). The
-# share drained, depositWithdrawn / vaultInit, does not depend on that rule.
+# share of the vault paid out, drainShare = 1 - max(vaultFinal, 0) / vaultInit
+# (consolidate_results.py), does not depend on that rule.
 # Present only for runs written since 2026-10-15 (bankRunVault*.csv).
 if ("drainShare" %in% names(dt_c)) {
     dt_c[, drainShare := suppressWarnings(as.numeric(drainShare))]
@@ -221,7 +222,7 @@ if ("drainShare" %in% names(dt_c) && any(!is.na(dt_c$drainShare))) {
         geom_point(size = 1.4) +
         facet_wrap(~ paste0("Reserve ratio = ", reserveRatio), nrow = 1) +
         labs(title = "Share of the vault drained by cultural composition (P6a)",
-             subtitle = "depositWithdrawn / vaultInit; line color = λ-gap",
+             subtitle = "1 - max(vaultFinal, 0) / vaultInit; line color = λ-gap",
              x = expression("Fraction individualist " * mu),
              y = "Mean share of vault drained",
              color = NULL) +

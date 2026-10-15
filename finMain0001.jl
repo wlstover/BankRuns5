@@ -112,16 +112,20 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #   BANKRUN_BELIEF        geometric|point  the agent's own prior draws (geometric =
 #                         published: the exogenous truncated Geometric).
 #   BANKRUN_BELIEF_P0     p0 ∈ (0,1)  withdrawal probability of the point prior.
-# Defaults live in settings.jl (SWITCH_DEFAULTS).
-const PUBLIC_ALPHA      = envFloat("BANKRUN_PUBLIC_ALPHA", SWITCH_DEFAULTS.PUBLIC_ALPHA, 0.0, 1.0)
-const PUBLIC_BIAS       = envFloat("BANKRUN_PUBLIC_BIAS",  SWITCH_DEFAULTS.PUBLIC_BIAS,  0.0, 1.0)
-const PUBLIC_RHO        = envFloat("BANKRUN_PUBLIC_RHO",   SWITCH_DEFAULTS.PUBLIC_RHO,   0.0, 1.0)
-const WEIGHT_PHI        = envFloat("BANKRUN_WEIGHT_PHI",   SWITCH_DEFAULTS.WEIGHT_PHI,   0.0, 1.0; loOpen=true)
-const FIX_DOUBLE_COUNT  = envBool("BANKRUN_FIX_DOUBLE_COUNT", SWITCH_DEFAULTS.FIX_DOUBLE_COUNT)
-const FRESH_CLONE       = envBool("BANKRUN_FRESH_CLONE",      SWITCH_DEFAULTS.FRESH_CLONE)
-const TIEBREAK          = envChoice("BANKRUN_TIEBREAK", SWITCH_DEFAULTS.TIEBREAK, TIEBREAK_CHOICES)
-const BELIEF            = envChoice("BANKRUN_BELIEF",   SWITCH_DEFAULTS.BELIEF,   BELIEF_CHOICES)
-const BELIEF_P0         = envFloat("BANKRUN_BELIEF_P0", SWITCH_DEFAULTS.BELIEF_P0, 0.0, 1.0; loOpen=true)
+#   BANKRUN_LOG           full|summary  per-agent/per-decision logs, or only the
+#                         run-level results and the who-runs summary (2026-10-15).
+# Defaults and parsing live in settings.jl (SWITCH_DEFAULTS, parseSwitchesFromEnv).
+const SWITCHES = parseSwitchesFromEnv()
+const PUBLIC_ALPHA      = SWITCHES.PUBLIC_ALPHA
+const PUBLIC_BIAS       = SWITCHES.PUBLIC_BIAS
+const PUBLIC_RHO        = SWITCHES.PUBLIC_RHO
+const WEIGHT_PHI        = SWITCHES.WEIGHT_PHI
+const FIX_DOUBLE_COUNT  = SWITCHES.FIX_DOUBLE_COUNT
+const FRESH_CLONE       = SWITCHES.FRESH_CLONE
+const TIEBREAK          = SWITCHES.TIEBREAK
+const BELIEF            = SWITCHES.BELIEF
+const BELIEF_P0         = SWITCHES.BELIEF_P0
+const LOG               = SWITCHES.LOG
 @everywhere const PUBLIC_ALPHA     = $PUBLIC_ALPHA
 @everywhere const PUBLIC_BIAS      = $PUBLIC_BIAS
 @everywhere const PUBLIC_RHO       = $PUBLIC_RHO
@@ -131,9 +135,11 @@ const BELIEF_P0         = envFloat("BANKRUN_BELIEF_P0", SWITCH_DEFAULTS.BELIEF_P
 @everywhere const TIEBREAK         = $TIEBREAK
 @everywhere const BELIEF           = $BELIEF
 @everywhere const BELIEF_P0        = $BELIEF_P0
+@everywhere const LOG              = $LOG
 println("public signal: alpha=", PUBLIC_ALPHA, " bias=", PUBLIC_BIAS, " rho=", PUBLIC_RHO,
         " phi=", WEIGHT_PHI, " fixDoubleCount=", FIX_DOUBLE_COUNT, " freshClone=", FRESH_CLONE)
 println("decision: tiebreak=", TIEBREAK, " belief=", BELIEF, " beliefP0=", BELIEF_P0)
+println("output: log=", LOG)
 
 @everywhere include("objects.jl")
 

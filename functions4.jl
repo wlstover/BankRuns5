@@ -7,7 +7,7 @@
 const LAMBDA_CONC = 20.0
 
 
-function modelGen(key::String,
+function modelGenTyped(key::String,
                   seed1::Int64,
                   seed2::Int64,
                   agtCnt::Int64,
@@ -107,7 +107,7 @@ function modelGen(key::String,
                     warmupLambda=lambdas_warmup,
                     agentType=agentTypes)
 
-    CSV.write(dataDir*"/"*"agents"*string(workerCore)*".csv",agtDF,writeheader=false,append=true)
+    logFull() && CSV.write(dataDir*"/"*"agents"*string(workerCore)*".csv",agtDF,writeheader=false,append=true)
 
     bankingList::Array{Agent}=Agent[]
 
@@ -133,8 +133,11 @@ function modelGen(key::String,
         probThresh,
         exogProb
     )
-    return mod
+    return mod, isI
 end
+
+# The model alone; modelGenTyped also returns the type flags (true = type I).
+modelGen(args...) = modelGenTyped(args...)[1]
 
 function neighborList(mod::Model,agt::Agent)
     # get the neighbors of the agent
@@ -296,7 +299,7 @@ end
 
 
 # we need a function to withdraw exogenously
-function exogWithdrawals(mod::Model)
+function exogWithdrawals(mod::Model; record=nothing)
     # get the number of agents that will withdraw
     numWithdrawals=rand(mod.exogProb,1)[1]
     # get the list of agents that will withdraw
@@ -305,10 +308,14 @@ function exogWithdrawals(mod::Model)
     global dataDir
     global workerCore
     for agt in withdrawList
-        withdraw(mod,agt)
-        reportRow=DataFrame(key=mod.key,agent=agt.idx,exogenous=true,deposit=agt.deposit,tick=0,vault=mod.theBank.vault)
-        CSV.write(dataDir*"/"*"bankRunExogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
+        paid = withdraw(mod,agt)
+        record === nothing || record!(record, agt.idx, paid)
+        if logFull()
+            reportRow=DataFrame(key=mod.key,agent=agt.idx,exogenous=true,deposit=agt.deposit,tick=0,vault=mod.theBank.vault)
+            CSV.write(dataDir*"/"*"bankRunExogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
+        end
     end
+    record === nothing || (record.nExog = length(withdrawList))
     return withdrawList
 end
 
@@ -523,14 +530,14 @@ function decide(probFullDepositWD, probFullDepositStay; tiebreak::String="legacy
 end
 
 # now the main model function
-function modelRun(mod::Model)
+function modelRun(mod::Model; record=nothing)
     runState::Bool=false
     # set the seed
     Random.seed!(mod.seed2)
 
 
 
-    exogWithdrawals(mod)
+    exogWithdrawals(mod; record=record)
     
     # Post-shock snapshot that every decision simulates from (the "stale
     # clone"), unless BANKRUN_FRESH_CLONE. Held in sparse form (SubState).
@@ -617,10 +624,15 @@ function modelRun(mod::Model)
                                                skipWithdrawn=skipWithdrawn)
             probFullDepositWD = payoffIfWithdrawNow(decisionState, agt)
             withdrew = decide(probFullDepositWD, probFullDepositStay; tiebreak=tiebreak)
-            withdrew && withdraw(mod, agt)
-            reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=withdrew,deposit=agt.deposit,
-                tick=t,vault=mod.theBank.vault,wdProb=probFullDepositWD,stayProb=probFullDepositStay)
-            CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
+            if withdrew
+                paid = withdraw(mod, agt)
+                record === nothing || record!(record, agt.idx, paid)
+            end
+            if logFull()
+                reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=withdrew,deposit=agt.deposit,
+                    tick=t,vault=mod.theBank.vault,wdProb=probFullDepositWD,stayProb=probFullDepositStay)
+                CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
+            end
             withdrew && (halt = false)
 
             if mod.theBank.vault<=0.0
@@ -689,6 +701,87 @@ function checkOff(currentIndex)
     jointFrame[currentIndex,:completed]=true
 end
 
+# ---- Run record and the who-runs summary (2026-10-15) ----
+# BANKRUN_LOG = summary drops the per-agent and per-decision logs (agents,
+# bankRunExogenous, bankRunEndogenous: ~0.3 MB per run at N = 1000). Every run
+# is reproducible from its cell and seeds (scripts/replay_run.jl), so the full
+# logs of any run can be regenerated on demand. What a sweep keeps is the
+# run-level results plus this per-type summary, computed in-process from the
+# exact payouts.
+logFull() = switchValue(:LOG) == "full"
+
+mutable struct RunRecord
+    order::Vector{Int}         # agent idx, in withdrawal order (exogenous first)
+    paid::Vector{Float64}      # what withdraw() paid each of them
+    nExog::Int
+end
+RunRecord() = RunRecord(Int[], Float64[], 0)
+record!(r::RunRecord, idx::Int, paid::Float64) = (push!(r.order, idx); push!(r.paid, paid); r)
+
+# One row per type: who withdrew (exogenously / endogenously), how much they held
+# and were paid, deposits left with stayers, and the endogenous withdrawers'
+# position in the withdrawal order (0 = first, 1 = last; 0.5 if only one), as in
+# scripts/who_runs_pilot.py.
+function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
+    n = length(mod.agtList)
+    how = zeros(Int8, n)                 # 0 stayed, 1 exogenous, 2 endogenous
+    paid = zeros(Float64, n)
+    pos = fill(NaN, n)
+    nEndog = length(rec.order) - rec.nExog
+    for (k, i) in enumerate(rec.order)
+        paid[i] = rec.paid[k]
+        if k <= rec.nExog
+            how[i] = 1
+        else
+            how[i] = 2
+            r = k - rec.nExog
+            pos[i] = nEndog > 1 ? (r - 1) / (nEndog - 1) : 0.5
+        end
+    end
+    rows = DataFrame(key=String[], type=String[], n=Int[], nExog=Int[], nEndog=Int[],
+                     depTotal=Float64[], depExog=Float64[], depEndog=Float64[],
+                     paidExog=Float64[], paidEndog=Float64[], depStayers=Float64[],
+                     posSumEndog=Float64[], nFirstQuarter=Int[])
+    for (lab, sel) in (("I", isI), ("C", .!isI))
+        idx = findall(sel)
+        d = [mod.agtList[i].deposit for i in idx]
+        h = how[idx]
+        push!(rows, (mod.key, lab, length(idx), count(==(1), h), count(==(2), h),
+                     sum(d; init=0.0), sum(d[h .== 1]; init=0.0), sum(d[h .== 2]; init=0.0),
+                     sum(paid[idx][h .== 1]; init=0.0), sum(paid[idx][h .== 2]; init=0.0),
+                     sum(d[h .== 0]; init=0.0),
+                     sum(pos[idx][h .== 2]; init=0.0), count(<=(0.25), pos[idx][h .== 2])))
+    end
+    return rows
+end
+
+# One run of one parameter row, and every file it writes (results, vault,
+# who-runs summary, plus the full logs when BANKRUN_LOG = full). Used by
+# modelCall, scripts/replay_run.jl and the tests.
+function runRow(row)
+    mod, isI = modelGenTyped(row[:key], row[:seed1], row[:seed2],
+                             nv(row[:network]),   # agent count = network size (parameterGen.jl agtCnts)
+                             .1, row[:network], row[:depositDist], row[:reserveRatio],
+                             row[:depositInsuranceQuantile], row[:withdrawRV], row[:warmupAlpha],
+                             row[:fracIndividualists], row[:lambdaI], row[:lambdaC])
+    vaultInit = mod.theBank.vault      # before the exogenous shock
+    rec = RunRecord()
+    rMod, nWithdrawn, depositWithdrawn = modelRun(mod; record=rec)
+    # Widened 2026-08-13 from (key, result) to carry |S*|. Readers that take
+    # only the first two columns are unaffected.
+    resultRow=DataFrame(key=row[:key],result=rMod,
+                        nWithdrawn=nWithdrawn,depositWithdrawn=depositWithdrawn)
+    CSV.write(dataDir*"/"*"bankRunResults"*string(workerCore)*".csv",resultRow,writeheader=false,append=true)
+    # Vault at start and end of the run (added 2026-10-15), for the share of the
+    # vault paid out, 1 - max(vaultFinal, 0) / vaultInit. A separate file, so
+    # bankRunResults keeps its 4 columns for the existing checkers.
+    vaultRow=DataFrame(key=row[:key],vaultInit=vaultInit,vaultFinal=mod.theBank.vault)
+    CSV.write(dataDir*"/"*"bankRunVault"*string(workerCore)*".csv",vaultRow,writeheader=false,append=true)
+    CSV.write(dataDir*"/"*"bankRunTypes"*string(workerCore)*".csv",typeSummary(mod, isI, rec),
+              writeheader=false,append=true)
+    return (rMod, nWithdrawn, depositWithdrawn)
+end
+
 function modelCall()
     # pull the first row of data
         proc=@spawnat 1 rowPull()
@@ -700,45 +793,17 @@ function modelCall()
         if !isnothing(results)
             startIndex=results[1]
             currentIndex=results[2]
-            mod=modelGen(startIndex[:key],
-                         startIndex[:seed1],
-                         startIndex[:seed2],
-                                nv(startIndex[:network]),   # agent count = network size (parameterGen.jl agtCnts)
-                                .1,
-                                startIndex[:network],
-                                startIndex[:depositDist],
-                                startIndex[:reserveRatio],
-                                startIndex[:depositInsuranceQuantile],
-                                startIndex[:withdrawRV],
-                                startIndex[:warmupAlpha],
-                                startIndex[:fracIndividualists],
-                                startIndex[:lambdaI],
-                                startIndex[:lambdaC])
-                vaultInit = mod.theBank.vault      # before the exogenous shock
-                rMod, nWithdrawn, depositWithdrawn = modelRun(mod)
-                # write out model results
-                # Widened 2026-08-13 from (key, result) to carry |S*|. Readers
-                # that take only the first two columns are unaffected.
-                #
-                # ⚠ ORDER IS LOAD-BEARING, corrected 2026-08-19. The write must
-                # happen BEFORE checkOff. finMain0001.jl exits the master loop
-                # the instant sum(completed) reaches nrow, then falls off the
-                # end of the script and Julia tears down the worker pool. With
-                # checkOff first, the worker that completes the final row is
-                # still inside its sleep(1) poll when that happens and its
-                # result row is never written -- the task exits COMPLETED
-                # holding 249 of 250 runs. Measured on the 2026-08-17 arms at
-                # 53/2160 production and 75/2160 placebo cells, with 120 of the
-                # 128 lost runs sitting in the last 20 rows of the frame
-                # (35.8 sigma against a positionally-random null).
-                resultRow=DataFrame(key=results[1][:key],result=rMod,
-                                    nWithdrawn=nWithdrawn,depositWithdrawn=depositWithdrawn)
-                CSV.write(dataDir*"/"*"bankRunResults"*string(workerCore)*".csv",resultRow,writeheader=false,append=true)
-                # Vault at start and end of the run (added 2026-10-15), for the share
-                # of the vault drained, depositWithdrawn / vaultInit. A separate file,
-                # so bankRunResults keeps its 4 columns for the existing checkers.
-                vaultRow=DataFrame(key=results[1][:key],vaultInit=vaultInit,vaultFinal=mod.theBank.vault)
-                CSV.write(dataDir*"/"*"bankRunVault"*string(workerCore)*".csv",vaultRow,writeheader=false,append=true)
+            # ⚠ ORDER IS LOAD-BEARING, corrected 2026-08-19. runRow writes the
+            # results BEFORE checkOff. finMain0001.jl exits the master loop the
+            # instant sum(completed) reaches nrow, then falls off the end of the
+            # script and Julia tears down the worker pool. With checkOff first, the
+            # worker that completes the final row is still inside its sleep(1) poll
+            # when that happens and its result row is never written -- the task
+            # exits COMPLETED holding 249 of 250 runs. Measured on the 2026-08-17
+            # arms at 53/2160 production and 75/2160 placebo cells, with 120 of the
+            # 128 lost runs sitting in the last 20 rows of the frame (35.8 sigma
+            # against a positionally-random null).
+            runRow(startIndex)
                 proc2=@spawnat 1 checkOff(currentIndex)
                 while !isReady(proc2)
                     sleep(1)

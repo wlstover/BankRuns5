@@ -23,7 +23,12 @@ const SWITCH_DEFAULTS = (
     TIEBREAK         = "legacy",     # decision rule at the margin; see decide() in functions4.jl
     BELIEF           = "geometric",  # the agent's own prior draws; see beliefDraws()
     BELIEF_P0        = 0.02,         # withdrawal probability of the "point" prior (Schuler's p0)
+    # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
+    # "summary" keeps run-level results and the per-type summary only (replay a
+    # run with scripts/replay_run.jl to regenerate its full logs).
+    LOG              = "full",
 )
+const LOG_CHOICES      = ("full", "summary")
 const TIEBREAK_CHOICES = ("legacy", "schuler", "strict")
 const BELIEF_CHOICES   = ("geometric", "point")
 
@@ -53,4 +58,19 @@ function envChoice(name, default, choices)
     isempty(s) && return default
     s in choices || error("$name must be one of $(join(choices, "|")), got \"$s\"")
     return String(s)
+end
+
+"""Every BANKRUN_* switch parsed from ENV, as a NamedTuple (defaults above)."""
+function parseSwitchesFromEnv()
+    D = SWITCH_DEFAULTS
+    return (PUBLIC_ALPHA     = envFloat("BANKRUN_PUBLIC_ALPHA", D.PUBLIC_ALPHA, 0.0, 1.0),
+            PUBLIC_BIAS      = envFloat("BANKRUN_PUBLIC_BIAS",  D.PUBLIC_BIAS,  0.0, 1.0),
+            PUBLIC_RHO       = envFloat("BANKRUN_PUBLIC_RHO",   D.PUBLIC_RHO,   0.0, 1.0),
+            WEIGHT_PHI       = envFloat("BANKRUN_WEIGHT_PHI",   D.WEIGHT_PHI,   0.0, 1.0; loOpen=true),
+            FIX_DOUBLE_COUNT = envBool("BANKRUN_FIX_DOUBLE_COUNT", D.FIX_DOUBLE_COUNT),
+            FRESH_CLONE      = envBool("BANKRUN_FRESH_CLONE",      D.FRESH_CLONE),
+            TIEBREAK         = envChoice("BANKRUN_TIEBREAK", D.TIEBREAK, TIEBREAK_CHOICES),
+            BELIEF           = envChoice("BANKRUN_BELIEF",   D.BELIEF,   BELIEF_CHOICES),
+            BELIEF_P0        = envFloat("BANKRUN_BELIEF_P0", D.BELIEF_P0, 0.0, 1.0; loOpen=true),
+            LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
 end
