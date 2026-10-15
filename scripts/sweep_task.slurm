@@ -44,9 +44,9 @@ export BANKRUN_ASSIGN_RULE   # read by finMain0001.jl -> functions4.jl modelGen
 export BANKRUN_MC_DEPTH      # read by finMain0001.jl, broadcast to workers
 # Public-signal switches (Level 1, 2026-10-08; see finMain0001.jl). Unset or
 # empty = the published model. They reach this script through --export=ALL, so
-# set them in the submitting shell. run_all.sh has no flags or manifest columns
-# for them yet: a non-default run is identifiable from its outputs only through
-# bankRunPublicParams<core>.csv.
+# set them in the submitting shell. run_all.sh records their raw values in the
+# manifest (2026-10-15); a non-default run also writes bankRunPublicParams<core>.csv
+# and, for the tie-break / belief switches, bankRunDecisionParams<core>.csv.
 export BANKRUN_PUBLIC_ALPHA="${BANKRUN_PUBLIC_ALPHA:-}"
 export BANKRUN_PUBLIC_BIAS="${BANKRUN_PUBLIC_BIAS:-}"
 export BANKRUN_PUBLIC_RHO="${BANKRUN_PUBLIC_RHO:-}"

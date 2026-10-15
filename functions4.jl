@@ -714,6 +714,7 @@ function modelCall()
                                 startIndex[:fracIndividualists],
                                 startIndex[:lambdaI],
                                 startIndex[:lambdaC])
+                vaultInit = mod.theBank.vault      # before the exogenous shock
                 rMod, nWithdrawn, depositWithdrawn = modelRun(mod)
                 # write out model results
                 # Widened 2026-08-13 from (key, result) to carry |S*|. Readers
@@ -733,6 +734,11 @@ function modelCall()
                 resultRow=DataFrame(key=results[1][:key],result=rMod,
                                     nWithdrawn=nWithdrawn,depositWithdrawn=depositWithdrawn)
                 CSV.write(dataDir*"/"*"bankRunResults"*string(workerCore)*".csv",resultRow,writeheader=false,append=true)
+                # Vault at start and end of the run (added 2026-10-15), for the share
+                # of the vault drained, depositWithdrawn / vaultInit. A separate file,
+                # so bankRunResults keeps its 4 columns for the existing checkers.
+                vaultRow=DataFrame(key=results[1][:key],vaultInit=vaultInit,vaultFinal=mod.theBank.vault)
+                CSV.write(dataDir*"/"*"bankRunVault"*string(workerCore)*".csv",vaultRow,writeheader=false,append=true)
                 proc2=@spawnat 1 checkOff(currentIndex)
                 while !isReady(proc2)
                     sleep(1)

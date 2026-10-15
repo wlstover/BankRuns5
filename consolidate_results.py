@@ -91,6 +91,10 @@ HEADER = [
     "depQuantile", "sigma", "warmupAlpha", "mu", "lambdaI", "lambdaC",
     "seed", "key", "armTag", "assignRule", "mcDepth", "completed", "bankRun",
     "nWithdrawn", "depositWithdrawn",
+    # Added 2026-10-15 (bankRunVault*.csv; blank for runs written before then).
+    # drainShare = depositWithdrawn / vaultInit, the Ch 3 outcome that does not
+    # depend on the tie-break rule (vault <= 0 does; see next_steps.md).
+    "vaultInit", "vaultFinal", "drainShare",
 ]
 
 
@@ -232,6 +236,14 @@ def consolidate(arm_dir, manifest_path, out_path):
                                 row[3] if len(row) > 3 else "",
                             )
 
+            # bankRunVault*.csv is (key, vaultInit, vaultFinal), since 2026-10-15.
+            vaults = {}
+            for vf in task_dir.glob("bankRunVault*.csv"):
+                with open(vf, newline="") as fh:
+                    for row in csv.reader(fh):
+                        if len(row) >= 3:
+                            vaults[row[0]] = (row[1], row[2])
+
             for key, rec in params.items():
                 completed = "true" if key in completed_keys else ""
                 if not completed:
@@ -239,13 +251,20 @@ def consolidate(arm_dir, manifest_path, out_path):
                 bank_run, n_wd, dep_wd = outcomes.get(key, ("", "", ""))
                 if not bank_run:
                     unmatched_outcome += 1
+                v_init, v_final = vaults.get(key, ("", ""))
+                drain = ""
+                try:
+                    if float(v_init) > 0 and dep_wd != "":
+                        drain = repr(float(dep_wd) / float(v_init))
+                except ValueError:
+                    pass
 
                 writer.writerow([
                     tid, rec["paramSeed"], rec["replication"], rec["k"], rec["p"],
                     rec["reserveRatio"], rec["depQuantile"], rec["sigma"],
                     rec["warmupAlpha"], rec["mu"], rec["lambdaI"], rec["lambdaC"],
                     rec["seed"], key, arm_tag, assign_rule, mc_depth,
-                    completed, bank_run, n_wd, dep_wd,
+                    completed, bank_run, n_wd, dep_wd, v_init, v_final, drain,
                 ])
                 total_rows += 1
 

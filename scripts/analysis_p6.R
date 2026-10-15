@@ -197,6 +197,47 @@ ggsave(file.path(out_dir, "p6_mu_lambdagap.png"),
 fwrite(agg_p6, file.path(out_dir, "p6_mu_lambdagap.csv"))
 cat("\nWrote p6_mu_lambdagap.png + .csv\n")
 
+# ── 1b. P6 on the share of the vault drained (added 2026-10-15) ─────────────
+# P(run) above is `vault <= 0`, which under the Schuler tie-break never occurs
+# even when cascades are the same size (2026-10-15 pilot, next_steps.md). The
+# share drained, depositWithdrawn / vaultInit, does not depend on that rule.
+# Present only for runs written since 2026-10-15 (bankRunVault*.csv).
+if ("drainShare" %in% names(dt_c)) {
+    dt_c[, drainShare := suppressWarnings(as.numeric(drainShare))]
+    dt_c[, nWithdrawn := suppressWarnings(as.numeric(nWithdrawn))]
+}
+if ("drainShare" %in% names(dt_c) && any(!is.na(dt_c$drainShare))) {
+    dt_d <- dt_c[!is.na(drainShare)]
+    agg_d <- dt_d[, .(drainShare = mean(drainShare),
+                      drained90  = mean(drainShare >= 0.9),
+                      nWithdrawn = mean(nWithdrawn), N = .N),
+                  by = .(mu, lambdaGap, reserveRatio)]
+    agg_d[, lambdaGapLabel := factor(sprintf("λ_C − λ_I = %.1f", lambdaGap),
+                                     levels = sprintf("λ_C − λ_I = %.1f",
+                                                      sort(unique(agg_d$lambdaGap))))]
+    p_d <- ggplot(agg_d, aes(x = mu, y = drainShare, color = lambdaGapLabel,
+                             group = lambdaGapLabel)) +
+        geom_line(linewidth = 0.8) +
+        geom_point(size = 1.4) +
+        facet_wrap(~ paste0("Reserve ratio = ", reserveRatio), nrow = 1) +
+        labs(title = "Share of the vault drained by cultural composition (P6a)",
+             subtitle = "depositWithdrawn / vaultInit; line color = λ-gap",
+             x = expression("Fraction individualist " * mu),
+             y = "Mean share of vault drained",
+             color = NULL) +
+        scale_x_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1.0)) +
+        scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+        theme_minimal(base_size = 11) +
+        theme(legend.position = "bottom",
+              panel.grid.minor = element_blank())
+    ggsave(file.path(out_dir, "p6_mu_lambdagap_drain.png"),
+           p_d, width = 11, height = 5, dpi = 200)
+    fwrite(agg_d, file.path(out_dir, "p6_mu_lambdagap_drain.csv"))
+    cat("Wrote p6_mu_lambdagap_drain.png + .csv (", nrow(dt_d), " runs with vault data)\n", sep = "")
+} else {
+    cat("No drainShare data (runs written before 2026-10-15): skipping 1b.\n")
+}
+
 # ── 2. Marginal failure rates by each baseline parameter ────────────────────
 for (param in c("reserveRatio", "depQuantile", "sigma", "k", "p",
                 "warmupAlpha", "mu", "lambdaI", "lambdaC")) {
