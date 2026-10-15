@@ -5,11 +5,11 @@
 #
 # WHY THIS IS POSSIBLE WITHOUT TOUCHING THE MODEL
 # -----------------------------------------------
-# parameterGen.jl:37   Random.seed!(genSeed)
-# parameterGen.jl:107  newman_watts_strogatz(agtCnts[1], ws_k, ws_p)
+# parameterGen.jl   Random.seed!(genSeed)
+# parameterGen.jl   newman_watts_strogatz(agtCnts[1], ws_k, ws_p)
 #
 # Nothing between those two lines consumes the global RNG — paretoGen and
-# logNormalGen (parameterGen.jl:79-85) are pure constructors that return
+# logNormalGen (parameterGen.jl) are pure constructors that return
 # Pareto(...)/LogNormal(...) without drawing. So the network is exactly the
 # first RNG consumer after the seed, and re-running that pair reproduces it.
 #
@@ -17,9 +17,9 @@
 # It re-runs one library call under one seed.
 #
 # genSeed for a sweep task is SEED_OFFSET + SLURM_ARRAY_TASK_ID
-# (sweep_task.slurm:74), i.e. 1000 + task_id at the default offset.
+# (sweep_task.slurm GEN_SEED), i.e. 1000 + task_id at the default offset.
 #
-# ⚠️ ONE NETWORK PER CELL. parameterGen.jl:107 builds a 1-element array which is
+# ⚠️ ONE NETWORK PER CELL. parameterGen.jl's graphTypes builds a 1-element array which is
 # then crossjoined, so ALL 250 runs in a cell share one network. Network
 # structure does not vary with seed1 within a cell — only warm-up, lambda
 # assignment and the deposit vector do.
@@ -33,7 +33,7 @@
 # captions should say "regenerated from the cell's seed", not "the network used".
 #
 # ⚠️ RNG STREAMS ARE VERSION-DEPENDENT. Run this under the SAME Julia and the
-# same pinned Manifest as the sweep (julia/1.8.0 per sweep_task.slurm:46). A
+# same pinned Manifest as the sweep (julia/1.8.0 per sweep_task.slurm `module load`). A
 # different Julia or a different Graphs.jl will silently give a different graph.
 # The provenance file records both so a mismatch is at least detectable.
 #
@@ -56,7 +56,7 @@ using Dates
 import Pkg
 
 # ⚠️ pkgversion() was added in Julia 1.9. hopper loads julia/1.8.0
-# (sweep_task.slurm:46), where calling it is an UndefVarError — which is exactly
+# (sweep_task.slurm `module load`), where calling it is an UndefVarError — which is exactly
 # what happened on first use, 2026-08-17. The provenance line is a nicety; it
 # must never be the thing that stops the network being dumped.
 function graphs_version()

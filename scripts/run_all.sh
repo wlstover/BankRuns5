@@ -279,7 +279,7 @@ if [[ $DO_SWEEP -eq 1 ]]; then
 fi
 
 # ── Array spec (full run, or only the deficient cells under --restart) ────────
-# Expected runs per cell = seedRun x runSize = 5 x 10 = 50 (parameterGen.jl:40-42).
+# Expected runs per cell = seedRun x runSize = 5 x 10 = 50 (parameterGen.jl `seedRun`, `runSize`).
 EXPECTED_RUNS_PER_CELL=50
 
 compress_ranges() {

@@ -132,7 +132,7 @@ for (c in numeric_cols) dt[[c]] <- as.numeric(dt[[c]])
 # LOGICAL, so comparing it to the string "true" is TRUE for zero rows — silently,
 # with no error: every failure rate comes out 0 and `completed` empties dt_c.
 # Verified on the real 21-column schema: 0 of 250 matched where 247 were true.
-# But consolidate_results.py:236 writes `completed` as "true"/"" and blanks the
+# But consolidate_results.py writes `completed` as "true"/"" and blanks the
 # outcome fields of an unfinished run, so a mixed column can still arrive as
 # character. Handle both, and treat NA/blank as FALSE.
 as_flag <- function(x) {

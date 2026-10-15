@@ -4,7 +4,7 @@
 Chapter 3 argues about dynamics — individualists igniting cascades that
 collectivists relay, firebreaks, propagation through a small-world network —
 and until now the chapter had no picture of any of it. The only network figure,
-figures/fig5_network_snapshot.png, is entirely synthetic: make_figures.py:216
+figures/fig5_network_snapshot.png, is entirely synthetic: make_figures.py figure_5_network_snapshot()
 builds a networkx graph with an illustrative BFS and no model output at all.
 (It also calls nx.watts_strogatz_graph while the model runs
 newman_watts_strogatz, so its caption is wrong too — open item 11.)

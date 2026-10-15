@@ -16,7 +16,7 @@
 #         initial_vault - mod.theBank.vault
 #             == sum(a.deposit for a in mod.theBank.withdrawHistory)
 #
-# Why this matters: the vault accounting at functions4.jl:214 debits the FULL
+# Why this matters: the vault accounting at functions4.jl withdraw() debits the FULL
 # deposit (`vault -= agt.deposit`) even when the agent's payout is capped by
 # deposit insurance. A refactor that conflates the two would silently break
 # conservation; this test catches it on every seed.

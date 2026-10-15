@@ -39,12 +39,12 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-# ⚠️ 250, not 50 — corrected 2026-08-17. parameterGen.jl:111 is
+# ⚠️ 250, not 50 — corrected 2026-08-17. parameterGen.jl's `seed1=repeat(sample(...), seedRun)` is
 #     seed1 = repeat(sample(1:1000000, seedRun, replace=false), seedRun)
 # which yields 25 seedFrame rows (5 distinct seeds, each repeated 5x),
 # crossjoined with iteration 1:runSize=10 -> 250 rows per cell. `iteration`
 # never reaches the model, so the structure is 5 initialisations x 50 shock
-# draws, NOT the "5 x 10 = 50" described at parameterGen.jl:39-42. Confirmed
+# draws, NOT the "5 x 10 = 50" described at parameterGen.jl (`seedRun`, `runSize`). Confirmed
 # against the legacy sweep: 2,833 of 2,835 cells hold exactly 250 rows with
 # exactly 5 distinct seed1.
 #

@@ -62,7 +62,7 @@
 # where y is the mean outcome. Positive excess = hump above a linear P6a
 # baseline. Standard errors come from a cluster bootstrap over paramSeed,
 # because runs sharing a paramSeed share the network, the warm-up, the lambda
-# assignment and the deposit vector (functions4.jl:28,82,92) and differ only in
+# assignment and the deposit vector (functions4.jl modelGen's Random.seed! calls) and differ only in
 # the shock and cascade order. The independent unit is the initialisation, not
 # the run. Ignoring this makes naive-over-N standard errors roughly 3.8x too
 # tight at the median design effect measured on the legacy sweep (ICC 0.274,

@@ -61,7 +61,7 @@ BankRuns5/
 │   │                        #   Live: next_steps cites it as the clean pmap pattern
 │   ├── restart.jl          # Resume logic for interrupted sweeps (not wired in)
 │   └── sysImage.jl         # Compile Julia system image for faster worker startup.
-│                            #   Live: sysimage.so is loaded by finMain0001.jl:11
+│                            #   Live: sysimage.so is loaded by finMain0001.jl (SYSIMAGE_PATH)
 │
 ├── Analysis (R)  — see scripts/analysis_p6.R and scripts/analysis_p6b.R
 │

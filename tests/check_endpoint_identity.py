@@ -67,7 +67,7 @@ from collections import defaultdict
 
 ENDPOINT_MU = ("0.0", "1.0")
 RESULT_FIELDS = 4          # key, result, nWithdrawn, depositWithdrawn
-EXPECTED_RUNS = 250        # runs per cell; see functions4.jl:495
+EXPECTED_RUNS = 250        # runs per cell; see parameterGen.jl seedRun² × runSize
 # Parameter columns that MUST agree between paired cells. assign_rule and
 # arm_tag are excluded on purpose -- those are the intervention.
 PAIRED_PARAM_COLS = ("reserve", "depq", "sigma", "k", "p", "alpha",
@@ -102,7 +102,7 @@ def read_manifest(path):
 
 
 def parse_key(key):
-    """key = string(Dates.now()) * '-' * seed1 * '-' * seed2 (parameterGen.jl:130).
+    """key = string(Dates.now()) * '-' * seed1 * '-' * seed2 (parameterGen.jl `jointFrame.key`).
 
     The timestamp itself contains hyphens, so split from the RIGHT. Returns
     (seed1, seed2) as strings, or None if the key is not the expected shape.

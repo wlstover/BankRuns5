@@ -12,7 +12,7 @@
 # round-trip spent on a name.
 #
 # That is exactly what `function runSize(mod::Model)` did against Schuler's
-# `runSize=10` at parameterGen.jl:42. It is invisible to test_runsize.jl and
+# `runSize=10` at parameterGen.jl. It is invisible to test_runsize.jl and
 # test_assignment_rules.jl, because those extract a block by text marker and
 # eval it in a bare namespace where parameterGen.jl does not exist. The blind
 # spot is structural, not an oversight: it is the price of testing the shipped

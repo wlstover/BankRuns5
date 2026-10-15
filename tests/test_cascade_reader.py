@@ -49,7 +49,7 @@ def ok(cond, msg):
 
 
 def prod_key(seed1, seed2):
-    """Production key shape: parameterGen.jl:128."""
+    """Production key shape: parameterGen.jl `jointFrame.key`."""
     return f"2026-08-17T09:00:00.000-{seed1}-{seed2}"
 
 

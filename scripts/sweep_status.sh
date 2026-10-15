@@ -31,7 +31,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # is the unambiguous corpse: the 9-second and 59-second exits this pipeline has
 # produced twice. Raise it with --short if you want a stricter sweep.
 SHORT_RUN_SECS=${SHORT_RUN_SECS:-60}
-EXPECT_RUNS=${EXPECT_RUNS:-250}   # parameterGen.jl:111 — 250, not the documented 50
+EXPECT_RUNS=${EXPECT_RUNS:-250}   # parameterGen.jl's `seed1=repeat(sample(...), seedRun)` — 250, not the documented 50
 
 TAGS=(); JOB_IDS=()
 while [[ $# -gt 0 ]]; do

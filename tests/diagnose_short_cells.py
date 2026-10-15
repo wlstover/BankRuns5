@@ -15,7 +15,7 @@ hypotheses were on the table:
                                     rowLock though rowPull() is.
   H3  check-off-before-write race at task teardown -- functions4.jl modelCall()
                                     calls checkOff() BEFORE writing its result
-                                    row, and finMain0001.jl:149 exits the master
+                                    row, and finMain0001.jl's master loop exits the master
                                     loop on sum(completed) == nrow. The worker
                                     that checks off the final row then polls at
                                     sleep(1) granularity before it writes, so the
@@ -58,7 +58,7 @@ from collections import Counter
 
 RESULT_FIELDS = 4          # key, result, nWithdrawn, depositWithdrawn (widened 2026-08-13)
 FIN_FIELDS = 3             # key, started, completed
-DEFAULT_RUNS = 250         # a cell is 250 runs; see functions4.jl:495 and item "a cell is 250"
+DEFAULT_RUNS = 250         # a cell is 250 runs; see parameterGen.jl seedRun² × runSize and item "a cell is 250"
 
 
 # ---------------------------------------------------------------- file readers
@@ -94,7 +94,7 @@ def read_fin_ledger(task_dir):
     """The master's own record: bankRunParametersFin.csv, in jointFrame order.
 
     Returns (rows, malformed) with rows a list of (key, started, completed) in
-    file order, which IS frame order -- finMain0001.jl:180 writes
+    file order, which IS frame order -- the final write in finMain0001.jl (bankRunParametersFin.csv) writes
     jointFrame[:,[:key,:started,:completed]] unsorted.
     """
     path = os.path.join(task_dir, "bankRunParametersFin.csv")
@@ -115,7 +115,7 @@ def read_fin_ledger(task_dir):
 def agent_row_count(task_dir, key):
     """How many agents*.csv rows carry this key.
 
-    A run that executed writes agtCnt rows at model generation (functions4.jl:110),
+    A run that executed writes agtCnt rows at model generation (functions4.jl modelGen, agents CSV),
     which happens before the cascade and long before the result row. So agent rows
     present + result row absent == the run ran and its result was lost on the way
     out. That is H3. Zero agent rows would mean the run never started, which is a
@@ -153,7 +153,7 @@ def diagnose_cell(task_dir, expected, check_agents):
     if fin is None:
         out["ok"] = False
         out["note"] = ("no bankRunParametersFin.csv -- the master never reached "
-                       "finMain0001.jl:180, so this task did not exit cleanly")
+                       "finMain0001.jl's final bankRunParametersFin.csv write, so this task did not exit cleanly")
         out["n_fin_rows"] = None
         return out
 
@@ -326,7 +326,7 @@ def main():
         print("      one per decision, so the collision rate is orders of magnitude lower.")
     if n_missing and tail / n_missing > 0.8:
         print("    * The missing run is concentrated at the END of the frame. That is H3:")
-        print("      modelCall() checks off before it writes, and finMain0001.jl:149 exits")
+        print("      modelCall() checks off before it writes, and finMain0001.jl's master loop exits")
         print("      the master loop the instant the last row is checked off. The worker")
         print("      polls checkOff at sleep(1) granularity, so it can still be inside")
         print("      that poll when the pool is torn down.")

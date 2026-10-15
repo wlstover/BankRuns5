@@ -24,12 +24,12 @@
 
 set -uo pipefail
 
-# EXPECT_RUNS=250, not 50. parameterGen.jl:111 is
+# EXPECT_RUNS=250, not 50. parameterGen.jl's `seed1=repeat(sample(...), seedRun)` is
 #   seed1 = repeat(sample(1:1000000, seedRun, replace=false), seedRun)
 # which yields 25 seedFrame rows (5 distinct seeds, each 5x), crossjoined with
 # iteration 1:runSize=10 -> 250 rows per cell. `iteration` never reaches the
 # model, so the structure is 5 initialisations x 50 shock draws, NOT the
-# "5 x 10 = 50" the comments at parameterGen.jl:39-42 describe. Confirmed
+# "5 x 10 = 50" the comments at parameterGen.jl (`seedRun`, `runSize`) describe. Confirmed
 # against the 2026-04 legacy sweep: 2,833 of 2,835 cells hold exactly 250 rows
 # with exactly 5 distinct seed1 (the other two hold 500 / 10 — genuine top-ups).
 TAG="smoke"; TASK=1; EXPECT_RUNS=250; EXPECT_RULE="warmup"; EXPECT_DEPTH=100
@@ -131,7 +131,7 @@ if [[ ${#RESULTS[@]} -gt 0 ]]; then
         warn "$n of ${EXPECT_RUNS} — surplus, and not an exact multiple. Neither a clean re-submission nor a clean single run; inspect the key timestamps"
     fi
     # 5 distinct seed1 per block. Runs sharing a seed1 share network, warm-up,
-    # lambda assignment AND deposit vector (functions4.jl:28,82,92) — they differ
+    # lambda assignment AND deposit vector (functions4.jl modelGen's Random.seed! calls) — they differ
     # only in seed2, the exogenous shock and cascade order. So the independent
     # unit is the initialisation, not the run.
     blocks=$(( n / EXPECT_RUNS )); [[ "$blocks" -lt 1 ]] && blocks=1
@@ -150,8 +150,8 @@ else
 fi
 
 # ── 4. stderr, then run parameters reached Julia ──────────────────────────────
-# Read stderr FIRST. The three startup assertions below fire at finMain0001.jl:49
-# and :82 — before the @everywhere includes and before any model code — so they
+# Read stderr FIRST. The three startup assertions below fire at finMain0001.jl (ASSIGN_RULE
+# and MC_DEPTH parsing) — before the @everywhere includes and before any model code — so they
 # pass on a task that died at include time. Only .err distinguishes the two.
 hdr "4a. Task stderr (read this first — a fast failure lives here, not in .out)"
 if [[ -n "$ERRLOG" && -f "$ERRLOG" ]]; then

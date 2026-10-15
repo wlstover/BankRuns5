@@ -39,7 +39,7 @@ Agent count is derived per key from agents*.csv, never hardcoded.
 
 ⚠️ THE KEY DOES NOT ALWAYS IDENTIFY A RUN
 -----------------------------------------
-Production keys are `<timestamp>-<seed1>-<seed2>` (parameterGen.jl:128) with
+Production keys are `<timestamp>-<seed1>-<seed2>` (parameterGen.jl `jointFrame.key`) with
 seed2 sampled WITHOUT replacement per row (line 127), so they are unique per
 run. Good.
 
@@ -340,7 +340,7 @@ def load_run(task_dir: Path, key: str | None = None,
             f"(agents), tick resets (endogenous) and vault rises (exogenous), and "
             f"the three disagree, so a decision cannot be attributed to a run. "
             f"Guessing here would produce a plausible picture of the wrong thing.\n\n"
-            f"Production output does not have this problem — parameterGen.jl:127-128 "
+            f"Production output does not have this problem — parameterGen.jl `jointFrame.key` "
             f"keys each run <timestamp>-<seed1>-<seed2> with seed2 sampled without "
             f"replacement. Use a production task dir, or the fixtures in "
             f"tests/test_cascade_reader.py."
