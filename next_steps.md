@@ -594,7 +594,7 @@ there is contamination. `analysis_p6b.R` writes it to `endpoint_contamination.cs
 read it before trusting the contrast.
 
 ⚠️ Also a test of whether this model's contagion is **spatial at all.** `blendedTotal`
-mixes in `totalWithdrawnPoint`, which is at least partly a population-level estimate
+mixes in `neighbourEstimate` (was `totalWithdrawnPoint`), which is at least partly a population-level estimate
 (item 9). If the signal is effectively mean-field, network position cannot matter and the
 placebo returns nothing — which would not be a null result about culture, it would be a
 finding about the model, and it would qualify the percolation framing in §6.9.
