@@ -1,14 +1,17 @@
 """
 make_figures.py — Chapter 3 §6.6 + theory §4.6 figures.
 
-Produces three figures from outputs/consolidated_results.csv:
+Produces three figures from outputs/production/consolidated_results.csv:
 
     fig1_p6a_headline.png       P(run) vs mu × lambda-gap, collapsed across
                                 reserve. The headline P6a confirmation.
 
     fig2_reserve_null.png       P(run) vs mu × reserve ratio, collapsed across
-                                lambda gap. Demonstrates the reserve null that
-                                supports the cascade-saturation framing.
+                                lambda gap. (Filename kept for the chapter's
+                                includegraphics; the "reserve null" was an
+                                artefact of the shifted header in the old
+                                outputs/consolidated_results.csv, where the
+                                "reserveRatio" column held network p.)
 
     fig4_p6a_p6b_schematic.png  Two-panel pedagogical schematic. Left: hypothetical
                                 moderate-regime curve with both channels (P6a
@@ -29,7 +32,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 BASE = Path(__file__).resolve().parent.parent
-INPUT = BASE / "outputs" / "consolidated_results.csv"
+# The production file has the correct header (k, p, reserveRatio, depQuantile,
+# sigma, ...). Do not use outputs/consolidated_results.csv (Apr 13): its header
+# is shifted by one column, so "reserveRatio" there is network p.
+INPUT = BASE / "outputs" / "production" / "consolidated_results.csv"
 OUT_DIR = BASE / "outputs" / "analysis"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -90,9 +96,10 @@ def figure_1_headline(cells):
         r"(stratified by signal-weighting gap $\lambda_C - \lambda_I$)"
     )
     ax.set_xticks(mus)
-    ax.set_yticks(np.arange(0.5, 1.01, 0.05))
-    ax.set_yticklabels([f"{int(t * 100)}%" for t in np.arange(0.5, 1.01, 0.05)])
-    ax.set_ylim(0.6, 0.95)
+    ax.set_yticks(np.arange(0.5, 0.901, 0.05))
+    ax.set_yticklabels([f"{int(round(t * 100))}%" for t in np.arange(0.5, 0.901, 0.05)])
+    ax.set_ylim(0.5, 0.9)
+    ax.set_xlim(-0.05, 1.15)
     ax.legend(loc="upper right", frameon=False, title="Signal-weighting gap")
     ax.grid(True, alpha=0.3, linewidth=0.5)
 
@@ -113,8 +120,8 @@ def figure_2_reserve_null(cells):
     reserves = sorted({k[1] for k in by_mu_rr})
 
     fig, ax = plt.subplots(figsize=(7.5, 5))
-    colors = ["#c0392b", "#8e44ad"]
-    markers = ["o", "s"]
+    colors = plt.cm.viridis(np.linspace(0.0, 0.85, len(reserves)))
+    markers = ["o", "s", "^", "D", "v", "P"]
     for rr, color, marker in zip(reserves, colors, markers):
         rates = [by_mu_rr[(m, rr)]["runs"] / by_mu_rr[(m, rr)]["completed"]
                  for m in mus]
@@ -124,14 +131,14 @@ def figure_2_reserve_null(cells):
     ax.set_xlabel(r"Fraction individualist $\mu$")
     ax.set_ylabel(r"$P(\mathrm{bank\ run})$")
     ax.set_title(
-        "Reserve-ratio interaction is approximately null in the swept regime\n"
-        "(consistent with cascade-pressure saturation; cultural channel dominates)"
+        "Bank-run probability by cultural composition and reserve ratio\n"
+        r"(pooled across signal-weighting gap $\lambda_C - \lambda_I$)"
     )
     ax.set_xticks(mus)
-    ax.set_yticks(np.arange(0.5, 1.01, 0.05))
-    ax.set_yticklabels([f"{int(t * 100)}%" for t in np.arange(0.5, 1.01, 0.05)])
-    ax.set_ylim(0.6, 0.95)
-    ax.legend(loc="upper right", frameon=False)
+    ax.set_yticks(np.arange(0.2, 1.01, 0.1))
+    ax.set_yticklabels([f"{int(round(t * 100))}%" for t in np.arange(0.2, 1.01, 0.1)])
+    ax.set_ylim(0.2, 1.0)
+    ax.legend(loc="lower left", frameon=False, ncol=2)
     ax.grid(True, alpha=0.3, linewidth=0.5)
 
     plt.tight_layout()
@@ -328,9 +335,9 @@ if __name__ == "__main__":
         with open(INPUT) as f:
             n_rows = sum(1 for _ in f) - 1
         print(f"Loaded consolidated_results.csv ({n_rows:,} rows)")
-        if n_rows < 600_000:
-            print("WARNING: row count below the post-fix expected ~709K.")
-            print("         Local CSV may be stale; rsync the latest from HPC.")
+        if n_rows < 540_000:
+            print("WARNING: row count below the production sweep's 540K")
+            print("         (2,160 cells x 250 runs). Local CSV may be stale.")
         cells = aggregate()
         figure_1_headline(cells)
         figure_2_reserve_null(cells)
