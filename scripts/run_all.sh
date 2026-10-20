@@ -14,6 +14,8 @@
 #   ./scripts/run_all.sh --k 6 10 50 --tag p6b-density     # re-test P6b on denser networks
 #   ./scripts/run_all.sh --assignment random --tag placebo # culture-vs-topology placebo
 #   ./scripts/run_all.sh --tag production --restart        # top up under-filled cells
+#   ./scripts/run_all.sh --tag production --tasks 387,1370 --time 0-04:00:00
+#                                       # rerun named cells IN FULL, original seeds
 #   ./scripts/run_all.sh --consolidate --analyze --tag production   # post-processing only
 #
 #   # THE P6b TEST — the chapter's headline number:
@@ -53,11 +55,22 @@
 # ── ⚠️ WHAT --restart ACTUALLY DOES ──────────────────────────────────────────
 # It is a TOP-UP, not a resume. restart.jl is not wired in (finMain0001.jl
 # does not include it), so a re-submitted task runs parameterGen.jl
-# again, draws fresh seeds, and APPENDS a new 50-run block to whatever the task
+# again, draws fresh seeds, and APPENDS a new 250-run block to whatever the task
 # already holds. Those runs are valid draws — they are simply extra
 # replications, not a continuation. This is the mechanism behind the ~6x
 # replication surplus in the 2026-04 sweep (612 runs/cell against a documented
 # 50). check_sweep_run.py reports the surplus rather than hiding it.
+#
+# ── --tasks LIST: rerun named cells in full (2026-10-20) ─────────────────────
+# The fix for TIMEOUTs. Each listed task is rerun from scratch with everything
+# the arm's manifest recorded: the same params file, assignment rule, MC depth,
+# seed offset and BANKRUN_* switches (exported from the manifest; a conflicting
+# value in this shell is refused), so GEN_SEED and every run key are the
+# originals and the rerun reproduces the completed runs exactly. It refuses
+# unless the checkout is the manifest's git_commit and clean. The old task
+# directories move to outputs/<tag>/timeout_partial/; the manifest and params
+# file are not rewritten; each resubmission is logged in resubmissions.log.
+# Unlike a --restart top-up this keeps paired arms (same seed offset) paired.
 #
 # Logs: /scratch/$USER/bankrun-<tag>-<stage>-%A_%a.out
 # Watch: squeue -u $USER
@@ -98,6 +111,7 @@ DO_P6B=1                # analysis_p6b.R — the actual P6b test, see --compare
 COMPARE_TAG=""          # placebo arm to contrast against; empty = within-arm only
 DO_CHECK=1
 RESTART=0
+RERUN_TASKS=""          # --tasks: comma list / ranges of task ids to rerun in full
 STAGE_ONLY=0            # set when --consolidate/--analyze given without a sweep
 AXIS_ARGS=()            # forwarded verbatim to gen_params.sh
 
@@ -128,6 +142,12 @@ while [[ $# -gt 0 ]]; do
         --mem)          MEM="$2"; shift 2 ;;
         --seed-offset)  SEED_OFFSET="$2"; shift 2 ;;
         --restart)      RESTART=1; shift ;;
+        --tasks)
+            RERUN_TASKS="$2"
+            if ! [[ "$RERUN_TASKS" =~ ^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$ ]]; then
+                echo "ERROR: --tasks takes a list like 387,1370,1440-1448" >&2; exit 1
+            fi
+            shift 2 ;;
         --dry-run)      DRY_RUN=1; shift ;;
         --no-sweep)     DO_SWEEP=0; shift ;;
         --no-consolidate) DO_CONSOLIDATE=0; shift ;;
@@ -171,7 +191,7 @@ SET_SWITCHES=()
 for v in BANKRUN_PUBLIC_ALPHA BANKRUN_PUBLIC_BIAS BANKRUN_PUBLIC_RHO BANKRUN_WEIGHT_PHI \
          BANKRUN_FIX_DOUBLE_COUNT BANKRUN_FRESH_CLONE BANKRUN_TIEBREAK BANKRUN_BELIEF \
          BANKRUN_BELIEF_P0 BANKRUN_PUBLIC_MODE BANKRUN_PUBLIC_REFRESH \
-         BANKRUN_PRIVATE_SIGNAL BANKRUN_PRIVATE_NOISE; do
+         BANKRUN_PRIVATE_SIGNAL BANKRUN_PRIVATE_NOISE BANKRUN_STAY_RETURN; do
     [[ -n "${!v:-}" ]] && SET_SWITCHES+=("$v=${!v}")
 done
 if [[ -z "$TAG" ]]; then
@@ -192,6 +212,75 @@ fi
 
 ARM_DIR="${PROJECT_ROOT}/outputs/${TAG}"
 MANIFEST="${ARM_DIR}/manifest.csv"
+
+# ── --tasks / --restart: resubmit into an existing arm ───────────────────────
+# Both reuse the arm's params file and leave its manifest alone: rewriting them
+# would restamp submitted_at/git_commit for runs that were made earlier, and a
+# regenerated params file without the original axis overrides would silently
+# change what each task id means.
+if [[ -n "$RERUN_TASKS" ]] || [[ $RESTART -eq 1 ]]; then
+    if [[ -n "$RERUN_TASKS" ]] && [[ $RESTART -eq 1 ]]; then
+        echo "ERROR: --tasks and --restart are different operations; pick one." >&2; exit 1
+    fi
+    if [[ $DO_SWEEP -eq 0 ]]; then
+        echo "ERROR: --tasks/--restart submit a sweep; drop --no-sweep/--consolidate/--analyze." >&2; exit 1
+    fi
+    if [[ ${#AXIS_ARGS[@]} -gt 0 ]] || [[ -n "$PARAMS_FILE" ]]; then
+        echo "ERROR: --tasks/--restart reuse the arm's own params file; no axis overrides or --params-file." >&2; exit 1
+    fi
+    if [[ -f "${ARM_DIR}/params.txt" ]]; then
+        PARAMS_FILE="${ARM_DIR}/params.txt"
+    elif [[ -n "$RERUN_TASKS" ]]; then
+        echo "ERROR: ${ARM_DIR}/params.txt not found; --tasks needs the arm's params file." >&2; exit 1
+    fi
+fi
+
+if [[ -n "$RERUN_TASKS" ]]; then
+    if [[ ! -f "$MANIFEST" ]]; then
+        echo "ERROR: ${MANIFEST} not found; --tasks needs the arm's manifest." >&2; exit 1
+    fi
+    # Settings from the manifest, by header name: assign_rule, mc_depth,
+    # seed_offset, git_commit and every switch column (name -> BANKRUN_<NAME>).
+    declare -A MAN=()
+    while IFS='=' read -r k v; do MAN["$k"]="$v"; done < <(python3 - "$MANIFEST" <<'PYEOF'
+import csv, sys
+rows = list(csv.DictReader(open(sys.argv[1])))
+cols = ["assign_rule", "mc_depth", "seed_offset", "git_commit"]
+for c in cols:
+    vals = {r.get(c, "") for r in rows}
+    if len(vals) != 1:
+        sys.exit(f"manifest column {c} is not constant: {sorted(vals)}")
+    print(f"{c}={vals.pop()}")
+fixed = set(["task_id", "reserve", "depq", "sigma", "k", "p", "alpha", "mu", "lambdaI", "lambdaC",
+             "arm_tag", "params_sha", "submitted_at"] + cols)
+for c in rows[0].keys():
+    if c not in fixed:
+        vals = {r.get(c, "") for r in rows}
+        if len(vals) != 1:
+            sys.exit(f"manifest column {c} is not constant: {sorted(vals)}")
+        print(f"switch:{c}={vals.pop()}")
+PYEOF
+)
+    [[ -n "${MAN[git_commit]:-}" ]] || { echo "ERROR: could not read ${MANIFEST}" >&2; exit 1; }
+    head_commit="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)$(git -C "$PROJECT_ROOT" diff --quiet HEAD || echo -dirty)"
+    if [[ "${MAN[git_commit]}" == *-dirty ]]; then
+        echo "ERROR: the arm ran on a dirty checkout (${MAN[git_commit]}); a rerun cannot be shown to reproduce it." >&2; exit 1
+    fi
+    if [[ "$head_commit" != "${MAN[git_commit]}" ]]; then
+        echo "ERROR: checkout is ${head_commit}, the arm ran at ${MAN[git_commit]}." >&2
+        echo "       git checkout ${MAN[git_commit]} (clean) first, so the rerun reproduces the arm." >&2; exit 1
+    fi
+    ASSIGN_RULE="${MAN[assign_rule]}"; MC_DEPTH="${MAN[mc_depth]}"; SEED_OFFSET="${MAN[seed_offset]}"
+    for key in "${!MAN[@]}"; do
+        [[ "$key" == switch:* ]] || continue
+        col="${key#switch:}"; var="BANKRUN_${col^^}"; val="${MAN[$key]}"
+        if [[ -n "${!var:-}" ]] && [[ "${!var}" != "$val" ]]; then
+            echo "ERROR: ${var}=${!var} in this shell, but the arm ran with '${val}'." >&2; exit 1
+        fi
+        if [[ -n "$val" ]]; then export "$var=$val"; else unset "$var"; fi
+    done
+    echo "  --tasks: settings from manifest (commit ${MAN[git_commit]}, assign ${ASSIGN_RULE}, depth ${MC_DEPTH}, seed offset ${SEED_OFFSET})"
+fi
 
 # ── --compare: resolve the contrast arm ──────────────────────────────────────
 # analysis_p6b.R's headline statistic is excess(treatment) - excess(placebo).
@@ -290,8 +379,10 @@ if [[ $DO_SWEEP -eq 1 ]]; then
 fi
 
 # ── Array spec (full run, or only the deficient cells under --restart) ────────
-# Expected runs per cell = seedRun x runSize = 5 x 10 = 50 (parameterGen.jl `seedRun`, `runSize`).
-EXPECTED_RUNS_PER_CELL=50
+# Expected runs per cell = (seedRun x seedRun) x runSize = 25 x 10 = 250
+# (parameterGen.jl: seed1 = repeat(sample(.., seedRun), seedRun), runSize = 10).
+# Was 50 until 2026-10-20, so --restart could not see a cell with 51-249 runs.
+EXPECTED_RUNS_PER_CELL=250
 
 compress_ranges() {
     # 1,2,3,7,9,10 -> 1-3,7,9-10 ; keeps the --array spec inside SLURM's length limit
@@ -304,7 +395,24 @@ compress_ranges() {
 
 ARRAY_SPEC=""
 if [[ $DO_SWEEP -eq 1 ]]; then
-    if [[ $RESTART -eq 1 ]]; then
+    if [[ -n "$RERUN_TASKS" ]]; then
+        ARRAY_SPEC=$(echo "$RERUN_TASKS" | tr ',' '\n' | awk -F- '{if (NF==2) for (i=$1;i<=$2;i++) print i; else print $1}' | compress_ranges)
+        for idx in $(echo "$ARRAY_SPEC" | tr ',' '\n' | awk -F- '{if (NF==2) for (i=$1;i<=$2;i++) print i; else print $1}'); do
+            if [[ "$idx" -lt 1 ]] || [[ "$idx" -gt "$NCELLS" ]]; then
+                echo "ERROR: --tasks ${idx} is outside 1..${NCELLS}" >&2; exit 1
+            fi
+            tdir="${ARM_DIR}/task_${idx}"
+            [[ -d "$tdir" ]] || continue
+            dest="${ARM_DIR}/timeout_partial/task_${idx}"
+            [[ -e "$dest" ]] && dest="${dest}.$(date +%s)"
+            if [[ $DRY_RUN -eq 1 ]]; then
+                note "[dry-run] would move ${tdir} -> ${dest}"
+            else
+                mkdir -p "${ARM_DIR}/timeout_partial"; mv "$tdir" "$dest"
+            fi
+        done
+        echo "--tasks: rerunning ${ARRAY_SPEC} in full (original seeds)"
+    elif [[ $RESTART -eq 1 ]]; then
         if [[ ! -d "$ARM_DIR" ]]; then
             echo "ERROR: --restart on arm '$TAG' but ${ARM_DIR} does not exist" >&2; exit 1
         fi
@@ -359,16 +467,23 @@ echo "======================================================================"
 # manifest written at submission time removes the whole failure class.
 # The BANKRUN_* model switches (settings.jl) reach the tasks through
 # --export=ALL from the submitting shell; their raw values are recorded in the
-# switch columns (public_alpha … private_noise), where an empty field means the
+# switch columns (public_alpha … stay_return), where an empty field means the
 # default. fix_double_count is written resolved (true unless set), because its
 # default changed on 2026-10-20: an empty field in an older manifest means the
 # published false (scripts/replay_run.jl). git_commit is the code the tasks will run (-dirty if uncommitted
 # changes); scripts/replay_run.jl needs the same commit to reproduce a run.
-if [[ $DO_SWEEP -eq 1 ]] && [[ $DRY_RUN -eq 0 ]]; then
+if [[ $DO_SWEEP -eq 1 ]] && { [[ -n "$RERUN_TASKS" ]] || [[ $RESTART -eq 1 ]]; } && [[ -f "$MANIFEST" ]]; then
+    # Resubmission: keep the manifest that describes the original runs.
+    if [[ $DRY_RUN -eq 0 ]]; then
+        echo "$(date -Is) ${RERUN_TASKS:+tasks=${RERUN_TASKS}}${RESTART:+$([[ $RESTART -eq 1 ]] && echo restart)} array=${ARRAY_SPEC:-none} walltime=${WALLTIME} commit=$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)" \
+            >> "${ARM_DIR}/resubmissions.log"
+    fi
+    note "manifest kept: ${MANIFEST} (resubmission logged in resubmissions.log)"
+elif [[ $DO_SWEEP -eq 1 ]] && [[ $DRY_RUN -eq 0 ]]; then
     params_sha=$(sha256sum "$PARAMS_FILE" | cut -c1-16)
     submitted_at=$(date -Is)
     {
-        echo "task_id,reserve,depq,sigma,k,p,alpha,mu,lambdaI,lambdaC,arm_tag,assign_rule,mc_depth,seed_offset,params_sha,submitted_at,public_alpha,public_bias,public_rho,weight_phi,fix_double_count,fresh_clone,tiebreak,belief,belief_p0,log,git_commit,public_mode,public_refresh,private_signal,private_noise"
+        echo "task_id,reserve,depq,sigma,k,p,alpha,mu,lambdaI,lambdaC,arm_tag,assign_rule,mc_depth,seed_offset,params_sha,submitted_at,public_alpha,public_bias,public_rho,weight_phi,fix_double_count,fresh_clone,tiebreak,belief,belief_p0,log,git_commit,public_mode,public_refresh,private_signal,private_noise,stay_return"
         awk -v tag="$TAG" -v rule="$ASSIGN_RULE" -v depth="$MC_DEPTH" \
             -v off="$SEED_OFFSET" -v sha="$params_sha" -v ts="$submitted_at" \
             -v pa="${BANKRUN_PUBLIC_ALPHA:-}" -v pb="${BANKRUN_PUBLIC_BIAS:-}" \
@@ -376,9 +491,9 @@ if [[ $DO_SWEEP -eq 1 ]] && [[ $DRY_RUN -eq 0 ]]; then
             -v dc="${BANKRUN_FIX_DOUBLE_COUNT:-true}" -v fc="${BANKRUN_FRESH_CLONE:-}" \
             -v tb="${BANKRUN_TIEBREAK:-}" -v bl="${BANKRUN_BELIEF:-}" -v b0="${BANKRUN_BELIEF_P0:-}" \
             -v lg="${BANKRUN_LOG:-}" -v pm="${BANKRUN_PUBLIC_MODE:-}" -v pk="${BANKRUN_PUBLIC_REFRESH:-}" \
-            -v ps="${BANKRUN_PRIVATE_SIGNAL:-}" -v pn="${BANKRUN_PRIVATE_NOISE:-}" -v gc="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null)$(git -C "$PROJECT_ROOT" diff --quiet HEAD 2>/dev/null || echo -dirty)" \
-            '{printf "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n", \
-              NR,$1,$2,$3,$4,$5,$6,$7,$8,$9,tag,rule,depth,off,sha,ts,pa,pb,pr,wp,dc,fc,tb,bl,b0,lg,gc,pm,pk,ps,pn}' "$PARAMS_FILE"
+            -v ps="${BANKRUN_PRIVATE_SIGNAL:-}" -v pn="${BANKRUN_PRIVATE_NOISE:-}" -v sr="${BANKRUN_STAY_RETURN:-}" -v gc="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null)$(git -C "$PROJECT_ROOT" diff --quiet HEAD 2>/dev/null || echo -dirty)" \
+            '{printf "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n", \
+              NR,$1,$2,$3,$4,$5,$6,$7,$8,$9,tag,rule,depth,off,sha,ts,pa,pb,pr,wp,dc,fc,tb,bl,b0,lg,gc,pm,pk,ps,pn,sr}' "$PARAMS_FILE"
     } > "$MANIFEST"
     note "manifest: ${MANIFEST} ($(($(wc -l < "$MANIFEST") - 1)) rows, params sha ${params_sha})"
 elif [[ $DO_SWEEP -eq 1 ]]; then

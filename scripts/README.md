@@ -66,6 +66,7 @@ is what makes it safe to run a variant without destroying its own baseline.
 | **P6b on denser networks** | `./scripts/run_all.sh --k 6 10 50 --tag p6b-density` |
 | **Warm-up placebo** | `./scripts/run_all.sh --assignment random --tag placebo` |
 | Anti-treatment | `./scripts/run_all.sh --assignment reverse --tag anti` |
+| **Rerun named cells in full** (TIMEOUTs) | `./scripts/run_all.sh --tag production --tasks 387,1370 --time 0-04:00:00` |
 | Top up under-filled cells | `./scripts/run_all.sh --tag production --restart` |
 | Post-process only | `./scripts/run_all.sh --consolidate --analyze --tag production` |
 | **The P6b test (headline)** | `./scripts/run_all.sh --analyze --tag production --compare placebo` |
@@ -178,8 +179,20 @@ and the parameter-dump width. It exits nonzero only on FAIL — under-filled and
 surplus cells are reported as warnings, deliberately, so the job going red always
 means something.
 
+**For a TIMEOUT, use `--tasks`, not `--restart`.** `--tasks LIST` reruns the
+listed cells from scratch with the arm's original seeds: it reads the
+assignment rule, MC depth, seed offset and every `BANKRUN_*` switch from the
+manifest (exporting them, and refusing a conflicting value in your shell),
+refuses unless the checkout is the manifest's `git_commit` and clean, moves the
+partial task directories to `outputs/<tag>/timeout_partial/`, and logs the
+resubmission in `resubmissions.log` without rewriting the manifest. The runs
+are deterministic, so the completed runs come back identical and the missing
+ones are filled in; paired arms (same seed offset) stay paired. The slow cells
+are the ones that time out, so raise `--time` for the rerun (2026-10-20: task
+runtimes had a median of 3 min and a tail to ~60 min).
+
 **`--restart` is a top-up, not a resume.** `restart.jl` is not wired in
-(`finMain0001.jl` does not include it), so a re-submitted task appends a fresh 50-run block under
+(`finMain0001.jl` does not include it), so a re-submitted task appends a fresh 250-run block under
 new keys. The extra runs are valid draws; they are not a continuation. This is the
 mechanism behind the ~612-runs-per-cell surplus in the 2026-04 sweep against a
 documented 50.
