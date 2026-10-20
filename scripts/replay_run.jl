@@ -74,7 +74,8 @@ const SWITCH_COLUMNS = ("public_alpha" => "BANKRUN_PUBLIC_ALPHA", "public_bias" 
                         "tiebreak" => "BANKRUN_TIEBREAK", "belief" => "BANKRUN_BELIEF",
                         "belief_p0" => "BANKRUN_BELIEF_P0",
                         "public_mode" => "BANKRUN_PUBLIC_MODE", "public_refresh" => "BANKRUN_PUBLIC_REFRESH",
-                        "private_signal" => "BANKRUN_PRIVATE_SIGNAL", "private_noise" => "BANKRUN_PRIVATE_NOISE")
+                        "private_signal" => "BANKRUN_PRIVATE_SIGNAL", "private_noise" => "BANKRUN_PRIVATE_NOISE",
+                        "stay_return" => "BANKRUN_STAY_RETURN")
 
 function main(args)
     opts = Dict{String,String}()

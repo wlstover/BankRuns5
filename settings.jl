@@ -30,6 +30,8 @@ const SWITCH_DEFAULTS = (
     PUBLIC_REFRESH   = 0,            # stale mode: refresh the level every k ticks (0 = never after tick 1)
     PRIVATE_SIGNAL   = "none",       # none = uninformative prior draws; shock = posterior given a noisy signal of the realised shock
     PRIVATE_NOISE    = 5.0,          # shock mode: s.d. of the private signal, in agents
+    # Stayers' return (2026-10-20): Chapter 1's R. 1 = published (stayers earn nothing).
+    STAY_RETURN      = 1.0,          # R ≥ 1: withdraw iff P_WD > R·P_stay (L = 0); see decide()
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -92,5 +94,6 @@ function parseSwitchesFromEnv()
             PUBLIC_REFRESH   = envInt("BANKRUN_PUBLIC_REFRESH", D.PUBLIC_REFRESH, 0, 10^6),
             PRIVATE_SIGNAL   = envChoice("BANKRUN_PRIVATE_SIGNAL", D.PRIVATE_SIGNAL, PRIVATE_SIGNAL_CHOICES),
             PRIVATE_NOISE    = envFloat("BANKRUN_PRIVATE_NOISE", D.PRIVATE_NOISE, 0.0, 1.0e6; loOpen=true),
+            STAY_RETURN      = envFloat("BANKRUN_STAY_RETURN", D.STAY_RETURN, 1.0, 100.0),
             LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
 end

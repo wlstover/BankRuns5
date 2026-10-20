@@ -122,6 +122,8 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #   BANKRUN_PRIVATE_SIGNAL  none|shock  uninformative prior draws, or the posterior
 #                           given a noisy private signal of the realised shock.
 #   BANKRUN_PRIVATE_NOISE   s > 0  s.d. of that signal, in agents (default 5).
+#   BANKRUN_STAY_RETURN     R ≥ 1  stayers' return (Chapter 1's R; L = 0): withdraw
+#                           iff P_WD > R·P_stay. 1 = published (default).
 # Since 2026-10-20 BANKRUN_FIX_DOUBLE_COUNT defaults to true; =false reproduces
 # the published model.
 # Defaults and parsing live in settings.jl (SWITCH_DEFAULTS, parseSwitchesFromEnv).
@@ -140,6 +142,7 @@ const PUBLIC_MODE       = SWITCHES.PUBLIC_MODE
 const PUBLIC_REFRESH    = SWITCHES.PUBLIC_REFRESH
 const PRIVATE_SIGNAL    = SWITCHES.PRIVATE_SIGNAL
 const PRIVATE_NOISE     = SWITCHES.PRIVATE_NOISE
+const STAY_RETURN       = SWITCHES.STAY_RETURN
 @everywhere const PUBLIC_ALPHA     = $PUBLIC_ALPHA
 @everywhere const PUBLIC_BIAS      = $PUBLIC_BIAS
 @everywhere const PUBLIC_RHO       = $PUBLIC_RHO
@@ -154,9 +157,11 @@ const PRIVATE_NOISE     = SWITCHES.PRIVATE_NOISE
 @everywhere const PUBLIC_REFRESH   = $PUBLIC_REFRESH
 @everywhere const PRIVATE_SIGNAL   = $PRIVATE_SIGNAL
 @everywhere const PRIVATE_NOISE    = $PRIVATE_NOISE
+@everywhere const STAY_RETURN      = $STAY_RETURN
 println("public signal: alpha=", PUBLIC_ALPHA, " bias=", PUBLIC_BIAS, " rho=", PUBLIC_RHO,
         " phi=", WEIGHT_PHI, " fixDoubleCount=", FIX_DOUBLE_COUNT, " freshClone=", FRESH_CLONE)
-println("decision: tiebreak=", TIEBREAK, " belief=", BELIEF, " beliefP0=", BELIEF_P0)
+println("decision: tiebreak=", TIEBREAK, " belief=", BELIEF, " beliefP0=", BELIEF_P0,
+        " stayReturn=", STAY_RETURN)
 println("signals: publicMode=", PUBLIC_MODE, " publicRefresh=", PUBLIC_REFRESH,
         " privateSignal=", PRIVATE_SIGNAL, " privateNoise=", PRIVATE_NOISE)
 println("output: log=", LOG)

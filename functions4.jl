@@ -570,16 +570,23 @@ end
 #   schuler: Schuler's BankRunsFinal certainty rule: never withdraw when staying
 #           pays in full for sure (P_stay == 1); otherwise P_WD > P_stay.
 #   strict: P_WD > P_stay only.
+# stayReturn (BANKRUN_STAY_RETURN, 2026-10-20) is Chapter 1's R: a stayer is paid
+# R if the bank survives and L = 0 if it fails (an uninsured stayer gets nothing),
+# so every rule compares P_WD with R·P_stay. Withdrawing pays 1 (at par) when
+# P_WD = 1, so the rule is P_stay < p* = (1−L)/(R−L) = 1/R, Chapter 1's cutoff.
+# R = 1 (default) is exactly the published comparison (x * 1.0 == x).
 # P_WD is exactly 0 or 1 (payoffIfWithdrawNow), so schuler and strict make the
 # same decisions: P_WD > P_stay already fails when P_stay == 1. Both differ from
 # legacy only when the vault cannot cover the agent now (P_WD == 0), where they
 # stay and legacy withdraws.
-function decide(probFullDepositWD, probFullDepositStay; tiebreak::String="legacy")
+function decide(probFullDepositWD, probFullDepositStay; tiebreak::String="legacy",
+                stayReturn::Float64=1.0)
+    stayValue = stayReturn * probFullDepositStay
     tiebreak == "legacy" &&
-        return probFullDepositWD > probFullDepositStay || probFullDepositWD == 0.0
+        return probFullDepositWD > stayValue || probFullDepositWD == 0.0
     tiebreak == "schuler" &&
-        return probFullDepositStay != 1.0 && probFullDepositWD > probFullDepositStay
-    tiebreak == "strict" && return probFullDepositWD > probFullDepositStay
+        return probFullDepositStay != 1.0 && probFullDepositWD > stayValue
+    tiebreak == "strict" && return probFullDepositWD > stayValue
     error("unknown tie-break rule \"$tiebreak\"")
 end
 
@@ -613,6 +620,7 @@ function modelRun(mod::Model; record=nothing)
     publicRefresh = switchValue(:PUBLIC_REFRESH)
     privateSignal = switchValue(:PRIVATE_SIGNAL)
     privateNoise  = switchValue(:PRIVATE_NOISE)
+    stayReturn    = switchValue(:STAY_RETURN)
     publicStale = publicMode == "stale"
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
     privatePost = privateSignal == "shock" ?
@@ -657,6 +665,12 @@ function modelRun(mod::Model; record=nothing)
                       DataFrame(key=mod.key, agent=1:nAgents, signal=privatePost.signal),
                       writeheader=false, append=true)
         end
+    end
+
+    if stayReturn != SWITCH_DEFAULTS.STAY_RETURN
+        CSV.write(dataDir*"/"*"bankRunStayReturn"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, stayReturn=stayReturn),
+                  writeheader=false, append=true)
     end
 
     # now, whenever an agent withdraws, we reset a state variable since this means all other agents will
@@ -713,7 +727,8 @@ function modelRun(mod::Model; record=nothing)
             probFullDepositStay = simulateStay(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
                                                skipWithdrawn=skipWithdrawn)
             probFullDepositWD = payoffIfWithdrawNow(decisionState, agt)
-            withdrew = decide(probFullDepositWD, probFullDepositStay; tiebreak=tiebreak)
+            withdrew = decide(probFullDepositWD, probFullDepositStay; tiebreak=tiebreak,
+                              stayReturn=stayReturn)
             if withdrew
                 paid = withdraw(mod, agt)
                 record === nothing || record!(record, agt.idx, paid)

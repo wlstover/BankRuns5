@@ -36,7 +36,7 @@ done
 
 PY_TESTS=(test_diagnose_short_cells.py test_endpoint_identity.py test_cascade_reader.py
           test_type_clustering.py test_who_runs_production.py)
-JL_TESTS=(test_assignment_rules.jl test_conservation.jl test_name_collisions.jl test_runsize.jl test_public_signal.jl test_switch_identity.jl test_schuler_sync.jl test_sparse_submodel.jl test_replay.jl test_signals.jl)
+JL_TESTS=(test_assignment_rules.jl test_conservation.jl test_name_collisions.jl test_runsize.jl test_public_signal.jl test_switch_identity.jl test_schuler_sync.jl test_sparse_submodel.jl test_replay.jl test_signals.jl test_stay_return.jl)
 R_TESTS=(test_p6b_continuous.R)
 
 if [[ ${LIST_ONLY} -eq 1 ]]; then
