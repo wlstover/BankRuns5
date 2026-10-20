@@ -27,11 +27,13 @@ Produces three figures from outputs/production/consolidated_results.csv:
                                 aggressive-regime curve from the sweep (P6a only).
 
 Run from the BankRuns5/ root after rsync'ing the consolidated CSV from HPC:
-    python scripts/make_figures.py
+    python scripts/make_figures.py                     # outputs/production
+    python scripts/make_figures.py --arm production-v2  # any arm under outputs/
 
 Figure 4 produces synthetic data and works without the CSV.
 """
 
+import argparse
 import csv
 from collections import defaultdict
 from pathlib import Path
@@ -85,17 +87,16 @@ def figure_1_headline(cells):
 
     fig, ax = plt.subplots(figsize=(7.5, 5))
     colors = ["#1f3a93", "#d35400", "#27ae60"]
+    lo, hi = 1.0, 0.0
     for gap, color in zip(gaps, colors):
         rates = [by_mu_gap[(m, gap)]["runs"] / by_mu_gap[(m, gap)]["completed"]
                  for m in mus]
-        ax.plot(mus, rates, marker="o", color=color, linewidth=2,
-                markersize=7, label=fr"$\lambda_C - \lambda_I = {gap:.1f}$")
         delta = (rates[0] - rates[-1]) * 100
-        ax.annotate(fr"$\Delta = {delta:.1f}$pp",
-                    xy=(mus[-1], rates[-1]),
-                    xytext=(8, -12 if gap == max(gaps) else 8),
-                    textcoords="offset points",
-                    fontsize=9, color=color)
+        # The mu = 1 endpoints coincide across gaps, so the decline goes in the
+        # legend rather than in end-of-line labels that would overprint.
+        ax.plot(mus, rates, marker="o", color=color, linewidth=2, markersize=7,
+                label=fr"$\lambda_C - \lambda_I = {gap:.1f}$  ($\Delta = {delta:.1f}$ pp)")
+        lo, hi = min(lo, *rates), max(hi, *rates)
 
     ax.set_xlabel(r"Fraction individualist $\mu$")
     ax.set_ylabel(r"$P(\mathrm{bank\ run})$")
@@ -104,10 +105,14 @@ def figure_1_headline(cells):
         r"(stratified by signal-weighting gap $\lambda_C - \lambda_I$)"
     )
     ax.set_xticks(mus)
-    ax.set_yticks(np.arange(0.5, 0.901, 0.05))
-    ax.set_yticklabels([f"{int(round(t * 100))}%" for t in np.arange(0.5, 0.901, 0.05)])
-    ax.set_ylim(0.5, 0.9)
-    ax.set_xlim(-0.05, 1.15)
+    # Limits from the data, on a 5-point grid: a fixed 0.5-0.9 range clipped
+    # the mu = 1 endpoints once the production-v2 rates fell below 50%.
+    ylo, yhi = np.floor(lo * 20 - 0.5) / 20, np.ceil(hi * 20 + 0.5) / 20
+    ticks = np.arange(ylo, yhi + 0.001, 0.05)
+    ax.set_yticks(ticks)
+    ax.set_yticklabels([f"{int(round(t * 100))}%" for t in ticks])
+    ax.set_ylim(ylo, yhi)
+    ax.set_xlim(-0.05, 1.05)
     ax.legend(loc="upper right", frameon=False, title="Signal-weighting gap")
     ax.grid(True, alpha=0.3, linewidth=0.5)
 
@@ -118,11 +123,12 @@ def figure_1_headline(cells):
     print(f"Wrote {out}")
 
 
-def figure_1b_drain_share(input_path=INPUT, out=None):
+def figure_1b_drain_share(input_path=None, out=None):
     """Mean drainShare vs mu by lambda gap, pooled over reserve (fig1 style).
 
     Returns the output path, or None (with a message) when the CSV has no
     drainShare column or every value is blank."""
+    input_path = input_path or INPUT
     sums = defaultdict(lambda: [0.0, 0])
     with open(input_path) as f:
         reader = csv.DictReader(f)
@@ -150,14 +156,9 @@ def figure_1b_drain_share(input_path=INPUT, out=None):
     for gap, color in zip(gaps, colors):
         pts = [(m, sums[(m, gap)][0] / sums[(m, gap)][1]) for m in mus if sums[(m, gap)][1]]
         x, y = zip(*pts)
-        ax.plot(x, y, marker="o", color=color, linewidth=2,
-                markersize=7, label=fr"$\lambda_C - \lambda_I = {gap:.1f}$")
         delta = (y[0] - y[-1]) * 100
-        ax.annotate(fr"$\Delta = {delta:.1f}$pp",
-                    xy=(x[-1], y[-1]),
-                    xytext=(8, -12 if gap == max(gaps) else 8),
-                    textcoords="offset points",
-                    fontsize=9, color=color)
+        ax.plot(x, y, marker="o", color=color, linewidth=2, markersize=7,
+                label=fr"$\lambda_C - \lambda_I = {gap:.1f}$  ($\Delta = {delta:.1f}$ pp)")
 
     ax.set_xlabel(r"Fraction individualist $\mu$")
     ax.set_ylabel("Mean share of the vault paid out")
@@ -167,7 +168,7 @@ def figure_1b_drain_share(input_path=INPUT, out=None):
     )
     ax.set_xticks(mus)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda t, _: f"{t:.0%}"))
-    ax.set_xlim(-0.05, 1.15)
+    ax.set_xlim(-0.05, 1.05)
     ax.legend(loc="upper right", frameon=False, title="Signal-weighting gap")
     ax.grid(True, alpha=0.3, linewidth=0.5)
 
@@ -399,6 +400,11 @@ def figure_5_network_snapshot():
 
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--arm", default="production",
+                    help="arm directory under outputs/ (default: production)")
+    INPUT = BASE / "outputs" / ap.parse_args().arm / "consolidated_results.csv"
+    print(f"Input: {INPUT}")
     if INPUT.exists():
         # Quick sanity check: row count.
         with open(INPUT) as f:
