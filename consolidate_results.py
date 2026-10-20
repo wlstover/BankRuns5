@@ -114,6 +114,21 @@ TYPES_FIELDS_V1 = 11   # width of the 2026-10-15 rows (without the insured colum
 TYPES_HEADER = ["task_id", "key", "armTag", "reserveRatio", "depQuantile", "sigma", "k", "p",
                 "mu", "lambdaI", "lambdaC", "type"] + TYPES_FIELDS
 
+# Docking outputs (2026-10-20; functions4.jl dockRow / timingRows / wealthRows),
+# each gathered into its own consolidated_<name>.csv with the cell parameters in
+# front. Files absent (arms written before 2026-10-20) give header-only outputs.
+#   name: (file prefix, per-type?, field names after key[, type])
+CELL_COLS = ["task_id", "key", "armTag", "reserveRatio", "depQuantile", "sigma", "k", "p",
+             "mu", "lambdaI", "lambdaC"]
+DOCK_FILES = {
+    "dock":   ("bankRunDock", False,
+               ["nExog", "depExogShare", "reserveShare", "slack", "pubErr1", "pubErrMean", "nTicks"]),
+    "timing": ("bankRunTiming", True,
+               ["tickSumEndog"] + [f"t{k}" for k in range(1, 10)] + ["t10plus"]),
+    "wealth": ("bankRunWealth", True,
+               [f"n_d{j}" for j in range(1, 11)] + [f"endog_d{j}" for j in range(1, 11)]),
+}
+
 
 def load_manifest(path):
     """{task_id: {param: value}} from run_all.sh's manifest, or {}."""
@@ -166,6 +181,12 @@ def consolidate(arm_dir, manifest_path, out_path):
 
     types_path = out_path.with_name("consolidated_types.csv")
     types_rows = 0
+    dock_paths = {n: out_path.with_name(f"consolidated_{n}.csv") for n in DOCK_FILES}
+    dock_rows = {n: 0 for n in DOCK_FILES}
+    dock_fhs = {n: open(dock_paths[n], "w", newline="") for n in DOCK_FILES}
+    dock_writers = {n: csv.writer(fh) for n, fh in dock_fhs.items()}
+    for n, (_, per_type, fields) in DOCK_FILES.items():
+        dock_writers[n].writerow(CELL_COLS + (["type"] if per_type else []) + fields)
     with open(out_path, "w", newline="") as out_f, open(types_path, "w", newline="") as types_f:
         writer = csv.writer(out_f)
         writer.writerow(HEADER)
@@ -280,6 +301,20 @@ def consolidate(arm_dir, manifest_path, out_path):
                             rec["lambdaC"], row[1]] + row[2:])
                         types_rows += 1
 
+            for n, (prefix, per_type, fields) in DOCK_FILES.items():
+                width = 1 + int(per_type) + len(fields)
+                for df in task_dir.glob(f"{prefix}*.csv"):
+                    with open(df, newline="") as fh:
+                        for row in csv.reader(fh):
+                            if len(row) != width or row[0] not in params:
+                                continue
+                            rec = params[row[0]]
+                            dock_writers[n].writerow([
+                                tid, row[0], arm_tag, rec["reserveRatio"], rec["depQuantile"],
+                                rec["sigma"], rec["k"], rec["p"], rec["mu"], rec["lambdaI"],
+                                rec["lambdaC"]] + row[1:])
+                            dock_rows[n] += 1
+
             for key, rec in params.items():
                 completed = "true" if key in completed_keys else ""
                 if not completed:
@@ -307,8 +342,12 @@ def consolidate(arm_dir, manifest_path, out_path):
             if (i + 1) % 200 == 0:
                 print(f"  {i+1}/{len(task_dirs)} dirs, {total_rows:,} rows...")
 
+    for fh in dock_fhs.values():
+        fh.close()
     print(f"\nDone. {total_rows:,} rows -> {out_path}")
     print(f"  who-runs rows (run x type):        {types_rows:,} -> {types_path}")
+    for n in DOCK_FILES:
+        print(f"  {n + ' rows:':<34s} {dock_rows[n]:,} -> {dock_paths[n]}")
     print(f"  Missing fin files:                 {missing_fin}")
     print(f"  Missing bankRunResults*.csv files: {missing_results}")
     print(f"  Init keys with no completion mark: {unmatched_completed}")

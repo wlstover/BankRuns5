@@ -1,0 +1,28 @@
+# Rung 1 (relational equivalence) arm set: Ch 3 §1, §4, §5. DRAFT (2026-10-20):
+# do not submit until the pre-registration (docs/, daily note) fixes each G1-G4
+# statistic, its sign and the arm contrast that tests it.
+#
+# Crossed design on the reference-r3 grid (45 cells; r 0.15/0.30/0.40, sigma 2,
+# k 6, p 0.05, q 0, warm-up alpha 0.1, mu x 3 lambda pairs):
+#   private  none | shock (noise s = 5 agents)
+#   public   nbr   = neighbours only (production)
+#            stale = announcement frozen at its tick-1 level, never refreshed,
+#                    half the social signal (alpha 0.5): optimistic as the run grows
+#            fresh = the same announcement refreshed every tick (tracks the truth)
+#   R        1 | 1.25
+# = 12 arms x 45 cells x 250 runs. Production defaults in every row: fresh clone,
+# double-count fix (default), legacy tie-break, geometric belief, summary logs.
+#
+# tag	switches	run_all.sh flags
+r1-none-nbr-R1	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-none-nbr-R125	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_STAY_RETURN=1.25	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-none-stale-R1	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PUBLIC_MODE=stale BANKRUN_PUBLIC_REFRESH=0 BANKRUN_PUBLIC_ALPHA=0.5	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-none-stale-R125	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PUBLIC_MODE=stale BANKRUN_PUBLIC_REFRESH=0 BANKRUN_PUBLIC_ALPHA=0.5 BANKRUN_STAY_RETURN=1.25	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-none-fresh-R1	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PUBLIC_MODE=stale BANKRUN_PUBLIC_REFRESH=1 BANKRUN_PUBLIC_ALPHA=0.5	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-none-fresh-R125	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PUBLIC_MODE=stale BANKRUN_PUBLIC_REFRESH=1 BANKRUN_PUBLIC_ALPHA=0.5 BANKRUN_STAY_RETURN=1.25	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-shock-nbr-R1	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-shock-nbr-R125	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5 BANKRUN_STAY_RETURN=1.25	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-shock-stale-R1	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5 BANKRUN_PUBLIC_MODE=stale BANKRUN_PUBLIC_REFRESH=0 BANKRUN_PUBLIC_ALPHA=0.5	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-shock-stale-R125	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5 BANKRUN_PUBLIC_MODE=stale BANKRUN_PUBLIC_REFRESH=0 BANKRUN_PUBLIC_ALPHA=0.5 BANKRUN_STAY_RETURN=1.25	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-shock-fresh-R1	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5 BANKRUN_PUBLIC_MODE=stale BANKRUN_PUBLIC_REFRESH=1 BANKRUN_PUBLIC_ALPHA=0.5	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00
+r1-shock-fresh-R125	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5 BANKRUN_PUBLIC_MODE=stale BANKRUN_PUBLIC_REFRESH=1 BANKRUN_PUBLIC_ALPHA=0.5 BANKRUN_STAY_RETURN=1.25	--grid reference-r3 --concurrency 20 --mem 20G --time 0-03:00:00

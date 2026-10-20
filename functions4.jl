@@ -686,6 +686,7 @@ function modelRun(mod::Model; record=nothing)
     while !halt && !runState
         halt=true
         t=t+1
+        record === nothing || (record.nTicks = t)
         # The platform's announcement for this tick: the true number withdrawn so
         # far, understated by the spin b·ρ^(t-1)·N. Announced once at the start of
         # the tick, so it lags withdrawals made within the tick. Common to all
@@ -701,6 +702,7 @@ function modelRun(mod::Model; record=nothing)
             announced = publicStale ? staleLevel : trueWithdrawn
             publicPoint = clamp(round(Int64, announced - pubBias * pubRho^(t-1) * nAgents),
                                 0, nAgents-1)
+            record === nothing || notePublic!(record, t, publicPoint - trueWithdrawn)
             CSV.write(dataDir*"/"*"bankRunPublic"*string(workerCore)*".csv",
                       DataFrame(key=mod.key, tick=t, trueWithdrawn=trueWithdrawn,
                                 publicPoint=publicPoint),
@@ -731,7 +733,7 @@ function modelRun(mod::Model; record=nothing)
                               stayReturn=stayReturn)
             if withdrew
                 paid = withdraw(mod, agt)
-                record === nothing || record!(record, agt.idx, paid)
+                record === nothing || record!(record, agt.idx, paid, t)
             end
             if logFull()
                 reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=withdrew,deposit=agt.deposit,
@@ -819,9 +821,21 @@ mutable struct RunRecord
     order::Vector{Int}         # agent idx, in withdrawal order (exogenous first)
     paid::Vector{Float64}      # what withdraw() paid each of them
     nExog::Int
+    # Docking outputs (2026-10-20; scripts/README.md "Docking outputs"):
+    tick::Vector{Int}          # tick of each withdrawal (0 = exogenous shock)
+    nTicks::Int                # ticks the run lasted
+    pubErr1::Float64           # public announcement − true count at tick 1 (NaN if no announcement)
+    pubErrSum::Float64         # … summed over ticks with an announcement
+    pubErrN::Int               # … number of such ticks
 end
-RunRecord() = RunRecord(Int[], Float64[], 0)
-record!(r::RunRecord, idx::Int, paid::Float64) = (push!(r.order, idx); push!(r.paid, paid); r)
+RunRecord() = RunRecord(Int[], Float64[], 0, Int[], 0, NaN, 0.0, 0)
+record!(r::RunRecord, idx::Int, paid::Float64, tick::Int=0) =
+    (push!(r.order, idx); push!(r.paid, paid); push!(r.tick, tick); r)
+function notePublic!(r::RunRecord, t::Int, err::Real)
+    t == 1 && (r.pubErr1 = err)
+    r.pubErrSum += err; r.pubErrN += 1
+    return r
+end
 
 # One row per type: who withdrew (exogenously / endogenously), how much they held
 # and were paid, deposits left with stayers, and the endogenous withdrawers'
@@ -873,6 +887,66 @@ function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     return rows
 end
 
+# Docking outputs (2026-10-20), written by runRow next to bankRunTypes. The model
+# is unchanged; these only expose quantities the Ch 1 mapping and the Ch 2
+# comparison need (scripts/README.md "Docking outputs").
+#   bankRunDock:   one row per run. The exogenous shock (count, deposit share),
+#                  Chapter 1's theta as solvency slack after it, the public
+#                  announcement's error (announced − true count, at tick 1 and
+#                  averaged over ticks; NaN when there is no announcement), and
+#                  how many ticks the run lasted.
+#   bankRunTiming: one row per run x type. Endogenous withdrawals by tick
+#                  (1..TIMING_TICKS-1, then TIMING_TICKS and later) and their
+#                  tick sum: the discrete-time hazard counterpart to Ch 2's Cox model.
+#   bankRunWealth: one row per run x type. Agents and endogenous withdrawers by
+#                  decile of the run's own deposit distribution (1 = smallest).
+const TIMING_TICKS = 10
+
+function dockRow(mod::Model, rec::RunRecord, vaultInit::Float64)
+    depTotal = sum(a.deposit for a in mod.agtList; init=0.0)
+    exog = rec.order[1:rec.nExog]
+    depExog = sum(mod.agtList[i].deposit for i in exog; init=0.0)
+    paidExog = sum(rec.paid[1:rec.nExog]; init=0.0)
+    return DataFrame(key=mod.key, nExog=rec.nExog, depExogShare=depExog / depTotal,
+                     reserveShare=vaultInit / depTotal, slack=(vaultInit - paidExog) / depTotal,
+                     pubErr1=rec.pubErr1,
+                     pubErrMean=rec.pubErrN > 0 ? rec.pubErrSum / rec.pubErrN : NaN,
+                     nTicks=rec.nTicks)
+end
+
+function timingRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
+    cols = [Symbol("t", k == TIMING_TICKS ? "$(k)plus" : "$k") for k in 1:TIMING_TICKS]
+    df = DataFrame(key=String[], type=String[], tickSumEndog=Int[])
+    for c in cols; df[!, c] = Int[]; end
+    for (lab, want) in (("I", true), ("C", false))
+        counts = zeros(Int, TIMING_TICKS); tsum = 0
+        for k in (rec.nExog + 1):length(rec.order)
+            isI[rec.order[k]] == want || continue
+            t = rec.tick[k]; tsum += t
+            counts[clamp(t, 1, TIMING_TICKS)] += 1
+        end
+        push!(df, (mod.key, lab, tsum, counts...))
+    end
+    return df
+end
+
+function wealthRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
+    d = [a.deposit for a in mod.agtList]
+    cuts = quantile(d, 0.1:0.1:0.9)
+    dec = [1 + count(x .> cuts) for x in d]
+    endog = falses(length(d))
+    for k in (rec.nExog + 1):length(rec.order); endog[rec.order[k]] = true; end
+    df = DataFrame(key=String[], type=String[])
+    for j in 1:10; df[!, Symbol("n_d$j")] = Int[]; end
+    for j in 1:10; df[!, Symbol("endog_d$j")] = Int[]; end
+    for (lab, want) in (("I", true), ("C", false))
+        sel = isI .== want
+        push!(df, (mod.key, lab, [count(sel .& (dec .== j)) for j in 1:10]...,
+                   [count(sel .& endog .& (dec .== j)) for j in 1:10]...))
+    end
+    return df
+end
+
 # One run of one parameter row, and every file it writes (results, vault,
 # who-runs summary, plus the full logs when BANKRUN_LOG = full). Used by
 # modelCall, scripts/replay_run.jl and the tests.
@@ -898,6 +972,12 @@ function runRow(row)
                        insuranceCap=insuranceCap(mod))
     CSV.write(dataDir*"/"*"bankRunVault"*string(workerCore)*".csv",vaultRow,writeheader=false,append=true)
     CSV.write(dataDir*"/"*"bankRunTypes"*string(workerCore)*".csv",typeSummary(mod, isI, rec),
+              writeheader=false,append=true)
+    CSV.write(dataDir*"/"*"bankRunDock"*string(workerCore)*".csv",dockRow(mod, rec, vaultInit),
+              writeheader=false,append=true)
+    CSV.write(dataDir*"/"*"bankRunTiming"*string(workerCore)*".csv",timingRows(mod, isI, rec),
+              writeheader=false,append=true)
+    CSV.write(dataDir*"/"*"bankRunWealth"*string(workerCore)*".csv",wealthRows(mod, isI, rec),
               writeheader=false,append=true)
     return (rMod, nWithdrawn, depositWithdrawn)
 end

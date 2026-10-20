@@ -1,0 +1,12 @@
+# Phase 2 gate (2026-10-20): does the run respond to the shock once the private
+# signal is informative? One reference cell (r 0.30, sigma 2, k 6, p 0.05, q 0,
+# alpha 0.1, mu 0.5, lambda (0.1, 0.9)), 250 runs per arm, all paired (seed
+# offset 1000). Read with: python3 scripts/shock_response.py outputs/p2-* --out outputs/p2-analysis
+# PASS: the slope of P(run) in n_exog is clearly above p2-none's and falls as the
+# noise s rises (s = 2 > 5 > 20). FAIL: stop and decide before any theta mapping.
+#
+# tag	switches	run_all.sh flags
+p2-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G
+p2-shock-s2	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=2	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G
+p2-shock-s5	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G
+p2-shock-s20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=20	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G

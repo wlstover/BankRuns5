@@ -68,14 +68,12 @@ function replayRow(m::Module, key::AbstractString)
     return Base.invokelatest(m.runRow, row)
 end
 
-const SWITCH_COLUMNS = ("public_alpha" => "BANKRUN_PUBLIC_ALPHA", "public_bias" => "BANKRUN_PUBLIC_BIAS",
-                        "public_rho" => "BANKRUN_PUBLIC_RHO", "weight_phi" => "BANKRUN_WEIGHT_PHI",
-                        "fix_double_count" => "BANKRUN_FIX_DOUBLE_COUNT", "fresh_clone" => "BANKRUN_FRESH_CLONE",
-                        "tiebreak" => "BANKRUN_TIEBREAK", "belief" => "BANKRUN_BELIEF",
-                        "belief_p0" => "BANKRUN_BELIEF_P0",
-                        "public_mode" => "BANKRUN_PUBLIC_MODE", "public_refresh" => "BANKRUN_PUBLIC_REFRESH",
-                        "private_signal" => "BANKRUN_PRIVATE_SIGNAL", "private_noise" => "BANKRUN_PRIVATE_NOISE",
-                        "stay_return" => "BANKRUN_STAY_RETURN")
+# Manifest column => ENV variable for every switch in settings.jl's SWITCH_DEFAULTS
+# (the registry; scripts/write_manifest.sh writes the same columns).
+const SWITCH_COLUMNS = let reg = Module(:Registry)
+    Base.include(reg, joinpath(ROOT, "settings.jl"))
+    Tuple(lowercase(string(k)) => "BANKRUN_" * string(k) for k in keys(reg.SWITCH_DEFAULTS))
+end
 
 function main(args)
     opts = Dict{String,String}()

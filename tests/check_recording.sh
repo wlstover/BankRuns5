@@ -270,6 +270,26 @@ else
     bad "no agents*.csv found"
 fi
 
+# ── 8. docking outputs (2026-10-20) ──────────────────────────────────────────
+hdr "8. Docking outputs (bankRunDock 8 cols x runs; bankRunTiming 13 and bankRunWealth 22 cols x 2 types x runs)"
+for spec in "bankRunDock:8:1" "bankRunTiming:13:2" "bankRunWealth:22:2"; do
+    IFS=: read -r pre w per <<< "$spec"
+    files=( "$T"/${pre}*.csv )
+    if [[ ! -e "${files[0]}" ]]; then
+        bad "no ${pre}*.csv (written by runRow since 2026-10-20; is the task on an older commit?)"; continue
+    fi
+    n=$(cat "${files[@]}" | wc -l)
+    bw=$(cat "${files[@]}" | awk -F, -v w="$w" 'NF!=w' | wc -l)
+    [[ "$n" -eq $((EXPECT_RUNS * per)) ]] && ok "${pre}: ${n} rows" \
+        || bad "${pre}: ${n} rows, expected $((EXPECT_RUNS * per))"
+    [[ "$bw" -eq 0 ]] && ok "${pre}: every row has ${w} columns" || bad "${pre}: ${bw} rows not ${w} columns wide"
+done
+if [[ -e "$(ls "$T"/bankRunDock*.csv 2>/dev/null | head -1)" ]]; then
+    # slack = reserve share minus what the shock was paid, so never above it
+    v=$(cat "$T"/bankRunDock*.csv | awk -F, '$5+0 > $4+1e-12' | wc -l)
+    [[ "$v" -eq 0 ]] && ok "slack <= reserve share in every run" || bad "${v} run(s) with slack above the reserve share"
+fi
+
 echo ""
 echo "======================================================================"
 printf "RESULT: %d passed, %d failed, %d warnings\n" "$PASS" "$FAIL" "$WARN"

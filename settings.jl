@@ -37,15 +37,22 @@ const SWITCH_DEFAULTS = (
     # run with scripts/replay_run.jl to regenerate its full logs).
     LOG              = "full",
 )
+# Switches that change only what is written, not the model: not a reason to
+# require --tag in run_all.sh (scripts/switch_names.sh --model drops them).
+const OUTPUT_ONLY_SWITCHES = (:LOG,)
 const LOG_CHOICES      = ("full", "summary")
 const TIEBREAK_CHOICES = ("legacy", "schuler", "strict")
 const BELIEF_CHOICES   = ("geometric", "point")
 const PUBLIC_MODE_CHOICES    = ("markup", "stale")
 const PRIVATE_SIGNAL_CHOICES = ("none", "shock")
 
-"""The value of switch `name` in this module, or its default if it is not set."""
+"""The value of switch `name`: a const of that name in this module (finMain0001.jl's
+per-switch consts, or a test setting it), else the SWITCHES NamedTuple finMain0001.jl
+broadcasts (so a new switch needs no per-switch const), else its default."""
 switchValue(name::Symbol) =
-    isdefined(@__MODULE__, name) ? getfield(@__MODULE__, name) : SWITCH_DEFAULTS[name]
+    isdefined(@__MODULE__, name) ? getfield(@__MODULE__, name) :
+    isdefined(@__MODULE__, :SWITCHES) ? getfield(getfield(@__MODULE__, :SWITCHES), name) :
+    SWITCH_DEFAULTS[name]
 
 # `get(ENV, k, default)` returns "" for a SET-BUT-EMPTY variable, and SLURM
 # --export=ALL,FOO= propagates exactly that, so empty is treated as absent.

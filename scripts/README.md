@@ -328,3 +328,41 @@ unreachable from hopper, pull the CSV down and run it here:
 rsync -av wstover2@hopper:/projects/tstratma/BankRuns5/outputs/<tag>/consolidated_results.csv ./outputs/<tag>/
 BANKRUN_ARM_DIR="$PWD/outputs/<tag>" Rscript scripts/analysis_p6.R
 ```
+
+## Docking outputs and the switch registry (2026-10-20)
+
+**Switch registry.** `settings.jl`'s `SWITCH_DEFAULTS` is the one list of
+`BANKRUN_*` switches. `scripts/switch_names.sh` reads it, and from it come
+run_all.sh's untagged-arm guard (`--model` drops `OUTPUT_ONLY_SWITCHES` such as
+`LOG`), the manifest's switch columns (`scripts/write_manifest.sh`) and
+replay's column map. `finMain0001.jl` broadcasts the whole set as `SWITCHES`, and
+`switchValue()` falls back to it. To add a switch:
+1. Add a line to `SWITCH_DEFAULTS` and its parser entry in `parseSwitchesFromEnv()`.
+2. Use it through `switchValue(:NAME)` in the model.
+3. Write a log file only when it is non-default.
+4. Add a test in the style of `tests/test_stay_return.jl`.
+
+Nothing else needs editing.
+
+**Arm sets.** `scripts/run_arms.sh arms/<set>.tsv [--dry-run|--list|--only TAG]`
+submits one `run_all.sh` call per row (tag, switches, flags). It refuses if the
+calling shell already exports a model switch. `--grid reference` (15 cells) and
+`--grid reference-r3` (45 cells) are the hypothesis-arm grids: the non-saturated
+reference point r 0.30 (plus 0.15 / 0.40), σ 2, k 6, p 0.05, q 0, α 0.1, crossed
+with μ and the three λ pairs. Every arm uses seed offset 1000, so arms on the
+same grid are paired cell by cell.
+
+**Docking outputs** (`functions4.jl` `dockRow` / `timingRows` / `wealthRows`,
+written by `runRow`; gathered by `consolidate_results.py` into
+`consolidated_{dock,timing,wealth}.csv`; checked by `tests/test_dock_outputs.jl`
+and `tests/check_recording.sh` §8):
+
+| File | Grain | Columns |
+|---|---|---|
+| `bankRunDock` | run | `nExog`, `depExogShare`, `reserveShare` (vault / deposits), `slack` ((vault − paid to the shock) / deposits: Ch 1's θ), `pubErr1` / `pubErrMean` (announced − true count at tick 1 / averaged over ticks; NaN with no announcement), `nTicks` |
+| `bankRunTiming` | run × type | `tickSumEndog`, endogenous withdrawals in ticks `t1`…`t9`, `t10plus` (discrete-time hazard counterpart to Ch 2's Cox model) |
+| `bankRunWealth` | run × type | `n_d1`…`n_d10` agents and `endog_d1`…`endog_d10` endogenous withdrawers by decile of the run's deposits |
+
+`scripts/shock_response.py <arm> [...]` gives P(run) and I − C by shock size, plus
+the slope of P(run) in n_exog. This is the gate for any θ mapping: production's
+slope is only +0.03 to +0.05 per 10 exogenous withdrawers.

@@ -55,7 +55,7 @@ replay_dir = joinpath(mktempdir(), "replay")
     redirect_stdout(devnull) do
         main(["--manifest", man, "--task", "1", "--key", key, "--out", replay_dir])
     end
-    for pat in ("bankRunResults", "bankRunVault", "bankRunTypes")
+    for pat in ("bankRunResults", "bankRunVault", "bankRunTypes", "bankRunDock", "bankRunTiming", "bankRunWealth")
         @test rowsfor(sweep, pat, key) == lines(replay_dir, pat)
         @test !isempty(lines(replay_dir, pat))
     end

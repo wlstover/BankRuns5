@@ -158,6 +158,9 @@ const STAY_RETURN       = SWITCHES.STAY_RETURN
 @everywhere const PRIVATE_SIGNAL   = $PRIVATE_SIGNAL
 @everywhere const PRIVATE_NOISE    = $PRIVATE_NOISE
 @everywhere const STAY_RETURN      = $STAY_RETURN
+# The whole set, so a switch added to settings.jl reaches the workers through
+# switchValue() without a const of its own here.
+@everywhere const SWITCHES = $SWITCHES
 println("public signal: alpha=", PUBLIC_ALPHA, " bias=", PUBLIC_BIAS, " rho=", PUBLIC_RHO,
         " phi=", WEIGHT_PHI, " fixDoubleCount=", FIX_DOUBLE_COUNT, " freshClone=", FRESH_CLONE)
 println("decision: tiebreak=", TIEBREAK, " belief=", BELIEF, " beliefP0=", BELIEF_P0,

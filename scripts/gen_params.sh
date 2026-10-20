@@ -15,6 +15,7 @@
 # Usage:
 #   bash scripts/gen_params.sh                                  # focused grid (2,160)
 #   bash scripts/gen_params.sh --grid full                      # full grid (12,960)
+#   bash scripts/gen_params.sh --grid reference-r3              # hypothesis arms (45; reference = 15)
 #   bash scripts/gen_params.sh --k 6 10 50 -o params_density.txt # override one axis
 #   bash scripts/gen_params.sh --reserve 0.25 0.30 --count-only  # just the cell count
 #
@@ -118,8 +119,26 @@ case "$GRID" in
         def_lambda_c=(0.5 0.7 0.9)
         def_lambda_mode="crossed"
         ;;
+    reference|reference-r3)
+        # Reference institutional setting for the hypothesis arms (2026-10-20):
+        # a non-saturated point (r = 0.30; at r = 0.15 runs occur 96-99% of the
+        # time whatever the mix) with the culture axes crossed. reference = 15
+        # cells (5 mu x 3 lambda pairs); reference-r3 adds a coarse reserve
+        # check, 45 cells. Signal, payoff and specification arms run on these
+        # instead of the full focused grid; institutions are swept around them.
+        if [[ "$GRID" == "reference" ]]; then def_reserve=(0.30); else def_reserve=(0.15 0.30 0.40); fi
+        def_depq=(0.0)
+        def_sigma=(2.0)
+        def_k=(6)
+        def_p=(0.05)
+        def_alpha=(0.1)
+        def_mu=(0.0 0.25 0.5 0.75 1.0)
+        def_lambda_i=(0.1 0.2 0.3)
+        def_lambda_c=(0.9 0.8 0.5)
+        def_lambda_mode="paired"
+        ;;
     *)
-        echo "ERROR: --grid must be 'focused' or 'full' (got '$GRID')" >&2; exit 1 ;;
+        echo "ERROR: --grid must be focused, full, reference or reference-r3 (got '$GRID')" >&2; exit 1 ;;
 esac
 
 [[ ${#RESERVE_RATIOS[@]}  -eq 0 ]] && RESERVE_RATIOS=("${def_reserve[@]}")
