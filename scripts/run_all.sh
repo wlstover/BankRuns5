@@ -65,8 +65,10 @@
 # The fix for TIMEOUTs. Each listed task is rerun from scratch with everything
 # the arm's manifest recorded: the same params file, assignment rule, MC depth,
 # seed offset and BANKRUN_* switches (exported from the manifest; a conflicting
-# value in this shell is refused), so GEN_SEED and every run key are the
-# originals and the rerun reproduces the completed runs exactly. It refuses
+# value in this shell is refused), so GEN_SEED and every run's seeds are the
+# originals and the rerun reproduces the completed runs exactly. (Run keys carry
+# the submission time as a prefix, so match old and new runs on the seed part
+# after it.) It refuses
 # unless the checkout is the manifest's git_commit and clean. The old task
 # directories move to outputs/<tag>/timeout_partial/; the manifest and params
 # file are not rewritten; each resubmission is logged in resubmissions.log.

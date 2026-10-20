@@ -187,7 +187,10 @@ refuses unless the checkout is the manifest's `git_commit` and clean, moves the
 partial task directories to `outputs/<tag>/timeout_partial/`, and logs the
 resubmission in `resubmissions.log` without rewriting the manifest. The runs
 are deterministic, so the completed runs come back identical and the missing
-ones are filled in; paired arms (same seed offset) stay paired. The slow cells
+ones are filled in; paired arms (same seed offset) stay paired. Run keys carry
+the submission time as a prefix, so compare old and new runs on the seed part of
+the key. Verified on production-v2 (2026-10-20): the 2,706 runs completed before
+the 13 TIMEOUTs came back identical, and all 544 missing runs were filled. The slow cells
 are the ones that time out, so raise `--time` for the rerun (2026-10-20: task
 runtimes had a median of 3 min and a tail to ~60 min).
 
