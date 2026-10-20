@@ -164,10 +164,21 @@ fi
 # A non-default arm MUST be tagged. Without this an axis override or a placebo
 # run would land in outputs/production/ beside the baseline and be
 # indistinguishable from it after the fact.
+# The BANKRUN_* model switches count too (2026-10-20): they reach the tasks
+# from this shell, so a switched run is a different arm. BANKRUN_LOG only
+# changes what is written, not the model.
+SET_SWITCHES=()
+for v in BANKRUN_PUBLIC_ALPHA BANKRUN_PUBLIC_BIAS BANKRUN_PUBLIC_RHO BANKRUN_WEIGHT_PHI \
+         BANKRUN_FIX_DOUBLE_COUNT BANKRUN_FRESH_CLONE BANKRUN_TIEBREAK BANKRUN_BELIEF \
+         BANKRUN_BELIEF_P0 BANKRUN_PUBLIC_MODE BANKRUN_PUBLIC_REFRESH \
+         BANKRUN_PRIVATE_SIGNAL BANKRUN_PRIVATE_NOISE; do
+    [[ -n "${!v:-}" ]] && SET_SWITCHES+=("$v=${!v}")
+done
 if [[ -z "$TAG" ]]; then
-    if [[ ${#AXIS_ARGS[@]} -gt 0 ]] || [[ "$ASSIGN_RULE" != "warmup" ]] || [[ "$GRID" != "focused" ]]; then
+    if [[ ${#AXIS_ARGS[@]} -gt 0 ]] || [[ "$ASSIGN_RULE" != "warmup" ]] || [[ "$GRID" != "focused" ]] \
+            || [[ ${#SET_SWITCHES[@]} -gt 0 ]]; then
         echo "ERROR: --tag is required for any non-default arm." >&2
-        echo "       You passed: grid=$GRID assignment=$ASSIGN_RULE axes=[${AXIS_ARGS[*]:-none}]" >&2
+        echo "       You passed: grid=$GRID assignment=$ASSIGN_RULE axes=[${AXIS_ARGS[*]:-none}] switches=[${SET_SWITCHES[*]:-none}]" >&2
         echo "       Untagged output would be indistinguishable from the production baseline." >&2
         exit 1
     fi
@@ -348,23 +359,26 @@ echo "======================================================================"
 # manifest written at submission time removes the whole failure class.
 # The BANKRUN_* model switches (settings.jl) reach the tasks through
 # --export=ALL from the submitting shell; their raw values are recorded in the
-# switch columns (public_alpha … log), where an empty field means the published
-# default. git_commit is the code the tasks will run (-dirty if uncommitted
+# switch columns (public_alpha … private_noise), where an empty field means the
+# default. fix_double_count is written resolved (true unless set), because its
+# default changed on 2026-10-20: an empty field in an older manifest means the
+# published false (scripts/replay_run.jl). git_commit is the code the tasks will run (-dirty if uncommitted
 # changes); scripts/replay_run.jl needs the same commit to reproduce a run.
 if [[ $DO_SWEEP -eq 1 ]] && [[ $DRY_RUN -eq 0 ]]; then
     params_sha=$(sha256sum "$PARAMS_FILE" | cut -c1-16)
     submitted_at=$(date -Is)
     {
-        echo "task_id,reserve,depq,sigma,k,p,alpha,mu,lambdaI,lambdaC,arm_tag,assign_rule,mc_depth,seed_offset,params_sha,submitted_at,public_alpha,public_bias,public_rho,weight_phi,fix_double_count,fresh_clone,tiebreak,belief,belief_p0,log,git_commit"
+        echo "task_id,reserve,depq,sigma,k,p,alpha,mu,lambdaI,lambdaC,arm_tag,assign_rule,mc_depth,seed_offset,params_sha,submitted_at,public_alpha,public_bias,public_rho,weight_phi,fix_double_count,fresh_clone,tiebreak,belief,belief_p0,log,git_commit,public_mode,public_refresh,private_signal,private_noise"
         awk -v tag="$TAG" -v rule="$ASSIGN_RULE" -v depth="$MC_DEPTH" \
             -v off="$SEED_OFFSET" -v sha="$params_sha" -v ts="$submitted_at" \
             -v pa="${BANKRUN_PUBLIC_ALPHA:-}" -v pb="${BANKRUN_PUBLIC_BIAS:-}" \
             -v pr="${BANKRUN_PUBLIC_RHO:-}" -v wp="${BANKRUN_WEIGHT_PHI:-}" \
-            -v dc="${BANKRUN_FIX_DOUBLE_COUNT:-}" -v fc="${BANKRUN_FRESH_CLONE:-}" \
+            -v dc="${BANKRUN_FIX_DOUBLE_COUNT:-true}" -v fc="${BANKRUN_FRESH_CLONE:-}" \
             -v tb="${BANKRUN_TIEBREAK:-}" -v bl="${BANKRUN_BELIEF:-}" -v b0="${BANKRUN_BELIEF_P0:-}" \
-            -v lg="${BANKRUN_LOG:-}" -v gc="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null)$(git -C "$PROJECT_ROOT" diff --quiet HEAD 2>/dev/null || echo -dirty)" \
-            '{printf "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n", \
-              NR,$1,$2,$3,$4,$5,$6,$7,$8,$9,tag,rule,depth,off,sha,ts,pa,pb,pr,wp,dc,fc,tb,bl,b0,lg,gc}' "$PARAMS_FILE"
+            -v lg="${BANKRUN_LOG:-}" -v pm="${BANKRUN_PUBLIC_MODE:-}" -v pk="${BANKRUN_PUBLIC_REFRESH:-}" \
+            -v ps="${BANKRUN_PRIVATE_SIGNAL:-}" -v pn="${BANKRUN_PRIVATE_NOISE:-}" -v gc="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null)$(git -C "$PROJECT_ROOT" diff --quiet HEAD 2>/dev/null || echo -dirty)" \
+            '{printf "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n", \
+              NR,$1,$2,$3,$4,$5,$6,$7,$8,$9,tag,rule,depth,off,sha,ts,pa,pb,pr,wp,dc,fc,tb,bl,b0,lg,gc,pm,pk,ps,pn}' "$PARAMS_FILE"
     } > "$MANIFEST"
     note "manifest: ${MANIFEST} ($(($(wc -l < "$MANIFEST") - 1)) rows, params sha ${params_sha})"
 elif [[ $DO_SWEEP -eq 1 ]]; then

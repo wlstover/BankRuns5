@@ -75,6 +75,7 @@ end
     old_src = read(`git -C $ROOT show $PUBLISHED_COMMIT:functions4.jl`, String)
     old = load_model(:Old, old_src)
     new = load_model(:New, read(joinpath(ROOT, "functions4.jl"), String))
+    setsw!(new; FIX_DOUBLE_COUNT=false)     # the published default (true since 2026-10-20)
     for seed in 1:20
         r_old = old.modelRun(build(old, seed))
         r_new = new.modelRun(build(new, seed))
@@ -104,12 +105,12 @@ end
     meanN(res) = round(mean(r[2] for r in res), digits=2)
     pRun(res) = round(mean(r[1] for r in res), digits=2)
 
-    res0, _ = arm()
+    res0, _ = arm(FIX_DOUBLE_COUNT=false)
     resC, pubC = arm(PUBLIC_ALPHA=1.0)
     resS, pubS = arm(PUBLIC_ALPHA=1.0, PUBLIC_BIAS=0.5)
     resR, pubR = arm(PUBLIC_ALPHA=1.0, PUBLIC_BIAS=0.5, PUBLIC_RHO=0.5)
     resP, _    = arm(WEIGHT_PHI=0.5)
-    resF, _    = arm(FIX_DOUBLE_COUNT=true)
+    resF, _    = arm()                      # the double-count fix is the default since 2026-10-20
     resK, _    = arm(FRESH_CLONE=true)
 
     n = 60

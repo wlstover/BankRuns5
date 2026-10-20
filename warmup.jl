@@ -5,12 +5,18 @@
 #  Agents hold opinions on F cultural dimensions ∈ [-1, 1] and interact
 #  repeatedly on the Watts-Strogatz network.  The influence weight
 #
-#      w_ij = 2 × similarity(i,j) − 1  ∈ [-1, 1]
+#      w_ij = (1/F) Σ_f a_if · a_jf  ∈ [-1, 1]
 #
-#  where similarity = 1 − mean(|a_i − a_j|) / 2, is POSITIVE for culturally
-#  similar dyads (agents converge) and NEGATIVE for dissimilar dyads (agents
-#  diverge — cultural repulsion).  This produces polarisation into stable
-#  cultural clusters rather than full consensus.
+#  (the normalised dot product computed by influenceWeight()) is POSITIVE for
+#  culturally aligned dyads (agents converge) and NEGATIVE for opposed dyads
+#  (agents diverge — cultural repulsion).  This produces polarisation into
+#  stable cultural clusters rather than full consensus.
+#
+#  Corrected 2026-10-20: this header used to give w_ij = 2·similarity − 1 with
+#  similarity = 1 − mean(|a_i − a_j|)/2, i.e. 1 − mean|a_i − a_j|. The code has
+#  always used the dot product. The two agree only at the ±1 poles, and the
+#  distance form drives opinions to consensus near 0 (82–91% of agents end
+#  with λ = 0 at N = 1000), so it is not the model (scripts/check_warmup_weight.jl).
 #
 #  At each interaction the opinion update always executes:
 #      Δa_if = α × w_ij × (a_jf − a_if),   clamped to [-1, 1].

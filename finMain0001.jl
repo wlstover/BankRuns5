@@ -114,6 +114,16 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #   BANKRUN_BELIEF_P0     p0 ∈ (0,1)  withdrawal probability of the point prior.
 #   BANKRUN_LOG           full|summary  per-agent/per-decision logs, or only the
 #                         run-level results and the who-runs summary (2026-10-15).
+#
+# Chapter 1 signal switches (2026-10-20; settings.jl, functions4.jl modelRun):
+#   BANKRUN_PUBLIC_MODE     markup|stale  announcement = true count − spin, or the
+#                           level frozen at its last refresh (Chapter 1's stale y).
+#   BANKRUN_PUBLIC_REFRESH  k ≥ 0  stale mode: refresh every k ticks (0 = never).
+#   BANKRUN_PRIVATE_SIGNAL  none|shock  uninformative prior draws, or the posterior
+#                           given a noisy private signal of the realised shock.
+#   BANKRUN_PRIVATE_NOISE   s > 0  s.d. of that signal, in agents (default 5).
+# Since 2026-10-20 BANKRUN_FIX_DOUBLE_COUNT defaults to true; =false reproduces
+# the published model.
 # Defaults and parsing live in settings.jl (SWITCH_DEFAULTS, parseSwitchesFromEnv).
 const SWITCHES = parseSwitchesFromEnv()
 const PUBLIC_ALPHA      = SWITCHES.PUBLIC_ALPHA
@@ -126,6 +136,10 @@ const TIEBREAK          = SWITCHES.TIEBREAK
 const BELIEF            = SWITCHES.BELIEF
 const BELIEF_P0         = SWITCHES.BELIEF_P0
 const LOG               = SWITCHES.LOG
+const PUBLIC_MODE       = SWITCHES.PUBLIC_MODE
+const PUBLIC_REFRESH    = SWITCHES.PUBLIC_REFRESH
+const PRIVATE_SIGNAL    = SWITCHES.PRIVATE_SIGNAL
+const PRIVATE_NOISE     = SWITCHES.PRIVATE_NOISE
 @everywhere const PUBLIC_ALPHA     = $PUBLIC_ALPHA
 @everywhere const PUBLIC_BIAS      = $PUBLIC_BIAS
 @everywhere const PUBLIC_RHO       = $PUBLIC_RHO
@@ -136,9 +150,15 @@ const LOG               = SWITCHES.LOG
 @everywhere const BELIEF           = $BELIEF
 @everywhere const BELIEF_P0        = $BELIEF_P0
 @everywhere const LOG              = $LOG
+@everywhere const PUBLIC_MODE      = $PUBLIC_MODE
+@everywhere const PUBLIC_REFRESH   = $PUBLIC_REFRESH
+@everywhere const PRIVATE_SIGNAL   = $PRIVATE_SIGNAL
+@everywhere const PRIVATE_NOISE    = $PRIVATE_NOISE
 println("public signal: alpha=", PUBLIC_ALPHA, " bias=", PUBLIC_BIAS, " rho=", PUBLIC_RHO,
         " phi=", WEIGHT_PHI, " fixDoubleCount=", FIX_DOUBLE_COUNT, " freshClone=", FRESH_CLONE)
 println("decision: tiebreak=", TIEBREAK, " belief=", BELIEF, " beliefP0=", BELIEF_P0)
+println("signals: publicMode=", PUBLIC_MODE, " publicRefresh=", PUBLIC_REFRESH,
+        " privateSignal=", PRIVATE_SIGNAL, " privateNoise=", PRIVATE_NOISE)
 println("output: log=", LOG)
 
 @everywhere include("objects.jl")

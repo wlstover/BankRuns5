@@ -153,6 +153,12 @@ Draws a count of exogenous withdrawals from `mod.exogProb` (a truncated geometri
 **`subModelRun(mod::simModel, agt, withdrawingAgents, additionalWithdrawals)`**
 Runs a single Monte Carlo trial for one agent's decision. Forces observed neighbor withdrawals, then draws `additionalWithdrawals` more agents to withdraw (representing expected unknown endogenous withdrawals), then simulates the focal agent withdrawing. Returns the payout and whether the payout was less than the full deposit.
 
+*Scale of `additionalWithdrawals` (next_steps.md #9, settled 2026-10-20):* it is the blended
+population total minus `alreadyOut`. Under `BANKRUN_FRESH_CLONE` (production since 2026-10-20)
+`alreadyOut` is the population total withdrawn, the same scale, and the sub-model already holds
+every withdrawal. On the published stale-clone path it is the number of withdrawn *neighbours*, so a
+population-scale total is reduced by a local count; that path is kept only as the legacy arm.
+
 **`modelRun(mod)`**
 The main simulation loop:
 1. Run exogenous withdrawals.

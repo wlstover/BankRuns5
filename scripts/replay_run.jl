@@ -72,7 +72,9 @@ const SWITCH_COLUMNS = ("public_alpha" => "BANKRUN_PUBLIC_ALPHA", "public_bias" 
                         "public_rho" => "BANKRUN_PUBLIC_RHO", "weight_phi" => "BANKRUN_WEIGHT_PHI",
                         "fix_double_count" => "BANKRUN_FIX_DOUBLE_COUNT", "fresh_clone" => "BANKRUN_FRESH_CLONE",
                         "tiebreak" => "BANKRUN_TIEBREAK", "belief" => "BANKRUN_BELIEF",
-                        "belief_p0" => "BANKRUN_BELIEF_P0")
+                        "belief_p0" => "BANKRUN_BELIEF_P0",
+                        "public_mode" => "BANKRUN_PUBLIC_MODE", "public_refresh" => "BANKRUN_PUBLIC_REFRESH",
+                        "private_signal" => "BANKRUN_PRIVATE_SIGNAL", "private_noise" => "BANKRUN_PRIVATE_NOISE")
 
 function main(args)
     opts = Dict{String,String}()
@@ -94,6 +96,10 @@ function main(args)
            r.k, r.p, r.alpha, r.mu, r.lambdaI, r.lambdaC]
     cell(col) = hasproperty(r, Symbol(col)) && !ismissing(r[Symbol(col)]) ? r[Symbol(col)] : ""
     env = [var => cell(col) for (col, var) in SWITCH_COLUMNS]
+    # The double-count default changed to true on 2026-10-20 and run_all.sh has
+    # written it resolved since; an empty field is an older manifest, i.e. false.
+    env = [var == "BANKRUN_FIX_DOUBLE_COUNT" && isempty(val) ? var => "false" : var => val
+           for (var, val) in env]
     # Parse the switches the way finMain0001.jl does, then force full logging.
     tmp = Module(:Parse)
     Base.include(tmp, joinpath(ROOT, "settings.jl"))

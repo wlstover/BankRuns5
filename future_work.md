@@ -129,6 +129,8 @@ before relying on it.)
 
 ## 2. Neural network surrogate for the Monte Carlo solvency inference
 
+**Status 2026-10-20: dropped (user decision).** The computational motivation is gone. The sparse sub-simulation (645edfb, 2026-10-15) makes a cell ~15× faster at N = 1000 with byte-identical outputs, and the production sweep already reaches r = 0.40, the higher-reserve regime the surrogate was meant to unlock. A surrogate would also add approximation error exactly at the withdraw/stay margin (see Risk below) for a speed-up no longer needed. The behavioral motivation below (a learned heuristic as bounded rationality) is a separate modelling choice, not answered by the speed-up; it is not pursued for the dissertation. **Caveat:** item 3 names this surrogate as the enabling step for a differentiable ABM (it removes the nested MC). If item 3 is ever taken up, the surrogate returns for differentiability, not speed.
+
 **What's there now.** Nothing — no ML anywhere in the repo. Net-new.
 
 **Proposal.** Replace (or shadow) the `D = 1000` clone-and-resimulate estimator of `P̂_WD` and
@@ -177,6 +179,8 @@ in the write-up — only the third is what this item proposes:
 ---
 
 ## 3. Differentiable agent-based model
+
+**Status 2026-10-20: a later test branch (user decision), after endogenous solvency and repeated-episode learning.** Sharpened aim after reading `querabofarull2023bayesian` / `querabofarull2023challenges` in full: calibrate (μ, λ_I, λ_C) to Celsius type-level withdrawals (micro moments break the μ vs λ-gap trade-off) with GVI, in Julia via StochasticAD + forward-mode AD. New caveat from the Challenges paper: gradient variance from recursive path dependence; their fix (gradient horizon H = 0) would prune the cascade channel. Details in the vault To-Do.
 
 **What's there now.** Nothing — the model is explored by discrete grid sweep (12,960 combos).
 Net-new, and the most ambitious item.

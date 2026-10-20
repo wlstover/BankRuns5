@@ -4,7 +4,9 @@
 # switches from ENV on the master and broadcasts them as consts; functions4.jl
 # reads them through switchValue(), which falls back to the default when a
 # script includes the model without finMain0001.jl (test_run.jl, tests/,
-# scripts/who_runs_pilot.jl). Every default is the published model.
+# scripts/who_runs_pilot.jl). Every default is the published model, except
+# FIX_DOUBLE_COUNT (default on since 2026-10-20; BANKRUN_FIX_DOUBLE_COUNT=false
+# reproduces the published model).
 #
 # Include this file before functions4.jl, in the same module.
 #
@@ -17,12 +19,17 @@ const SWITCH_DEFAULTS = (
     PUBLIC_BIAS      = 0.0,    # spin: announcement understates withdrawals by b·N at tick 1
     PUBLIC_RHO       = 1.0,    # spin persistence: understatement b·ρ^(t-1)·N
     WEIGHT_PHI       = 1.0,    # social-weight decay: ω_t = λ·φ^(t-1)
-    FIX_DOUBLE_COUNT = false,  # skip already-withdrawn agents in sub-simulations
+    FIX_DOUBLE_COUNT = true,   # skip already-withdrawn agents in sub-simulations (false = published)
     FRESH_CLONE      = false,  # simulate from the current state, not the post-shock snapshot
     # schuler-sync (2026-10-15): Schuler's BankRunsFinal changes, as switches.
     TIEBREAK         = "legacy",     # decision rule at the margin; see decide() in functions4.jl
     BELIEF           = "geometric",  # the agent's own prior draws; see beliefDraws()
     BELIEF_P0        = 0.02,         # withdrawal probability of the "point" prior (Schuler's p0)
+    # Signal structure for docking with Chapter 1 (2026-10-20).
+    PUBLIC_MODE      = "markup",     # announcement: markup = true count − spin each tick; stale = level frozen between refreshes
+    PUBLIC_REFRESH   = 0,            # stale mode: refresh the level every k ticks (0 = never after tick 1)
+    PRIVATE_SIGNAL   = "none",       # none = uninformative prior draws; shock = posterior given a noisy signal of the realised shock
+    PRIVATE_NOISE    = 5.0,          # shock mode: s.d. of the private signal, in agents
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -31,6 +38,8 @@ const SWITCH_DEFAULTS = (
 const LOG_CHOICES      = ("full", "summary")
 const TIEBREAK_CHOICES = ("legacy", "schuler", "strict")
 const BELIEF_CHOICES   = ("geometric", "point")
+const PUBLIC_MODE_CHOICES    = ("markup", "stale")
+const PRIVATE_SIGNAL_CHOICES = ("none", "shock")
 
 """The value of switch `name` in this module, or its default if it is not set."""
 switchValue(name::Symbol) =
@@ -44,6 +53,13 @@ function envFloat(name, default, lo, hi; loOpen=false)
     v = tryparse(Float64, s)
     ok = v !== nothing && (loOpen ? v > lo : v >= lo) && v <= hi
     ok || error("$name must be a number in $(loOpen ? "(" : "[")$lo,$hi], got \"$s\"")
+    return v
+end
+function envInt(name, default, lo, hi)
+    s = strip(get(ENV, name, ""))
+    isempty(s) && return default
+    v = tryparse(Int, s)
+    (v !== nothing && lo <= v <= hi) || error("$name must be an integer in [$lo,$hi], got \"$s\"")
     return v
 end
 function envBool(name, default=false)
@@ -72,5 +88,9 @@ function parseSwitchesFromEnv()
             TIEBREAK         = envChoice("BANKRUN_TIEBREAK", D.TIEBREAK, TIEBREAK_CHOICES),
             BELIEF           = envChoice("BANKRUN_BELIEF",   D.BELIEF,   BELIEF_CHOICES),
             BELIEF_P0        = envFloat("BANKRUN_BELIEF_P0", D.BELIEF_P0, 0.0, 1.0; loOpen=true),
+            PUBLIC_MODE      = envChoice("BANKRUN_PUBLIC_MODE", D.PUBLIC_MODE, PUBLIC_MODE_CHOICES),
+            PUBLIC_REFRESH   = envInt("BANKRUN_PUBLIC_REFRESH", D.PUBLIC_REFRESH, 0, 10^6),
+            PRIVATE_SIGNAL   = envChoice("BANKRUN_PRIVATE_SIGNAL", D.PRIVATE_SIGNAL, PRIVATE_SIGNAL_CHOICES),
+            PRIVATE_NOISE    = envFloat("BANKRUN_PRIVATE_NOISE", D.PRIVATE_NOISE, 0.0, 1.0e6; loOpen=true),
             LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
 end

@@ -55,6 +55,9 @@ global workerCore = 1
 global depth      = DEPTH_MC
 
 function run_sweep()
+    # Seeded (2026-10-20): unseeded, every invocation drew its own network (and so
+    # its own warm-up types), and arms run separately were not paired.
+    Random.seed!(parse(Int, get(ENV, "WHO_RUNS_NETSEED", "20261020")))
     network  = newman_watts_strogatz(N_AGENTS, WS_K, WS_P)
     depDist  = LogNormal(1.0, DEP_SIGMA)
     exogDist = truncated(Geometric(EXOG_P), 0, N_AGENTS)

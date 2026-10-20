@@ -469,6 +469,54 @@ function beliefDraws(mod::Model, depth::Integer; belief::String="geometric", p0:
     error("unknown belief law \"$belief\"")
 end
 
+# BANKRUN_PRIVATE_SIGNAL = shock (2026-10-20): an informative private signal,
+# the ABM counterpart of Chapter 1's x_i = θ + ε_i. The vault is known, so the
+# uncertain fundamental is the size of the liquidity shock (the number of
+# exogenous withdrawals, n_exog). Each agent receives one signal per run,
+#   x_i = n_exog + s·Z_i,   Z_i ~ N(0, 1),   s = BANKRUN_PRIVATE_NOISE (agents),
+# and its prior draws come from the posterior p(n | x_i) ∝ prior(n)·φ((x_i − n)/s),
+# where prior is the belief law above (geometric: the shock distribution itself;
+# point: Binomial(N−1, p0)). As s → ∞ the posterior is the prior, i.e. the
+# uninformative model. All signal and posterior draws use their own RNG stream,
+# and modelRun still makes the prior draws on the main stream (and discards
+# them), so the shuffles and sub-simulations are draw-for-draw those of the
+# uninformative model: a shock arm is paired with its none arm by construction.
+struct PrivatePosterior
+    lo::Int                    # support of the prior: lo, lo+1, ..., lo+length-1
+    signal::Vector{Float64}    # x_i by agent idx
+    samplers::Vector{Any}      # alias-table sampler of each agent's posterior
+    rng::MersenneTwister
+end
+
+function beliefPrior(mod::Model; belief::String, p0::Float64)
+    belief == "geometric" && return mod.exogProb
+    belief == "point" && return Binomial(length(mod.agtList) - 1, p0)
+    error("unknown belief law \"$belief\"")
+end
+
+function privatePosteriors(mod::Model, nExog::Integer, s::Float64; belief::String, p0::Float64)
+    prior = beliefPrior(mod; belief=belief, p0=p0)
+    lo = Int(minimum(prior))
+    hi = isfinite(maximum(prior)) ? Int(maximum(prior)) : Int(quantile(prior, 1 - 1e-12))
+    support = lo:hi
+    logPrior = logpdf.(Ref(prior), support)
+    rng = MersenneTwister(xor(reinterpret(UInt64, mod.seed2), 0x5bd1e995))
+    n = length(mod.agtList)
+    signal = Vector{Float64}(undef, n)
+    samplers = Vector{Any}(undef, n)
+    for agt in mod.agtList
+        x = nExog + s * randn(rng)
+        lw = logPrior .- ((x .- support) .^ 2) ./ (2 * s^2)
+        w = exp.(lw .- maximum(lw))
+        signal[agt.idx] = x
+        samplers[agt.idx] = sampler(Categorical(w ./ sum(w)))
+    end
+    return PrivatePosterior(lo, signal, samplers, rng)
+end
+
+privateDraws(pp::PrivatePosterior, agt::Agent, depth::Integer) =
+    pp.lo .- 1 .+ rand(pp.rng, pp.samplers[agt.idx], depth)
+
 # Blend each prior draw with the social signal, then convert to the number of
 # additional withdrawals the agent anticipates beyond those already out.
 #   social = α·publicPoint + (1−α)·neighbourEstimate,   ω_t = λ·φ^(t−1)
@@ -476,6 +524,12 @@ end
 # more collectivist agent: λ_I (0.1–0.3) relies mostly on its own prior, λ_C
 # (0.5–0.9) mostly follows the social signal. With α = 0 and φ = 1 (the
 # defaults) this is the published expression, λ·neighbourEstimate.
+# Scale of `alreadyOut` (next_steps.md #9): under BANKRUN_FRESH_CLONE it is the
+# population total withdrawn, the same scale as blendedTotal, and the sub-model
+# already contains every withdrawal. On the published stale-clone path it is the
+# number of withdrawn NEIGHBOURS, so a population-scale total is reduced by a
+# local count (the sub-model replays only those neighbours). Production runs
+# use the fresh clone (decided 2026-10-20).
 function anticipatedWithdrawals(agt::Agent, priorDraws, neighbourEstimate, publicPoint,
                                 alreadyOut, nAgents, t; pubAlpha, weightPhi)
     λ = agt.individualism
@@ -537,7 +591,7 @@ function modelRun(mod::Model; record=nothing)
 
 
 
-    exogWithdrawals(mod; record=record)
+    exogList = exogWithdrawals(mod; record=record)
     
     # Post-shock snapshot that every decision simulates from (the "stale
     # clone"), unless BANKRUN_FRESH_CLONE. Held in sparse form (SubState).
@@ -555,7 +609,15 @@ function modelRun(mod::Model; record=nothing)
     tiebreak   = switchValue(:TIEBREAK)
     belief     = switchValue(:BELIEF)
     beliefP0   = switchValue(:BELIEF_P0)
-    publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0
+    publicMode    = switchValue(:PUBLIC_MODE)
+    publicRefresh = switchValue(:PUBLIC_REFRESH)
+    privateSignal = switchValue(:PRIVATE_SIGNAL)
+    privateNoise  = switchValue(:PRIVATE_NOISE)
+    publicStale = publicMode == "stale"
+    publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
+    privatePost = privateSignal == "shock" ?
+        privatePosteriors(mod, length(exogList), privateNoise; belief=belief, p0=beliefP0) : nothing
+    staleLevel = 0
     nAgents = length(mod.agtList)
     publicPoint = 0
     global dataDir
@@ -578,6 +640,24 @@ function modelRun(mod::Model; record=nothing)
                   DataFrame(key=mod.key, tiebreak=tiebreak, belief=belief, beliefP0=beliefP0),
                   writeheader=false, append=true)
     end
+    # The Chapter 1 signal switches (2026-10-20), likewise in their own files and
+    # only when non-default.
+    if publicStale
+        CSV.write(dataDir*"/"*"bankRunPublicMode"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, publicMode=publicMode, publicRefresh=publicRefresh),
+                  writeheader=false, append=true)
+    end
+    if privatePost !== nothing
+        CSV.write(dataDir*"/"*"bankRunPrivateParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, privateSignal=privateSignal, privateNoise=privateNoise,
+                            nExog=length(exogList)),
+                  writeheader=false, append=true)
+        if logFull()
+            CSV.write(dataDir*"/"*"bankRunPrivate"*string(workerCore)*".csv",
+                      DataFrame(key=mod.key, agent=1:nAgents, signal=privatePost.signal),
+                      writeheader=false, append=true)
+        end
+    end
 
     # now, whenever an agent withdraws, we reset a state variable since this means all other agents will
     # re-examing their decision to bank
@@ -596,9 +676,16 @@ function modelRun(mod::Model; record=nothing)
         # far, understated by the spin b·ρ^(t-1)·N. Announced once at the start of
         # the tick, so it lags withdrawals made within the tick. Common to all
         # agents (contrast the neighbour share, which is local). No RNG draws.
+        # BANKRUN_PUBLIC_MODE = stale (Chapter 1's stale level y): the announced
+        # level is the true count at its last refresh, at tick 1 and then every
+        # BANKRUN_PUBLIC_REFRESH ticks (0 = never), so it falls behind the run.
         if publicOn
             trueWithdrawn = length(mod.theBank.withdrawHistory)
-            publicPoint = clamp(round(Int64, trueWithdrawn - pubBias * pubRho^(t-1) * nAgents),
+            if publicStale && (t == 1 || (publicRefresh > 0 && (t - 1) % publicRefresh == 0))
+                staleLevel = trueWithdrawn
+            end
+            announced = publicStale ? staleLevel : trueWithdrawn
+            publicPoint = clamp(round(Int64, announced - pubBias * pubRho^(t-1) * nAgents),
                                 0, nAgents-1)
             CSV.write(dataDir*"/"*"bankRunPublic"*string(workerCore)*".csv",
                       DataFrame(key=mod.key, tick=t, trueWithdrawn=trueWithdrawn,
@@ -610,6 +697,9 @@ function modelRun(mod::Model; record=nothing)
         for agt in stillBanking
             withdrawnNeighbors, neighbourEstimate = neighbourSignal(mod, agt)
             priorDraws = beliefDraws(mod, depth; belief=belief, p0=beliefP0)
+            # Informative private signal: replace the draws (made above anyway, to
+            # keep the main RNG stream aligned with the uninformative model).
+            privatePost === nothing || (priorDraws = privateDraws(privatePost, agt, depth))
             # With a fresh clone every withdrawal so far is already in the
             # submodel, so the extra count is measured against the true total
             # rather than against the observed neighbours.
@@ -722,7 +812,15 @@ record!(r::RunRecord, idx::Int, paid::Float64) = (push!(r.order, idx); push!(r.p
 # and were paid, deposits left with stayers, and the endogenous withdrawers'
 # position in the withdrawal order (0 = first, 1 = last; 0.5 if only one), as in
 # scripts/who_runs_pilot.py.
+# Insured vs uninsured (2026-10-20): an agent is insured when its deposit is at
+# most the quantile insurance cap (insuranceCap below). Under the adaptive scheme
+# the cap moves during the run, insuranceCap is NaN and every agent counts as
+# uninsured, so these five columns are not meaningful there.
+insuranceCap(mod::Model) = 0.0 <= mod.depositInsurance < 1.0 ?
+    quantile(mod.depositDistribution, mod.depositInsurance) : NaN
+
 function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
+    cap = insuranceCap(mod)
     n = length(mod.agtList)
     how = zeros(Int8, n)                 # 0 stayed, 1 exogenous, 2 endogenous
     paid = zeros(Float64, n)
@@ -741,7 +839,9 @@ function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     rows = DataFrame(key=String[], type=String[], n=Int[], nExog=Int[], nEndog=Int[],
                      depTotal=Float64[], depExog=Float64[], depEndog=Float64[],
                      paidExog=Float64[], paidEndog=Float64[], depStayers=Float64[],
-                     posSumEndog=Float64[], nFirstQuarter=Int[])
+                     posSumEndog=Float64[], nFirstQuarter=Int[],
+                     nInsured=Int[], nEndogInsured=Int[], depUninsured=Float64[],
+                     depStayersUninsured=Float64[], nStayersUninsured=Int[])
     for (lab, sel) in (("I", isI), ("C", .!isI))
         idx = findall(sel)
         d = [mod.agtList[i].deposit for i in idx]
@@ -750,7 +850,10 @@ function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
                      sum(d; init=0.0), sum(d[h .== 1]; init=0.0), sum(d[h .== 2]; init=0.0),
                      sum(paid[idx][h .== 1]; init=0.0), sum(paid[idx][h .== 2]; init=0.0),
                      sum(d[h .== 0]; init=0.0),
-                     sum(pos[idx][h .== 2]; init=0.0), count(<=(0.25), pos[idx][h .== 2])))
+                     sum(pos[idx][h .== 2]; init=0.0), count(<=(0.25), pos[idx][h .== 2]),
+                     count(d .<= cap), count((d .<= cap) .& (h .== 2)),
+                     sum(d[.!(d .<= cap)]; init=0.0), sum(d[.!(d .<= cap) .& (h .== 0)]; init=0.0),
+                     count(.!(d .<= cap) .& (h .== 0))))
     end
     return rows
 end
@@ -775,7 +878,9 @@ function runRow(row)
     # Vault at start and end of the run (added 2026-10-15), for the share of the
     # vault paid out, 1 - max(vaultFinal, 0) / vaultInit. A separate file, so
     # bankRunResults keeps its 4 columns for the existing checkers.
-    vaultRow=DataFrame(key=row[:key],vaultInit=vaultInit,vaultFinal=mod.theBank.vault)
+    # insuranceCap added 2026-10-20 (NaN under the adaptive scheme).
+    vaultRow=DataFrame(key=row[:key],vaultInit=vaultInit,vaultFinal=mod.theBank.vault,
+                       insuranceCap=insuranceCap(mod))
     CSV.write(dataDir*"/"*"bankRunVault"*string(workerCore)*".csv",vaultRow,writeheader=false,append=true)
     CSV.write(dataDir*"/"*"bankRunTypes"*string(workerCore)*".csv",typeSummary(mod, isI, rec),
               writeheader=false,append=true)

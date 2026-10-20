@@ -97,12 +97,20 @@ HEADER = [
     # tie-break rule (vault <= 0 does). Not depositWithdrawn / vaultInit, which
     # exceeds 1 when withdrawn deposits outrun the vault (heavy-tailed deposits).
     "vaultInit", "vaultFinal", "drainShare",
+    # Added 2026-10-20: the quantile insurance cap (4th column of bankRunVault*;
+    # blank for earlier runs, NaN under the adaptive scheme).
+    "insuranceCap",
 ]
 
 # Who-runs summary, one row per run x type (bankRunTypes*.csv, since 2026-10-15),
 # written next to the main output as consolidated_types.csv.
 TYPES_FIELDS = ["n", "nExog", "nEndog", "depTotal", "depExog", "depEndog", "paidExog",
-                "paidEndog", "depStayers", "posSumEndog", "nFirstQuarter"]
+                "paidEndog", "depStayers", "posSumEndog", "nFirstQuarter",
+                # Added 2026-10-20 (insured = deposit <= insuranceCap); blank for
+                # runs written before then.
+                "nInsured", "nEndogInsured", "depUninsured", "depStayersUninsured",
+                "nStayersUninsured"]
+TYPES_FIELDS_V1 = 11   # width of the 2026-10-15 rows (without the insured columns)
 TYPES_HEADER = ["task_id", "key", "armTag", "reserveRatio", "depQuantile", "sigma", "k", "p",
                 "mu", "lambdaI", "lambdaC", "type"] + TYPES_FIELDS
 
@@ -249,19 +257,22 @@ def consolidate(arm_dir, manifest_path, out_path):
                                 row[3] if len(row) > 3 else "",
                             )
 
-            # bankRunVault*.csv is (key, vaultInit, vaultFinal), since 2026-10-15.
+            # bankRunVault*.csv is (key, vaultInit, vaultFinal), since 2026-10-15,
+            # plus insuranceCap since 2026-10-20.
             vaults = {}
             for vf in task_dir.glob("bankRunVault*.csv"):
                 with open(vf, newline="") as fh:
                     for row in csv.reader(fh):
                         if len(row) >= 3:
-                            vaults[row[0]] = (row[1], row[2])
+                            vaults[row[0]] = (row[1], row[2], row[3] if len(row) > 3 else "")
 
             for tf in task_dir.glob("bankRunTypes*.csv"):
                 with open(tf, newline="") as fh:
                     for row in csv.reader(fh):
-                        if len(row) != 2 + len(TYPES_FIELDS) or row[0] not in params:
+                        if len(row) not in (2 + TYPES_FIELDS_V1, 2 + len(TYPES_FIELDS)) \
+                                or row[0] not in params:
                             continue
+                        row = row + [""] * (2 + len(TYPES_FIELDS) - len(row))
                         rec = params[row[0]]
                         types_writer.writerow([
                             tid, row[0], arm_tag, rec["reserveRatio"], rec["depQuantile"],
@@ -276,7 +287,7 @@ def consolidate(arm_dir, manifest_path, out_path):
                 bank_run, n_wd, dep_wd = outcomes.get(key, ("", "", ""))
                 if not bank_run:
                     unmatched_outcome += 1
-                v_init, v_final = vaults.get(key, ("", ""))
+                v_init, v_final, cap = vaults.get(key, ("", "", ""))
                 drain = ""
                 try:
                     if float(v_init) > 0 and v_final != "":
@@ -289,7 +300,7 @@ def consolidate(arm_dir, manifest_path, out_path):
                     rec["reserveRatio"], rec["depQuantile"], rec["sigma"],
                     rec["warmupAlpha"], rec["mu"], rec["lambdaI"], rec["lambdaC"],
                     rec["seed"], key, arm_tag, assign_rule, mc_depth,
-                    completed, bank_run, n_wd, dep_wd, v_init, v_final, drain,
+                    completed, bank_run, n_wd, dep_wd, v_init, v_final, drain, cap,
                 ])
                 total_rows += 1
 

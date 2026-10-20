@@ -55,6 +55,9 @@ const CONFIGS = [(n=60, reserve=0.15, ins=0.1), (n=120, reserve=0.10, ins=1.5), 
 @testset "switch arms reproduce $REFERENCE" begin
     for arm in ARMS, cfg in CONFIGS
         ref = load(gensym(:Ref), reference_files()); cur = load(gensym(:Cur), current_files())
+        # FIX_DOUBLE_COUNT defaults to true since 2026-10-20; the reference's
+        # default is false, so the current module starts from the published value.
+        Core.eval(cur, :(FIX_DOUBLE_COUNT = false))
         for (k, v) in pairs(arm)
             Core.eval(ref, :($k = $v)); Core.eval(cur, :($k = $v))
         end

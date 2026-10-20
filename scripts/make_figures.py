@@ -13,6 +13,14 @@ Produces three figures from outputs/production/consolidated_results.csv:
                                 outputs/consolidated_results.csv, where the
                                 "reserveRatio" column held network p.)
 
+    fig1b_drain_share.png       Mean share of the vault paid out (drainShare)
+                                vs mu × lambda-gap, collapsed across reserve.
+                                The fig1 companion on the run-size outcome that
+                                does not depend on the vault <= 0 tie-break.
+                                Made only when the CSV has a non-blank
+                                drainShare column (runs written after 10-15);
+                                otherwise skipped with a message.
+
     fig4_p6a_p6b_schematic.png  Two-panel pedagogical schematic. Left: hypothetical
                                 moderate-regime curve with both channels (P6a
                                 baseline plus P6b interior peak). Right: observed
@@ -108,6 +116,67 @@ def figure_1_headline(cells):
     plt.savefig(out, dpi=200, bbox_inches="tight")
     plt.close()
     print(f"Wrote {out}")
+
+
+def figure_1b_drain_share(input_path=INPUT, out=None):
+    """Mean drainShare vs mu by lambda gap, pooled over reserve (fig1 style).
+
+    Returns the output path, or None (with a message) when the CSV has no
+    drainShare column or every value is blank."""
+    sums = defaultdict(lambda: [0.0, 0])
+    with open(input_path) as f:
+        reader = csv.DictReader(f)
+        if "drainShare" not in (reader.fieldnames or []):
+            print(f"SKIP fig1b: no drainShare column in {input_path}")
+            return None
+        for row in reader:
+            if row["completed"] != "true" or row["bankRun"] not in ("true", "false"):
+                continue
+            if not row["drainShare"]:
+                continue
+            gap = round(float(row["lambdaC"]) - float(row["lambdaI"]), 2)
+            s = sums[(float(row["mu"]), gap)]
+            s[0] += float(row["drainShare"])
+            s[1] += 1
+    if not sums:
+        print(f"SKIP fig1b: drainShare is blank in every row of {input_path}")
+        return None
+
+    mus = sorted({k[0] for k in sums})
+    gaps = sorted({k[1] for k in sums}, reverse=True)
+
+    fig, ax = plt.subplots(figsize=(7.5, 5))
+    colors = ["#1f3a93", "#d35400", "#27ae60"]
+    for gap, color in zip(gaps, colors):
+        pts = [(m, sums[(m, gap)][0] / sums[(m, gap)][1]) for m in mus if sums[(m, gap)][1]]
+        x, y = zip(*pts)
+        ax.plot(x, y, marker="o", color=color, linewidth=2,
+                markersize=7, label=fr"$\lambda_C - \lambda_I = {gap:.1f}$")
+        delta = (y[0] - y[-1]) * 100
+        ax.annotate(fr"$\Delta = {delta:.1f}$pp",
+                    xy=(x[-1], y[-1]),
+                    xytext=(8, -12 if gap == max(gaps) else 8),
+                    textcoords="offset points",
+                    fontsize=9, color=color)
+
+    ax.set_xlabel(r"Fraction individualist $\mu$")
+    ax.set_ylabel("Mean share of the vault paid out")
+    ax.set_title(
+        "Share of the vault drained, by cultural composition\n"
+        r"(stratified by signal-weighting gap $\lambda_C - \lambda_I$)"
+    )
+    ax.set_xticks(mus)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda t, _: f"{t:.0%}"))
+    ax.set_xlim(-0.05, 1.15)
+    ax.legend(loc="upper right", frameon=False, title="Signal-weighting gap")
+    ax.grid(True, alpha=0.3, linewidth=0.5)
+
+    plt.tight_layout()
+    out = out or OUT_DIR / "fig1b_drain_share.png"
+    plt.savefig(out, dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Wrote {out}")
+    return out
 
 
 def figure_2_reserve_null(cells):
@@ -341,6 +410,7 @@ if __name__ == "__main__":
         cells = aggregate()
         figure_1_headline(cells)
         figure_2_reserve_null(cells)
+        figure_1b_drain_share()
     else:
         print(f"NOTE: {INPUT} not found. Skipping fig1 and fig2.")
         print("Producing fig4 (schematic, synthetic data) only.")
