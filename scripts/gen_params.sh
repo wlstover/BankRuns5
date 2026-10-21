@@ -72,6 +72,11 @@ while [[ $i -lt ${#ARGS[@]} ]]; do
             # grid would come out silently wrong.
             j=$((i+1)); vals=()
             while [[ $j -lt ${#ARGS[@]} ]] && [[ "${ARGS[$j]}" != -* ]]; do
+                # Values are space-separated; "0.03,0.05" would otherwise pass
+                # as ONE value and write a malformed cell.
+                if [[ "${ARGS[$j]}" == *,* ]]; then
+                    echo "ERROR: $arg '${ARGS[$j]}': separate values with spaces, not commas" >&2; exit 1
+                fi
                 vals+=("${ARGS[$j]}"); j=$((j+1))
             done
             if [[ ${#vals[@]} -eq 0 ]]; then
