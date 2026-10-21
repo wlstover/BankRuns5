@@ -91,7 +91,19 @@ PARAMS="${T}/bankRunParametersInit.csv"
 shopt -s nullglob
 RESULTS=("${T}"/bankRunResults*.csv)
 AGENTS=("${T}"/agents*.csv)
+TYPES=("${T}"/bankRunTypes*.csv)
 shopt -u nullglob
+
+# Log mode from the manifest's `log` column (by header name; empty = full).
+# BANKRUN_LOG=summary writes no agents*.csv by design, so check 7 must not
+# demand one from a summary arm.
+LOG_MODE=""
+MANIFEST="${PROJECT_ROOT}/outputs/${TAG}/manifest.csv"
+if [[ -f "$MANIFEST" ]]; then
+    LOG_MODE=$(awk -F, -v t="$TASK" '
+        NR==1 {for(i=1;i<=NF;i++){if($i=="task_id")ti=i; if($i=="log")li=i}; next}
+        ti && li && $ti==t {print $li; exit}' "$MANIFEST")
+fi
 
 # ── 1. parameter dump width ───────────────────────────────────────────────────
 hdr "1. Parameter dump width (expect 16; was 12 before sigma/assignRule/mcDepth)"
@@ -266,6 +278,10 @@ if [[ ${#AGENTS[@]} -gt 0 ]]; then
                 && ok "type I ranks BELOW type C — anti-treatment active" \
                 || bad "reverse arm did not invert the ranking" ;;
     esac
+elif [[ "$LOG_MODE" == "summary" ]]; then
+    echo "     skipped: BANKRUN_LOG=summary writes no agents*.csv (replay a run for the per-agent file)"
+    [[ ${#TYPES[@]} -gt 0 ]] && ok "bankRunTypes*.csv present (the summary-mode who-runs file)" \
+        || bad "summary arm but no bankRunTypes*.csv found"
 else
     bad "no agents*.csv found"
 fi

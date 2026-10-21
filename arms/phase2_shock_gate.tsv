@@ -6,7 +6,7 @@
 # noise s rises (s = 2 > 5 > 20). FAIL: stop and decide before any theta mapping.
 #
 # tag	switches	run_all.sh flags
-p2-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G
-p2-shock-s2	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=2	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G
-p2-shock-s5	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G
-p2-shock-s20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=20	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G
+p2-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G --no-analyze --no-p6b
+p2-shock-s2	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=2	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G --no-analyze --no-p6b
+p2-shock-s5	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G --no-analyze --no-p6b
+p2-shock-s20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=20	--grid reference --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G --no-analyze --no-p6b
