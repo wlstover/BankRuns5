@@ -1,0 +1,20 @@
+# Reserve scan at sigma 1 (2026-10-21), to place the phase 2 gate. At sigma 1 and
+# r 0.30 (phase2b_sigma1.tsv) no bank failed in any arm: the shock takes at most
+# ~4% of deposits (99th pct) and cascades averaged 3 agents, so P(run) = 0 and the
+# gate could not test the signal. Same reference cell otherwise (k 6, p 0.05, q 0,
+# alpha 0.1, mu 0.5, lambda (0.1, 0.9)), uninformative prior only, 250 runs each.
+# Every reserve here is above the largest shock, so a failure needs a cascade.
+#
+# One single-cell arm per reserve, not one 5-cell arm: GEN_SEED = SEED_OFFSET +
+# array index, so in a multi-cell arm each reserve would get different banks.
+# Here every arm is task 1 at seed offset 1000 (GEN_SEED 1001), the same five
+# initialisations as p2-* and p2b-*: reserves are compared on the same banks.
+# Read: P(run) by reserve; rerun the four gate arms at the reserve whose P(run)
+# is closest to 0.3-0.5.
+#
+# tag	switches	run_all.sh flags
+p2s-r03	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --sigma 1 --reserve 0.03 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2s-r05	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --sigma 1 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2s-r08	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --sigma 1 --reserve 0.08 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2s-r10	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --sigma 1 --reserve 0.10 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2s-r15	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --sigma 1 --reserve 0.15 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
