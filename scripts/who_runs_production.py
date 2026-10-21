@@ -4,9 +4,10 @@
 The sweep-scale counterpart of scripts/who_runs_pilot.py. A production arm keeps no
 per-agent logs (BANKRUN_LOG = summary); functions4.jl typeSummary() writes one row
 per run x type instead, which consolidate_results.py gathers into
-consolidated_types.csv. Reads <arm_dir>/consolidated_results.csv and
-<arm_dir>/consolidated_types.csv and reports, by mu x lambda gap (lambdaC - lambdaI)
-x reserveRatio (and pooled over reserve):
+consolidated_types.csv, so the script applies to arms written since 2026-10-15
+(the legacy 2026-04 sweep is out of scope). Reads <arm_dir>/consolidated_results.csv
+and <arm_dir>/consolidated_types.csv and reports, by mu x lambda gap
+(lambdaC - lambdaI) x reserveRatio (and pooled over reserve):
 
   0. P(run)  mean(bankRun), mean drainShare and P(drainShare >= 0.9), all mu.
              drainShare is skipped if the column is absent or blank (pre-10-15 runs).

@@ -6,7 +6,7 @@
 # before adding it to the suite.
 #
 # Run from the BankRuns5 repo root:
-#     julia --project=. tests/test_order_preservation.jl
+#     julia --project=. tests/diagnostic_order_preservation.jl
 #
 # Order preservation of the per-agent decision (REPOSITORY_REVIEW.md §9.7,
 # "Theorem 3", Step 1): for nested withdrawal sets S ⊆ S′, every agent still

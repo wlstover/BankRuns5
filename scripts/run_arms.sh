@@ -44,6 +44,16 @@ for n in $(bash "$HERE/switch_names.sh" --model); do
         echo "ERROR: ${v}=${!v} is set in this shell; unset it, or put it in the arms file." >&2; exit 1
     fi
 done
+# Output-only switches (BANKRUN_LOG) do not change the model, so they are not
+# refused, but they too reach every arm without appearing in the arms file.
+MODEL_SW=" $(bash "$HERE/switch_names.sh" --model | tr '\n' ' ') "
+for n in $(bash "$HERE/switch_names.sh"); do
+    [[ "$MODEL_SW" == *" $n "* ]] && continue
+    v="BANKRUN_${n}"
+    if [[ -n "${!v:-}" ]]; then
+        echo "WARNING: ${v}=${!v} is set in this shell and applies to every arm unless an arm sets it." >&2
+    fi
+done
 KNOWN=" $(bash "$HERE/switch_names.sh" | sed 's/^/BANKRUN_/' | tr '\n' ' ') "
 
 declare -a TAGS=() SWITCHES=() FLAGS=()

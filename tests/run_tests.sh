@@ -11,7 +11,7 @@
 #
 # Usage:
 #   ./tests/run_tests.sh              # everything
-#   ./tests/run_tests.sh --python     # one language only (--julia, --r)
+#   ./tests/run_tests.sh --python     # one language only (--julia, --r, --shell)
 #   ./tests/run_tests.sh --list       # show what would run
 #
 # Exit: 0 only if every suite ran AND every suite passed.
@@ -22,12 +22,13 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${TESTS_DIR}/.." && pwd)"
 cd "${PROJECT_ROOT}" || exit 2
 
-WANT_PY=1; WANT_JL=1; WANT_R=1; LIST_ONLY=0
+WANT_PY=1; WANT_JL=1; WANT_R=1; WANT_SH=1; LIST_ONLY=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --python) WANT_JL=0; WANT_R=0; shift ;;
-        --julia)  WANT_PY=0; WANT_R=0; shift ;;
-        --r)      WANT_PY=0; WANT_JL=0; shift ;;
+        --python) WANT_JL=0; WANT_R=0; WANT_SH=0; shift ;;
+        --julia)  WANT_PY=0; WANT_R=0; WANT_SH=0; shift ;;
+        --r)      WANT_PY=0; WANT_JL=0; WANT_SH=0; shift ;;
+        --shell)  WANT_PY=0; WANT_JL=0; WANT_R=0; shift ;;
         --list)   LIST_ONLY=1; shift ;;
         -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -35,14 +36,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 PY_TESTS=(test_diagnose_short_cells.py test_endpoint_identity.py test_cascade_reader.py
-          test_type_clustering.py test_who_runs_production.py)
+          test_type_clustering.py test_who_runs_production.py test_consolidate.py)
 JL_TESTS=(test_assignment_rules.jl test_conservation.jl test_name_collisions.jl test_runsize.jl test_public_signal.jl test_switch_identity.jl test_schuler_sync.jl test_sparse_submodel.jl test_replay.jl test_signals.jl test_stay_return.jl test_dock_outputs.jl)
 R_TESTS=(test_p6b_continuous.R)
+SH_TESTS=(test_restart_manifest.sh)
 
 if [[ ${LIST_ONLY} -eq 1 ]]; then
     [[ ${WANT_PY} -eq 1 ]] && printf 'python  tests/%s\n' "${PY_TESTS[@]}"
     [[ ${WANT_JL} -eq 1 ]] && printf 'julia   tests/%s\n' "${JL_TESTS[@]}"
     [[ ${WANT_R}  -eq 1 ]] && printf 'R       tests/%s\n' "${R_TESTS[@]}"
+    [[ ${WANT_SH} -eq 1 ]] && printf 'shell   tests/%s\n' "${SH_TESTS[@]}"
     exit 0
 fi
 
@@ -132,6 +135,16 @@ if [[ ${WANT_R} -eq 1 ]]; then
         done
     else
         for t in "${R_TESTS[@]}"; do run_suite "tests/${t}" Rscript "tests/${t}"; done
+    fi
+fi
+
+if [[ ${WANT_SH} -eq 1 ]]; then
+    echo; echo "shell"
+    # test_restart_manifest.sh needs the manifest's commit to be a clean HEAD.
+    if ! git -C "${PROJECT_ROOT}" diff --quiet HEAD; then
+        for t in "${SH_TESTS[@]}"; do skip_suite "tests/${t}" "uncommitted changes (needs a clean HEAD)"; done
+    else
+        for t in "${SH_TESTS[@]}"; do run_suite "tests/${t}" bash "tests/${t}"; done
     fi
 fi
 

@@ -58,10 +58,25 @@ Usage:
 
     # the legacy 2026-04 sweep (no manifest, 12-column dumps):
     python3 consolidate_results.py --arm-dir outputs --out outputs/consolidated_results.csv
+
+The no-manifest path is for those 12-column dumps only; an arm with wider dumps
+(sigma, assignRule, mcDepth) has a manifest and is refused without it.
+
+Checks (2026-10-21), all reported in the summary:
+  - bankRunResults rows must be 2 (legacy) or 4 fields wide; others are torn and
+    dropped. Short or unknown-key who-runs / docking rows are counted, not
+    silently skipped.
+  - Switch reconciliation: the per-run switch files the model writes for
+    non-default settings (bankRunPublicParams, ...DecisionParams, ...PublicMode,
+    ...PrivateParams, ...StayReturn) must agree with the manifest, and must be
+    present exactly when the manifest implies them. Any mismatch makes the exit
+    status non-zero (after the outputs are written), which blocks the afterok
+    analysis job: the runs did not use the model the manifest describes.
 """
 
 import argparse
 import csv
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -130,6 +145,133 @@ DOCK_FILES = {
 }
 
 
+# Per-run switch files (functions4.jl, written only for non-default settings):
+# file prefix -> the manifest columns of its fields, in order after the key.
+# bankRunPrivateParams carries nExog after these, which is not a switch.
+SWITCH_FILES = {
+    "bankRunPublicParams":   ["public_alpha", "public_bias", "public_rho", "weight_phi",
+                              "fix_double_count", "fresh_clone"],
+    "bankRunDecisionParams": ["tiebreak", "belief", "belief_p0"],
+    "bankRunPublicMode":     ["public_mode", "public_refresh"],
+    "bankRunPrivateParams":  ["private_signal", "private_noise"],
+    "bankRunStayReturn":     ["stay_return"],
+}
+# An empty manifest field means "the default at submission time". The
+# FIX_DOUBLE_COUNT default changed on 2026-10-20 (false -> true), so an empty
+# value there is ambiguous; manifests written since record it resolved.
+AMBIGUOUS_EMPTY = {"fix_double_count"}
+TRUE_WORDS = {"true", "1", "yes", "on"}
+
+
+def switch_defaults(settings_path=REPO_ROOT / "settings.jl"):
+    """{manifest column: (default, kind)} from settings.jl's SWITCH_DEFAULTS, read
+    the way scripts/switch_names.sh reads it. kind is bool, float or str."""
+    out = {}
+    in_block = False
+    for line in Path(settings_path).read_text().splitlines():
+        if line.startswith("const SWITCH_DEFAULTS = ("):
+            in_block = True
+            continue
+        if in_block and line.startswith(")"):
+            break
+        m = in_block and re.match(r'\s+([A-Z][A-Z0-9_]*)\s*=\s*("[^"]*"|[^,#\s]+)', line)
+        if not m:
+            continue
+        name, val = m.group(1).lower(), m.group(2)
+        if val in ("true", "false"):
+            out[name] = (val == "true", bool)
+        elif val.startswith('"'):
+            out[name] = (val.strip('"'), str)
+        else:
+            out[name] = (float(val), float)
+    return out
+
+
+def _parse_switch(raw, kind):
+    raw = raw.strip()
+    if kind is bool:
+        return raw.lower() in TRUE_WORDS
+    if kind is float:
+        return float(raw)
+    return raw.lower()
+
+
+def expected_switches(man, defaults):
+    """{column: value or None (unknown)} for the switches in SWITCH_FILES."""
+    exp = {}
+    for cols in SWITCH_FILES.values():
+        for c in cols:
+            default, kind = defaults[c]
+            if c not in man:                  # manifest predates the column
+                exp[c] = None
+            elif man[c].strip():
+                exp[c] = _parse_switch(man[c], kind)
+            elif c in AMBIGUOUS_EMPTY:
+                exp[c] = None
+            else:
+                exp[c] = default.lower() if kind is str else default
+    return exp
+
+
+def switch_file_required(prefix, e, defaults):
+    """Whether the model writes this file under settings e (functions4.jl), or
+    None when a setting it depends on is unknown."""
+    d = {c: v for c, (v, _) in defaults.items()}
+    need = {
+        "bankRunPublicParams":   ["public_alpha", "public_bias", "weight_phi", "public_mode",
+                                  "fix_double_count"],
+        "bankRunDecisionParams": ["tiebreak", "belief"],
+        "bankRunPublicMode":     ["public_mode"],
+        "bankRunPrivateParams":  ["private_signal"],
+        "bankRunStayReturn":     ["stay_return"],
+    }[prefix]
+    if any(e[c] is None for c in need):
+        return None
+    if prefix == "bankRunPublicParams":
+        return (e["public_alpha"] > 0 or e["public_bias"] > 0 or e["weight_phi"] < 1
+                or e["public_mode"] == "stale" or e["fix_double_count"])
+    if prefix == "bankRunDecisionParams":
+        return e["tiebreak"] != d["tiebreak"] or e["belief"] != d["belief"]
+    if prefix == "bankRunPublicMode":
+        return e["public_mode"] == "stale"
+    if prefix == "bankRunPrivateParams":
+        return e["private_signal"] == "shock"
+    return e["stay_return"] != d["stay_return"]
+
+
+def check_switch_files(task_dir, tid, exp, defaults):
+    """Mismatches between a task's switch files and the manifest, as strings."""
+    problems = []
+    for prefix, cols in SWITCH_FILES.items():
+        files = list(task_dir.glob(f"{prefix}*.csv"))
+        req = switch_file_required(prefix, exp, defaults)
+        if req is True and not files:
+            problems.append(f"task {tid}: no {prefix}*.csv, but the manifest implies one")
+        elif req is False and files:
+            problems.append(f"task {tid}: {prefix}*.csv present, but the manifest implies "
+                            "default settings for it")
+        seen = set()
+        for f in files:
+            with open(f, newline="") as fh:
+                for row in csv.reader(fh):
+                    if not row:
+                        continue
+                    if len(row) < 1 + len(cols):
+                        problems.append(f"task {tid}: {f.name}: row of {len(row)} fields")
+                        continue
+                    for c, raw in zip(cols, row[1:1 + len(cols)]):
+                        want = exp[c]
+                        if want is None or (c, raw) in seen:
+                            continue
+                        seen.add((c, raw))
+                        got = _parse_switch(raw, defaults[c][1])
+                        same = abs(got - want) < 1e-9 if isinstance(want, float) else got == want
+                        if not same:
+                            problems.append(f"task {tid}: {f.name}: {c} = {raw!r}, "
+                                            f"manifest implies {want!r}")
+    return problems
+
+
 def load_manifest(path):
     """{task_id: {param: value}} from run_all.sh's manifest, or {}."""
     if not path or not Path(path).exists():
@@ -157,9 +299,25 @@ def consolidate(arm_dir, manifest_path, out_path):
     )
     if not task_dirs:
         print(f"ERROR: no task_*/ directories under {arm_dir}", file=sys.stderr)
-        return None, 0
+        return None, 0, 0
 
     manifest = load_manifest(manifest_path)
+    if not manifest:
+        # The positional path knows only the legacy 12-column dump; a wider one
+        # (sigma, assignRule, mcDepth) comes from a manifest-era arm.
+        for d in task_dirs:
+            f = d / "bankRunParametersInit.csv"
+            if not f.exists():
+                continue
+            with open(f, newline="") as fh:
+                first = next((r for r in csv.reader(fh) if r), None)
+            if first is not None and len(first) > LEGACY_INIT_COLS:
+                print(f"ERROR: {f} has {len(first)} columns but there is no manifest. "
+                      "Only the legacy 12-column dumps are consolidated positionally; "
+                      "pass --manifest <arm>/manifest.csv.", file=sys.stderr)
+                return None, 0, 0
+    defaults = switch_defaults() if manifest else {}
+    switch_problems = []
     print(f"Arm directory : {arm_dir}")
     print(f"Task dirs     : {len(task_dirs)}")
     if manifest:
@@ -175,6 +333,9 @@ def consolidate(arm_dir, manifest_path, out_path):
     unmatched_completed = unmatched_outcome = 0
     legacy_width_dirs = 0
     sigma_missing = 0
+    torn_results = 0
+    types_dropped = {"width": 0, "key": 0}
+    dock_dropped = {n: {"width": 0, "key": 0} for n in DOCK_FILES}
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -264,6 +425,8 @@ def consolidate(arm_dir, manifest_path, out_path):
 
             # bankRunResults*.csv is (key, runState) legacy, or
             # (key, runState, nWithdrawn, depositWithdrawn) post-instrumentation.
+            # Any other width is a torn write: dropped and counted, so the run
+            # shows up as having no outcome rather than as one with a blank |S*|.
             outcomes = {}
             results_files = list(task_dir.glob("bankRunResults*.csv"))
             if not results_files:
@@ -271,12 +434,20 @@ def consolidate(arm_dir, manifest_path, out_path):
             for rf in results_files:
                 with open(rf, newline="") as fh:
                     for row in csv.reader(fh):
-                        if len(row) >= 2:
-                            outcomes[row[0]] = (
-                                row[1],
-                                row[2] if len(row) > 2 else "",
-                                row[3] if len(row) > 3 else "",
-                            )
+                        if not row:
+                            continue
+                        if len(row) not in (2, 4):
+                            torn_results += 1
+                            continue
+                        outcomes[row[0]] = (
+                            row[1],
+                            row[2] if len(row) > 2 else "",
+                            row[3] if len(row) > 3 else "",
+                        )
+
+            if man and results_files:
+                switch_problems += check_switch_files(
+                    task_dir, tid, expected_switches(man, defaults), defaults)
 
             # bankRunVault*.csv is (key, vaultInit, vaultFinal), since 2026-10-15,
             # plus insuranceCap since 2026-10-20.
@@ -290,8 +461,13 @@ def consolidate(arm_dir, manifest_path, out_path):
             for tf in task_dir.glob("bankRunTypes*.csv"):
                 with open(tf, newline="") as fh:
                     for row in csv.reader(fh):
-                        if len(row) not in (2 + TYPES_FIELDS_V1, 2 + len(TYPES_FIELDS)) \
-                                or row[0] not in params:
+                        if not row:
+                            continue
+                        if len(row) not in (2 + TYPES_FIELDS_V1, 2 + len(TYPES_FIELDS)):
+                            types_dropped["width"] += 1
+                            continue
+                        if row[0] not in params:
+                            types_dropped["key"] += 1
                             continue
                         row = row + [""] * (2 + len(TYPES_FIELDS) - len(row))
                         rec = params[row[0]]
@@ -306,7 +482,13 @@ def consolidate(arm_dir, manifest_path, out_path):
                 for df in task_dir.glob(f"{prefix}*.csv"):
                     with open(df, newline="") as fh:
                         for row in csv.reader(fh):
-                            if len(row) != width or row[0] not in params:
+                            if not row:
+                                continue
+                            if len(row) != width:
+                                dock_dropped[n]["width"] += 1
+                                continue
+                            if row[0] not in params:
+                                dock_dropped[n]["key"] += 1
                                 continue
                             rec = params[row[0]]
                             dock_writers[n].writerow([
@@ -352,6 +534,20 @@ def consolidate(arm_dir, manifest_path, out_path):
     print(f"  Missing bankRunResults*.csv files: {missing_results}")
     print(f"  Init keys with no completion mark: {unmatched_completed}")
     print(f"  Init keys with no outcome record:  {unmatched_outcome}")
+    print(f"  Torn bankRunResults rows dropped:  {torn_results}")
+    print(f"  who-runs rows dropped (width/key): {types_dropped['width']} / {types_dropped['key']}")
+    for n in DOCK_FILES:
+        print(f"  {n + ' rows dropped (width/key):':<34s} "
+              f"{dock_dropped[n]['width']} / {dock_dropped[n]['key']}")
+    if manifest:
+        print(f"  Switch-file mismatches:            {len(switch_problems)}")
+        for p in switch_problems[:50]:
+            print(f"    ⚠️  {p}")
+        if len(switch_problems) > 50:
+            print(f"    ... and {len(switch_problems) - 50} more")
+        if switch_problems:
+            print("  ⚠️  These runs did not use the settings the manifest records. "
+                  "Exiting non-zero.")
     if legacy_width_dirs:
         print(f"  ⚠️  {legacy_width_dirs} task dirs have {LEGACY_INIT_COLS}-column "
               "(pre-sigma-fix) dumps")
@@ -360,7 +556,7 @@ def consolidate(arm_dir, manifest_path, out_path):
         print("      heterogeneity) is not estimable on those rows: sigma was never")
         print("      written to the dump, which is why 2,160 designed cells appear")
         print("      as 1,080 distinct recorded combinations.")
-    return out_path, total_rows
+    return out_path, total_rows, len(switch_problems)
 
 
 def analyze(csv_path):
@@ -422,12 +618,12 @@ def main():
         manifest = str(default_manifest) if default_manifest.exists() else None
     out = args.out or str(arm_dir / "consolidated_results.csv")
 
-    path, nrows = consolidate(arm_dir, manifest, out)
+    path, nrows, n_switch_problems = consolidate(arm_dir, manifest, out)
     if path is None:
         return 1
     if not args.no_analyze and nrows:
         analyze(path)
-    return 0
+    return 1 if n_switch_problems else 0
 
 
 if __name__ == "__main__":

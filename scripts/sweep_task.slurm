@@ -60,6 +60,7 @@ export BANKRUN_LOG="${BANKRUN_LOG:-}"           # full | summary (2026-10-15)
 export BANKRUN_PUBLIC_MODE="${BANKRUN_PUBLIC_MODE:-}"         # markup | stale (2026-10-20)
 export BANKRUN_PUBLIC_REFRESH="${BANKRUN_PUBLIC_REFRESH:-}"
 export BANKRUN_PRIVATE_SIGNAL="${BANKRUN_PRIVATE_SIGNAL:-}"   # none | shock (2026-10-20)
+export BANKRUN_STAY_RETURN="${BANKRUN_STAY_RETURN:-}"         # R >= 1 (2026-10-20)
 export BANKRUN_PRIVATE_NOISE="${BANKRUN_PRIVATE_NOISE:-}"
 
 module load julia/1.8.0

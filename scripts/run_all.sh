@@ -60,6 +60,10 @@
 # replications, not a continuation. This is the mechanism behind the ~6x
 # replication surplus in the 2026-04 sweep (612 runs/cell against a documented
 # 50). check_sweep_run.py reports the surplus rather than hiding it.
+# Like --tasks, it takes the assignment rule, MC depth, seed offset and BANKRUN_*
+# switches from the arm's manifest and refuses unless the checkout is the
+# manifest's git_commit and clean (2026-10-21; before that a top-up ran whatever
+# the submitting shell held, under the arm's manifest).
 #
 # ── --tasks LIST: rerun named cells in full (2026-10-20) ─────────────────────
 # The fix for TIMEOUTs. Each listed task is rerun from scratch with everything
@@ -239,9 +243,10 @@ if [[ -n "$RERUN_TASKS" ]] || [[ $RESTART -eq 1 ]]; then
     fi
 fi
 
-if [[ -n "$RERUN_TASKS" ]]; then
+if [[ -n "$RERUN_TASKS" ]] || [[ $RESTART -eq 1 ]]; then
+    RESUB_FLAG=$([[ -n "$RERUN_TASKS" ]] && echo --tasks || echo --restart)
     if [[ ! -f "$MANIFEST" ]]; then
-        echo "ERROR: ${MANIFEST} not found; --tasks needs the arm's manifest." >&2; exit 1
+        echo "ERROR: ${MANIFEST} not found; ${RESUB_FLAG} needs the arm's manifest." >&2; exit 1
     fi
     # Settings from the manifest, by header name: assign_rule, mc_depth,
     # seed_offset, git_commit and every switch column (name -> BANKRUN_<NAME>).
@@ -283,7 +288,7 @@ PYEOF
         fi
         if [[ -n "$val" ]]; then export "$var=$val"; else unset "$var"; fi
     done
-    echo "  --tasks: settings from manifest (commit ${MAN[git_commit]}, assign ${ASSIGN_RULE}, depth ${MC_DEPTH}, seed offset ${SEED_OFFSET})"
+    echo "  ${RESUB_FLAG}: settings from manifest (commit ${MAN[git_commit]}, assign ${ASSIGN_RULE}, depth ${MC_DEPTH}, seed offset ${SEED_OFFSET})"
 fi
 
 # ── --compare: resolve the contrast arm ──────────────────────────────────────

@@ -34,9 +34,12 @@ DEFAULT_BINS = [0, 1, 4, 8, 13, 21]   # lower edges: 0, 1-3, 4-7, 8-12, 13-20, 2
 
 def load(arm_dir):
     arm_dir = Path(arm_dir)
-    res = pd.read_csv(arm_dir / "consolidated_results.csv",
-                      usecols=["task_id", "key", "reserveRatio", "mu", "lambdaI", "lambdaC",
-                               "bankRun", "drainShare"])
+    # drainShare exists only in arms consolidated since 2026-10-15; without it
+    # the drain column comes out NaN rather than the read failing.
+    want = {"task_id", "key", "reserveRatio", "mu", "lambdaI", "lambdaC", "bankRun", "drainShare"}
+    res = pd.read_csv(arm_dir / "consolidated_results.csv", usecols=lambda c: c in want)
+    if "drainShare" not in res:
+        res["drainShare"] = np.nan
     res = res[res.bankRun.astype(str).str.lower().isin(["true", "false"])].copy()
     res["run"] = res.bankRun.astype(str).str.lower().eq("true").astype(float)
     dock = arm_dir / "consolidated_dock.csv"

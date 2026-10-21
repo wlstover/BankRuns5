@@ -139,8 +139,17 @@ as_flag <- function(x) {
     if (is.logical(x)) return(!is.na(x) & x)
     tolower(trimws(as.character(x))) %in% c("true", "t", "1")
 }
+# ⚠️ Capture "this row has no outcome at all" BEFORE as_flag() (ported from
+# analysis_p6b.R, 2026-10-21). as_flag maps a blank bankRun to FALSE, which would
+# count a completed run whose result row was never written (the check-off-before-
+# write race, fixed in 9be29d7) as a surviving bank. Such runs are unobserved:
+# they are dropped below, loudly and under a cap.
+raw_bankrun <- dt[["bankRun"]]
+dt[, noResult := if (is.logical(raw_bankrun)) is.na(raw_bankrun) else
+       is.na(raw_bankrun) | !nzchar(trimws(as.character(raw_bankrun)))]
 dt[, bankRun := as_flag(bankRun)]
 dt[, completed := as_flag(completed)]
+MAX_LOST_FRAC <- as.numeric(Sys.getenv("BANKRUN_MAX_LOST_FRAC", unset = "0.001"))
 
 # Sample check: print completion / failure rate summary.
 cat("\n=== Completion + failure summary ===\n")
@@ -152,6 +161,27 @@ print(dt[, .(N = .N,
 # Restrict to completed runs only for failure-rate calculations.
 dt_c <- dt[completed == TRUE]
 cat("\n", nrow(dt_c), " completed runs.\n", sep = "")
+
+n_lost <- sum(dt_c$noResult)
+if (n_lost > 0) {
+    frac <- n_lost / nrow(dt_c)
+    cat(sprintf("%s of %s completed runs (%.4f%%) have NO result row; dropped.\n",
+                format(n_lost, big.mark = ","), format(nrow(dt_c), big.mark = ","),
+                100 * frac))
+    cat("  Not missing at random: the lost run is the last to finish in its cell\n",
+        "  (selected on duration). See analysis_p6b.R for the full note.\n", sep = "")
+    if (frac > MAX_LOST_FRAC) {
+        stop(n_lost, " completed runs have no result row, above the ",
+             sprintf("%.2f%%", 100 * MAX_LOST_FRAC), " cap. Investigate with ",
+             "tests/diagnose_short_cells.py before trusting any estimate.")
+    }
+    want <- intersect(c("key", "task_id", "paramSeed", "mu", "reserveRatio",
+                        "lambdaI", "lambdaC"), names(dt_c))
+    lost_f <- file.path(out_dir, "dropped_no_result.csv")
+    fwrite(dt_c[noResult == TRUE, ..want], lost_f)
+    cat("  Keys written to ", lost_f, "\n", sep = "")
+    dt_c <- dt_c[noResult == FALSE]
+}
 
 # Fail loudly rather than emitting an all-zero figure set. The coercion bug
 # above did exactly this: every downstream aggregate stayed well-formed and
