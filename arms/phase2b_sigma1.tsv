@@ -1,0 +1,18 @@
+# Phase 2 gate rerun at sigma 1 (2026-10-21). The sigma-2 gate (phase2_shock_gate.tsv)
+# FAILED: P(run) at n_exog = 0 was 0.304 in every arm, set by the initialisation, not
+# the signal. Two of the five initialisations ran in every run of every arm, because
+# one depositor dominated the bank (753714: 56% of deposits, 1.9x the vault; 455326:
+# 92% of the vault), and under the legacy tie-break that depositor withdraws whenever
+# the vault cannot cover it, failing the bank. At sigma 1 the largest of ~1,000
+# log-normal deposits is ~1-2% of the total, so no single depositor decides the run.
+# Same cell otherwise (r 0.30, k 6, p 0.05, q 0, alpha 0.1, mu 0.5, lambda (0.1, 0.9)),
+# 250 runs per arm, paired (seed offset 1000).
+# Read with: python3 scripts/shock_response.py outputs/p2b-* --out outputs/p2b-analysis
+# PASS: the slope of P(run) in n_exog is clearly above p2b-none's and falls as the
+# noise s rises (s = 2 > 5 > 20). FAIL: stop and decide before any theta mapping.
+#
+# tag	switches	run_all.sh flags
+p2b-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --sigma 1 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G --no-analyze --no-p6b
+p2b-shock-s2	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=2	--grid reference --sigma 1 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G --no-analyze --no-p6b
+p2b-shock-s5	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5	--grid reference --sigma 1 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G --no-analyze --no-p6b
+p2b-shock-s20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=20	--grid reference --sigma 1 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-01:00:00 --mem 20G --no-analyze --no-p6b
