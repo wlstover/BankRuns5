@@ -7,8 +7,16 @@
 #   private  none | shock (noise s = 5 agents)
 #   public   nbr   = neighbours only (production)
 #            stale = announcement frozen at its tick-1 level, never refreshed,
-#                    half the social signal (alpha 0.5): optimistic as the run grows
-#            fresh = the same announcement refreshed every tick (tracks the truth)
+#                    half the social signal (alpha 0.5): optimistic as the run grows.
+#                    Since 2026-10-21 stale mode freezes the agent's view of the bank
+#                    too: decisions simulate from the post-shock state plus the
+#                    agent's own withdrawn neighbours.
+#            fresh = the same announcement refreshed every tick (tracks the truth);
+#                    the view is refreshed with it, so agents miss only non-neighbour
+#                    withdrawals made within the current tick
+#   Design note for the pre-registration: the nbr arms keep the fresh clone (agents
+#   simulate from the true current state), so stale vs fresh isolates staleness,
+#   while nbr vs stale also changes what the agent knows about the bank's books.
 #   R        1 | 1.25
 # = 12 arms x 45 cells x 250 runs. Production defaults in every row: fresh clone,
 # double-count fix (default), legacy tie-break, geometric belief, summary logs.

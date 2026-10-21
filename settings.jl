@@ -26,7 +26,7 @@ const SWITCH_DEFAULTS = (
     BELIEF           = "geometric",  # the agent's own prior draws; see beliefDraws()
     BELIEF_P0        = 0.02,         # withdrawal probability of the "point" prior (Schuler's p0)
     # Signal structure for docking with Chapter 1 (2026-10-20).
-    PUBLIC_MODE      = "markup",     # announcement: markup = true count − spin each tick; stale = level frozen between refreshes
+    PUBLIC_MODE      = "markup",     # announcement: markup = true count − spin each tick; stale = level, and the agent's view of the bank, frozen between refreshes
     PUBLIC_REFRESH   = 0,            # stale mode: refresh the level every k ticks (0 = never after tick 1)
     PRIVATE_SIGNAL   = "none",       # none = uninformative prior draws; shock = posterior given a noisy signal of the realised shock
     PRIVATE_NOISE    = 5.0,          # shock mode: s.d. of the private signal, in agents
@@ -88,19 +88,24 @@ end
 """Every BANKRUN_* switch parsed from ENV, as a NamedTuple (defaults above)."""
 function parseSwitchesFromEnv()
     D = SWITCH_DEFAULTS
-    return (PUBLIC_ALPHA     = envFloat("BANKRUN_PUBLIC_ALPHA", D.PUBLIC_ALPHA, 0.0, 1.0),
-            PUBLIC_BIAS      = envFloat("BANKRUN_PUBLIC_BIAS",  D.PUBLIC_BIAS,  0.0, 1.0),
-            PUBLIC_RHO       = envFloat("BANKRUN_PUBLIC_RHO",   D.PUBLIC_RHO,   0.0, 1.0),
-            WEIGHT_PHI       = envFloat("BANKRUN_WEIGHT_PHI",   D.WEIGHT_PHI,   0.0, 1.0; loOpen=true),
-            FIX_DOUBLE_COUNT = envBool("BANKRUN_FIX_DOUBLE_COUNT", D.FIX_DOUBLE_COUNT),
-            FRESH_CLONE      = envBool("BANKRUN_FRESH_CLONE",      D.FRESH_CLONE),
-            TIEBREAK         = envChoice("BANKRUN_TIEBREAK", D.TIEBREAK, TIEBREAK_CHOICES),
-            BELIEF           = envChoice("BANKRUN_BELIEF",   D.BELIEF,   BELIEF_CHOICES),
-            BELIEF_P0        = envFloat("BANKRUN_BELIEF_P0", D.BELIEF_P0, 0.0, 1.0; loOpen=true),
-            PUBLIC_MODE      = envChoice("BANKRUN_PUBLIC_MODE", D.PUBLIC_MODE, PUBLIC_MODE_CHOICES),
-            PUBLIC_REFRESH   = envInt("BANKRUN_PUBLIC_REFRESH", D.PUBLIC_REFRESH, 0, 10^6),
-            PRIVATE_SIGNAL   = envChoice("BANKRUN_PRIVATE_SIGNAL", D.PRIVATE_SIGNAL, PRIVATE_SIGNAL_CHOICES),
-            PRIVATE_NOISE    = envFloat("BANKRUN_PRIVATE_NOISE", D.PRIVATE_NOISE, 0.0, 1.0e6; loOpen=true),
-            STAY_RETURN      = envFloat("BANKRUN_STAY_RETURN", D.STAY_RETURN, 1.0, 100.0),
-            LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
+    sw = (PUBLIC_ALPHA     = envFloat("BANKRUN_PUBLIC_ALPHA", D.PUBLIC_ALPHA, 0.0, 1.0),
+          PUBLIC_BIAS      = envFloat("BANKRUN_PUBLIC_BIAS",  D.PUBLIC_BIAS,  0.0, 1.0),
+          PUBLIC_RHO       = envFloat("BANKRUN_PUBLIC_RHO",   D.PUBLIC_RHO,   0.0, 1.0),
+          WEIGHT_PHI       = envFloat("BANKRUN_WEIGHT_PHI",   D.WEIGHT_PHI,   0.0, 1.0; loOpen=true),
+          FIX_DOUBLE_COUNT = envBool("BANKRUN_FIX_DOUBLE_COUNT", D.FIX_DOUBLE_COUNT),
+          FRESH_CLONE      = envBool("BANKRUN_FRESH_CLONE",      D.FRESH_CLONE),
+          TIEBREAK         = envChoice("BANKRUN_TIEBREAK", D.TIEBREAK, TIEBREAK_CHOICES),
+          BELIEF           = envChoice("BANKRUN_BELIEF",   D.BELIEF,   BELIEF_CHOICES),
+          BELIEF_P0        = envFloat("BANKRUN_BELIEF_P0", D.BELIEF_P0, 0.0, 1.0; loOpen=true),
+          PUBLIC_MODE      = envChoice("BANKRUN_PUBLIC_MODE", D.PUBLIC_MODE, PUBLIC_MODE_CHOICES),
+          PUBLIC_REFRESH   = envInt("BANKRUN_PUBLIC_REFRESH", D.PUBLIC_REFRESH, 0, 10^6),
+          PRIVATE_SIGNAL   = envChoice("BANKRUN_PRIVATE_SIGNAL", D.PRIVATE_SIGNAL, PRIVATE_SIGNAL_CHOICES),
+          PRIVATE_NOISE    = envFloat("BANKRUN_PRIVATE_NOISE", D.PRIVATE_NOISE, 0.0, 1.0e6; loOpen=true),
+          STAY_RETURN      = envFloat("BANKRUN_STAY_RETURN", D.STAY_RETURN, 1.0, 100.0),
+          LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
+    # Stale mode's view needs the double-count fix (functions4.jl modelRun
+    # checks it too); refused here so a sweep fails at startup, not in a worker.
+    sw.PUBLIC_MODE == "stale" && !sw.FIX_DOUBLE_COUNT && !sw.FRESH_CLONE &&
+        error("BANKRUN_PUBLIC_MODE=stale needs BANKRUN_FIX_DOUBLE_COUNT=true or BANKRUN_FRESH_CLONE=true")
+    return sw
 end

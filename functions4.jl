@@ -395,6 +395,14 @@ end
 SubState(mod::simModel) = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution)
 SubState(mod::Model)    = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution)
 
+# The withdrawals a sub-simulation from `s` contains once phase 1 has replayed
+# the observed neighbours: those already out in `s`, plus each replayed
+# neighbour, counted as subModelRunSparse counts them. This is what an agent's
+# anticipated total is measured against (alreadyOut in modelRun), so the
+# anticipated extra withdrawals are never ones the sub-model already holds.
+nInView(s::SubState, withdrawnNeighbors; skipWithdrawn::Bool) =
+    s.nHistory + count(nb -> !skipWithdrawn || s.banked[nb.idx], withdrawnNeighbors)
+
 # Same signature and result as subModelRun(clone(decisionModel), ...).
 function subModelRunSparse(s::SubState, agt::Agent, withdrawingAgents::Array{Agent},
                            additionalWithdrawals::Int64; skipWithdrawn::Bool=false)
@@ -529,7 +537,8 @@ privateDraws(pp::PrivatePosterior, agt::Agent, depth::Integer) =
 # already contains every withdrawal. On the published stale-clone path it is the
 # number of withdrawn NEIGHBOURS, so a population-scale total is reduced by a
 # local count (the sub-model replays only those neighbours). Production runs
-# use the fresh clone (decided 2026-10-20).
+# use the fresh clone (decided 2026-10-20). Under BANKRUN_PUBLIC_MODE=stale it
+# is the population total in the agent's stale view (nInView), 2026-10-21.
 function anticipatedWithdrawals(agt::Agent, priorDraws, neighbourEstimate, publicPoint,
                                 alreadyOut, nAgents, t; pubAlpha, weightPhi)
     λ = agt.individualism
@@ -625,7 +634,12 @@ function modelRun(mod::Model; record=nothing)
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
     privatePost = privateSignal == "shock" ?
         privatePosteriors(mod, length(exogList), privateNoise; belief=belief, p0=beliefP0) : nothing
+    # Stale mode's view needs the double-count fix: phase 1 would otherwise take
+    # neighbours already out of the snapshot off its vault a second time.
+    publicStale && !skipWithdrawn &&
+        error("BANKRUN_PUBLIC_MODE=stale needs BANKRUN_FIX_DOUBLE_COUNT=true or BANKRUN_FRESH_CLONE=true")
     staleLevel = 0
+    staleView = staleState
     nAgents = length(mod.agtList)
     publicPoint = 0
     global dataDir
@@ -694,10 +708,15 @@ function modelRun(mod::Model; record=nothing)
         # BANKRUN_PUBLIC_MODE = stale (Chapter 1's stale level y): the announced
         # level is the true count at its last refresh, at tick 1 and then every
         # BANKRUN_PUBLIC_REFRESH ticks (0 = never), so it falls behind the run.
+        # The agent's view of the bank is frozen with it (2026-10-21): decisions
+        # simulate from the bank's state at the last refresh plus the agent's
+        # own withdrawn neighbours, never from the true current state. With
+        # refresh 0 the view is the post-shock snapshot (the published stale clone).
         if publicOn
             trueWithdrawn = length(mod.theBank.withdrawHistory)
             if publicStale && (t == 1 || (publicRefresh > 0 && (t - 1) % publicRefresh == 0))
                 staleLevel = trueWithdrawn
+                staleView = SubState(mod)
             end
             announced = publicStale ? staleLevel : trueWithdrawn
             publicPoint = clamp(round(Int64, announced - pubBias * pubRho^(t-1) * nAgents),
@@ -716,16 +735,20 @@ function modelRun(mod::Model; record=nothing)
             # Informative private signal: replace the draws (made above anyway, to
             # keep the main RNG stream aligned with the uninformative model).
             privatePost === nothing || (priorDraws = privateDraws(privatePost, agt, depth))
-            # With a fresh clone every withdrawal so far is already in the
-            # submodel, so the extra count is measured against the true total
-            # rather than against the observed neighbours.
-            alreadyOut = freshClone ? length(mod.theBank.withdrawHistory) : length(withdrawnNeighbors)
+            # The state the agent simulates from. Stale mode: its stale view.
+            # BANKRUN_FRESH_CLONE: the current state, not the post-shock
+            # snapshot taken once above (the "stale clone").
+            decisionState = publicStale ? staleView : freshClone ? SubState(mod) : staleState
+            # The extra count is measured against the withdrawals the sub-model
+            # already holds: with a fresh clone the true total, in stale mode the
+            # view's total plus newly out neighbours (nInView). The published
+            # stale clone measures it against the observed neighbours.
+            alreadyOut = (publicStale || freshClone) ?
+                nInView(decisionState, withdrawnNeighbors; skipWithdrawn=skipWithdrawn) :
+                length(withdrawnNeighbors)
             additionalWithdrawals = anticipatedWithdrawals(agt, priorDraws, neighbourEstimate, publicPoint,
                                                            alreadyOut, nAgents, t;
                                                            pubAlpha=pubAlpha, weightPhi=weightPhi)
-            # BANKRUN_FRESH_CLONE: simulate from the current state, not the
-            # post-shock snapshot taken once above (the "stale clone").
-            decisionState = freshClone ? SubState(mod) : staleState
             probFullDepositStay = simulateStay(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
                                                skipWithdrawn=skipWithdrawn)
             probFullDepositWD = payoffIfWithdrawNow(decisionState, agt)

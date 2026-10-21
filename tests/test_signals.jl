@@ -13,6 +13,10 @@
 #   B. BANKRUN_PUBLIC_MODE = stale. The announced level is the true count at
 #      tick 1 (refresh 0) or at its last refresh (refresh k); bias still subtracts.
 #   C. typeSummary's insured columns against a direct count.
+#   D. Stale mode's view (2026-10-21): decisions simulate from the bank's state
+#      at the last refresh plus the agent's withdrawn neighbours. nInView counts
+#      what that sub-model holds; a non-neighbour leaving after the refresh is
+#      invisible; FRESH_CLONE no longer matters; the view needs the double-count fix.
 # The defaults of all three are covered by test_switch_identity.jl (byte-
 # identical to 420ecc0) and test_public_signal.jl B.
 ################################################################################
@@ -157,4 +161,80 @@ end
     end
     mod = build(m, 4; ins=1.5)                                 # adaptive scheme
     @test isnan(m.insuranceCap(mod))
+end
+
+# ---------------------------------------------------------------- D
+@testset "D. stale view" begin
+    m = load_model(:D)
+    # 1. nInView = the withdrawals in a clone of the snapshot after phase 1's replay.
+    rng = MersenneTwister(7)
+    for s in 1:30, skip in (true, false)
+        mod = build(m, s)
+        for a in sample(rng, mod.agtList, 5; replace=false); m.withdraw(mod, a); end
+        snap = m.SubState(mod); snapMod = m.clone(mod)
+        agt = rand(rng, filter(a -> a.banked, mod.agtList))
+        nbrs = filter(a -> a.banked, m.neighborList(mod, agt))
+        later = vcat(nbrs[1:min(2, end)],
+                     sample(rng, filter(a -> a.banked && a.idx != agt.idx, mod.agtList), 4; replace=false))
+        for a in unique(later); a.banked && m.withdraw(mod, a); end
+        wn, _ = m.neighbourSignal(mod, agt)
+        for nb in wn
+            cur = snapMod.agtList[nb.idx]
+            skip && !cur.banked && continue
+            m.withdraw(snapMod, cur)
+        end
+        @test m.nInView(snap, wn; skipWithdrawn=skip) == length(snapMod.theBank.withdrawHistory)
+    end
+
+    # 2. The information set: after the snapshot, a non-neighbour leaving is
+    # invisible to the agent; a neighbour leaving adds one.
+    mod = build(m, 3)
+    for a in mod.agtList[1:4]; m.withdraw(mod, a); end
+    snap = m.SubState(mod)
+    agt = mod.agtList[30]
+    nb = first(filter(a -> a.banked, m.neighborList(mod, agt)))
+    nbrIdx = Set(a.idx for a in m.neighborList(mod, agt))
+    other = first(filter(a -> a.banked && a.idx != agt.idx && !(a.idx in nbrIdx), mod.agtList))
+    seen(mod) = m.nInView(snap, first(m.neighbourSignal(mod, agt)); skipWithdrawn=true)
+    a0 = seen(mod)
+    m.withdraw(mod, other)
+    @test seen(mod) == a0
+    m.withdraw(mod, nb)
+    @test seen(mod) == a0 + 1
+    @test m.SubState(mod).nHistory == snap.nHistory + 2      # the true state sees both
+
+    # 3. Under stale mode the clone switch no longer matters: decisions and every
+    # output agree, bar the settings log that records FRESH_CLONE itself.
+    function arm(; kw...)
+        mm = load_model(gensym(:V))
+        setsw!(mm; PUBLIC_ALPHA=0.5, kw...)
+        res = Base.invokelatest(() -> [mm.modelRun(build(mm, s; reserve=0.25)) for s in 1:20])
+        out = Dict(f => read(joinpath(mm.dataDir, f), String) for f in readdir(mm.dataDir)
+                   if !startswith(f, "bankRunPublicParams"))
+        return res, out
+    end
+    for r in (0, 2)
+        rF, oF = arm(PUBLIC_MODE="stale", PUBLIC_REFRESH=r, FRESH_CLONE=true)
+        rS, oS = arm(PUBLIC_MODE="stale", PUBLIC_REFRESH=r, FRESH_CLONE=false)
+        @test rF == rS
+        @test oF == oS
+    end
+
+    # 4. It bites: refreshed every tick, the view misses only non-neighbour
+    # withdrawals within the tick, and that changes decisions somewhere.
+    _, oV = arm(PUBLIC_MODE="stale", PUBLIC_REFRESH=1, FRESH_CLONE=true)
+    _, oT = arm(FRESH_CLONE=true)                          # markup: the true state
+    @test oV["bankRunEndogenous1.csv"] != oT["bankRunEndogenous1.csv"]
+
+    # 5. The view needs the double-count fix, in modelRun and at parse time.
+    mm = load_model(:Dg)
+    setsw!(mm; PUBLIC_MODE="stale", FIX_DOUBLE_COUNT=false, FRESH_CLONE=false)
+    @test_throws ErrorException Base.invokelatest(() -> mm.modelRun(build(mm, 1)))
+    withenv("BANKRUN_PUBLIC_MODE" => "stale", "BANKRUN_FIX_DOUBLE_COUNT" => "false") do
+        @test_throws ErrorException m.parseSwitchesFromEnv()
+    end
+    withenv("BANKRUN_PUBLIC_MODE" => "stale", "BANKRUN_FIX_DOUBLE_COUNT" => "false",
+            "BANKRUN_FRESH_CLONE" => "true") do
+        @test m.parseSwitchesFromEnv().PUBLIC_MODE == "stale"
+    end
 end
