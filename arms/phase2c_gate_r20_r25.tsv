@@ -1,0 +1,25 @@
+# Phase 2 gate at sigma 1, reserves 0.20 and 0.25 (2026-10-21). The reserve scan
+# (phase2s_reserve_scan.tsv) put the transition between r 0.10 (P(run) 0.99) and
+# 0.30 (P(run) 0, p2b): at 0.15 P(run) is 0.73 but already 0.96 at n_exog 8-12,
+# a ceiling that leaves the signal little room. At r <= 0.08 banks fail even with
+# no shock (the R = 1 hair trigger on the uninformative prior), so those cells are
+# out. Every reserve here is far above the largest shock (~4% of deposits), so a
+# failure needs a cascade.
+# Same cell otherwise (sigma 1, k 6, p 0.05, q 0, alpha 0.1, mu 0.5, lambda (0.1,
+# 0.9)), 250 runs per arm. Single-cell arms at seed offset 1000: the same five
+# initialisations as p2/p2b/p2s, and the none/shock arms paired run for run.
+# The none arms double as the scan points r 0.20 and 0.25.
+# Read: python3 scripts/shock_response.py outputs/p2c-r20-* --out outputs/p2c-analysis-r20
+#   (and r25). Use the reserve whose p2c-*-none P(run) is interior (~0.3-0.5).
+# PASS: the slope of P(run) in n_exog is clearly above the none arm's and falls
+# as the noise s rises (s = 2 > 5 > 20). FAIL: stop and decide before any theta mapping.
+#
+# tag	switches	run_all.sh flags
+p2c-r20-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --sigma 1 --reserve 0.20 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2c-r20-shock-s2	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=2	--grid reference --sigma 1 --reserve 0.20 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2c-r20-shock-s5	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5	--grid reference --sigma 1 --reserve 0.20 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2c-r20-shock-s20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=20	--grid reference --sigma 1 --reserve 0.20 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2c-r25-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary	--grid reference --sigma 1 --reserve 0.25 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2c-r25-shock-s2	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=2	--grid reference --sigma 1 --reserve 0.25 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2c-r25-shock-s5	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=5	--grid reference --sigma 1 --reserve 0.25 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
+p2c-r25-shock-s20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_PRIVATE_SIGNAL=shock BANKRUN_PRIVATE_NOISE=20	--grid reference --sigma 1 --reserve 0.25 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-02:00:00 --mem 20G --no-analyze --no-p6b
