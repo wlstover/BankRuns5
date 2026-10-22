@@ -382,7 +382,7 @@ and `tests/check_recording.sh` §8):
 
 | File | Grain | Columns |
 |---|---|---|
-| `bankRunDock` | run | `nExog`, `depExogShare`, `reserveShare` (vault / deposits), `slack` ((vault − paid to the shock) / deposits: Ch 1's θ), `pubErr1` / `pubErrMean` (announced − true count at tick 1 / averaged over ticks; NaN with no announcement), `nTicks` |
+| `bankRunDock` | run | `nExog`, `depExogShare`, `reserveShare` (vault / deposits), `slack` ((vault − paid to the shock) / deposits: Ch 1's θ; a vault-bank quantity that ignores the long asset, so for `BANKRUN_BALANCE=firesale` arms read `bankRunBalance` instead), `pubErr1` / `pubErrMean` (announced − true count at tick 1 / averaged over ticks; NaN with no announcement), `nTicks` |
 | `bankRunTiming` | run × type | `tickSumEndog`, endogenous withdrawals in ticks `t1`…`t9`, `t10plus` (discrete-time hazard counterpart to Ch 2's Cox model) |
 | `bankRunWealth` | run × type | `n_d1`…`n_d10` agents and `endog_d1`…`endog_d10` endogenous withdrawers by decile of the run's deposits |
 

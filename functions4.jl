@@ -1098,6 +1098,11 @@ end
 #                  announcement's error (announced − true count, at tick 1 and
 #                  averaged over ticks; NaN when there is no announcement), and
 #                  how many ticks the run lasted.
+#                  reserveShare and slack are vault-bank quantities: they ignore
+#                  the long asset. Under BANKRUN_BALANCE = firesale the bank's
+#                  period-1 capacity is vault + (1 − d)·illiquid and its solvency
+#                  is decided at period 2; read bankRunBalance for those arms
+#                  (2026-10-21), not slack.
 #   bankRunTiming: one row per run x type. Endogenous withdrawals by tick
 #                  (1..TIMING_TICKS-1, then TIMING_TICKS and later) and their
 #                  tick sum: the discrete-time hazard counterpart to Ch 2's Cox model.

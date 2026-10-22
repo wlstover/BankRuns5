@@ -12,8 +12,12 @@
 # 2.5 failed only in the dominance region, P(run) 0.06.)
 # Two deposit dispersions: sigma 2.5 (Celsius-matched, F7: whales present) and 1
 # (no whales), same cell otherwise (k 6, p 0.05, q 0, alpha 0.1, mu 0.5, lambda
-# (0.1, 0.9)), 250 runs per arm. Single-cell arms at seed offset 1000: the same five
-# initialisations per sigma, and theta is shared run for run across the four arms.
+# (0.1, 0.9)), 250 runs per arm. Single-cell arms at seed offset 1000, so all eight
+# arms share GEN_SEED 1001: the same five initialisations and theta run for run,
+# across both sigmas. The deposit draw is exp(1 + sigma z) from the same z, so the
+# sigma 2.5 and sigma 1 arms run the same banks with the same depositor ranking,
+# compressed. Within a sigma the arms differ only in the signal; a comparison across
+# sigmas at a given theta is paired, but on banks whose deposit spread differs.
 # Read: python3 scripts/theta_response.py outputs/p3-s25-* (and outputs/p3-s1-*)
 # PASS: P(run) falls with theta more steeply as s shrinks (slope none > s20 > s10 > s05
 # in magnitude, i.e. most negative at s 0.05). Also read failType shares and
