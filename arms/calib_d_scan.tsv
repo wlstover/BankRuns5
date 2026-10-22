@@ -1,0 +1,35 @@
+# Calibration pilot (2026-10-22): where does the fire-sale bank's transition sit in
+# reserves r and fire-sale discount d at Celsius-matched concentration (sigma 2.5)?
+# F9 (docs/pilot_map.md) found a floor of liquidity failures at mid and high theta
+# at r 0.05, d 0.6: period-1 capacity r + (1 - d)(1 - r + e) = 0.454 of deposits,
+# and the median bank's largest depositor holds 38% of it. This scan separates the
+# liquidity floor (should respond to d) from the theta-sorted insolvency failures
+# (should respond to r through theta_L and A*).
+# Fixed: e 0.06, R(theta) = 1.0 + 0.4 theta, R_stay 1.1, private theta signal s 0.10
+# (F9's middle noise), k 6, p 0.05, q 0, alpha 0.1, mu 0.5, lambda (0.1, 0.9).
+# Period-1 capacity (share of deposits):
+#             d 0.2   0.4   0.6   0.8
+#   r 0.05    0.858 0.656 0.454 0.252
+#   r 0.10    0.868 0.676 0.484 0.292
+#   r 0.20    0.888 0.716 0.544 0.372
+# theta_L (fails with no withdrawals) = (0.1 - e) / (0.4 (1 - r + e)): 0.099 / 0.104 / 0.116.
+# Single-cell arms at seed offset 1000: all twelve share GEN_SEED 1001, so the same five
+# banks and the same theta run for run; cal-r05-d60 reruns p3-s25-theta-s10 exactly
+# (a reproduction check).
+# Read: python3 scripts/theta_response.py outputs/cal-r05-d* --ref outputs/cal-r05-d60
+# (and r10, r20). Report per arm: P(run), liquidity share of failures, P(run | theta > 0.4).
+# Use: place the sweep's r and d levels where liquidity failures are neither 0 nor the floor.
+#
+# tag	switches	run_all.sh flags
+cal-r05-d20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.2	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r05-d40	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.4	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r05-d60	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.6	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r05-d80	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.8	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r10-d20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.2	--grid reference --sigma 2.5 --reserve 0.10 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r10-d40	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.4	--grid reference --sigma 2.5 --reserve 0.10 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r10-d60	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.6	--grid reference --sigma 2.5 --reserve 0.10 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r10-d80	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.8	--grid reference --sigma 2.5 --reserve 0.10 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r20-d20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.2	--grid reference --sigma 2.5 --reserve 0.20 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r20-d40	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.4	--grid reference --sigma 2.5 --reserve 0.20 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r20-d60	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.6	--grid reference --sigma 2.5 --reserve 0.20 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+cal-r20-d80	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_FIRE_DISCOUNT=0.8	--grid reference --sigma 2.5 --reserve 0.20 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
