@@ -729,6 +729,90 @@ function decide(probFullDepositWD, probFullDepositStay; tiebreak::String="legacy
     error("unknown tie-break rule \"$tiebreak\"")
 end
 
+# ---- Partial withdrawals (2026-10-22, BANKRUN_WITHDRAW = partial) ----
+# An agent may withdraw a fraction f of its remaining balance b, f in {0, ¼, ½,
+# ¾, 1}. Its value per unit of balance is what the bank pays now on f·b, plus R
+# times the expected stayer payoff on the (1 − f)·b it leaves in, from the bank
+# after its own sale:  V(f) = paid(f·b)/b + R·P_stay(state after f·b).
+# V(0) is decide()'s R·P_stay and V(1) its P_WD. A small depositor's withdrawal
+# does not move the bank, so V is linear in f and the best f is 0 or 1; only an
+# agent large enough to move the bank can gain from an interior f. So only agents
+# whose balance exceeds PARTIAL_MIN_SHARE of the bank's current period-1
+# capacity evaluate ¼, ½ and ¾ (tests/test_partial.jl checks the cutoff against
+# a run with no cutoff); the rest use decide() exactly as under WITHDRAW = all.
+# Every fraction is valued on the same sub-simulation draws (common random
+# numbers: the main stream is rewound for each), and the stream then continues
+# from where V(0) left it, so the agents after a large one draw what they
+# would have drawn.
+const PARTIAL_GRID = (0.25, 0.5, 0.75)
+
+# The decision state after the focal agent withdraws `a` now, and what it is
+# paid (withdraw()'s rule, after any fire sale).
+function afterOwnWithdrawal(s::SubState, idx::Int, a::Float64)
+    vault, ill = raiseCash(s.vault, s.illiquid, a, s.discount)
+    cap = s.adaptive ? (s.nHistory == 0 ? 0.0 : s.histMax) : s.quantileCap
+    paid = a > vault ? max(0.0, vault, min(a, cap)) : a
+    deps = copy(s.deposits)
+    deps[idx] -= a
+    return SubState(vault - a, deps, s.banked, s.bankedIdx, s.nHistory, s.histMax, s.adaptive,
+                    s.quantileCap, ill, s.discount, s.bankedDep - a), paid
+end
+
+# The bank's period-1 capacity in a decision state: cash plus the long asset at
+# its fire-sale price.
+capacityOf(s::SubState) = max(s.vault, 0.0) + (1.0 - s.discount) * s.illiquid
+
+# V(f) for an interior f (see above).
+function partialValue(s::SubState, agt::Agent, f::Float64, withdrawnNeighbors::Array{Agent},
+                      additionalWithdrawals; skipWithdrawn::Bool, returns, stayReturn::Float64)
+    b = s.deposits[agt.idx]
+    sf, paid = afterOwnWithdrawal(s, agt.idx, f * b)
+    stay = simulateStay(sf, agt, withdrawnNeighbors, additionalWithdrawals;
+                        skipWithdrawn=skipWithdrawn, payoff="recovery", returns=returns,
+                        stayReturn=stayReturn)
+    return paid / b + stayReturn * stay
+end
+
+# The best fraction: the largest V on the grid, ties to the smaller fraction.
+# With no interior values this is decide() (strict comparison), and the
+# tie-break rules keep their margins: legacy withdraws everything when even
+# withdrawing pays nothing; schuler stays when staying pays in full for sure.
+function chooseFraction(vStay::Float64, vAll::Float64, vInterior; tiebreak::String,
+                        pStay::Float64)
+    tiebreak == "legacy" && vAll == 0.0 && return 1.0
+    tiebreak == "schuler" && pStay == 1.0 && return 0.0
+    best, bestV = 0.0, vStay
+    for (f, v) in zip(PARTIAL_GRID, vInterior)
+        v > bestV && ((best, bestV) = (f, v))
+    end
+    vAll > bestV && (best = 1.0)
+    return best
+end
+
+# withdraw() for part of a balance: the bank sells what it must, pays a, and the
+# agent stays banked with the rest. The last fraction goes through withdraw().
+function withdrawPart!(mod::Model, agt::Agent, a::Float64)
+    cap = currentCap(mod)
+    mod.theBank.vault, mod.theBank.illiquid =
+        raiseCash(mod.theBank.vault, mod.theBank.illiquid, a, switchValue(:FIRE_DISCOUNT))
+    paid = a > mod.theBank.vault ? max(0.0, mod.theBank.vault, min(a, cap)) : a
+    mod.theBank.vault -= a
+    agt.deposit -= a
+    return paid
+end
+
+# neighbourSignal() when a partial withdrawal counts as withdrawing (the user,
+# 2026-10-22: neighbours see that someone pulled money, not how much). The
+# neighbours returned for the sub-simulation's phase 1 are those fully out, as
+# before; partial withdrawers still banked count in the estimate only.
+function neighbourSignalPartial(mod::Model, agt::Agent, anyOut::BitVector)
+    neighbors = neighborList(mod, agt)
+    withdrawnNeighbors::Array{Agent} = filter(n -> !n.banked, neighbors)
+    nAgents = length(mod.agtList)
+    propWithdrawn = isempty(neighbors) ? 0.0 : count(n -> anyOut[n.idx], neighbors) / length(neighbors)
+    return withdrawnNeighbors, clamp(round(Int64, propWithdrawn * nAgents), 0, nAgents - 1)
+end
+
 # now the main model function
 function modelRun(mod::Model; record=nothing)
     runState::Bool=false
@@ -775,6 +859,8 @@ function modelRun(mod::Model; record=nothing)
     thetaPubRho   = switchValue(:THETA_PUBLIC_RHO)
     thetaPubNoise = switchValue(:THETA_PUBLIC_NOISE)
     lambdaScope   = switchValue(:LAMBDA_SCOPE)
+    partial       = switchValue(:WITHDRAW) == "partial"
+    partialMin    = switchValue(:PARTIAL_MIN_SHARE)
     publicStale = publicMode == "stale"
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
     privatePost = privateSignal == "shock" ?
@@ -785,8 +871,13 @@ function modelRun(mod::Model; record=nothing)
     comboErr = switchComboError((PUBLIC_MODE=publicMode, FIX_DOUBLE_COUNT=switchValue(:FIX_DOUBLE_COUNT),
                                  FRESH_CLONE=freshClone, PAYOFF=payoffMode, BALANCE=balanceMode,
                                  FUNDAMENTAL=fundamental, PRIVATE_SIGNAL=privateSignal,
-                                 RETURN_LO=returnLo, RETURN_HI=returnHi, THETA_PUBLIC=thetaPublic))
+                                 RETURN_LO=returnLo, RETURN_HI=returnHi, THETA_PUBLIC=thetaPublic,
+                                 WITHDRAW=switchValue(:WITHDRAW)))
     comboErr === nothing || error(comboErr)
+    # Insurance per withdrawal would pay a partial withdrawer the cap again on
+    # every fraction; a cumulative cap is not built, so partial runs uninsured.
+    partial && !(insuranceCap(mod) == 0.0) &&
+        error("BANKRUN_WITHDRAW=partial needs an uninsured bank (deposit insurance quantile 0)")
     # Fire-sale bank and fundamental (2026-10-21). θ is drawn once per run, and
     # each agent's private signal of it once per run, from their own stream; the
     # agents' Monte Carlo draws of θ from another. Neither touches the main
@@ -893,6 +984,20 @@ function modelRun(mod::Model; record=nothing)
     λcountOf(a) = lambdaScope == "theta" ? lambdaBar : a.individualism
     λthetaOf(a) = lambdaScope == "count" ? lambdaBar : a.individualism
 
+    # Partial withdrawals (2026-10-22): agt.deposit is the remaining balance
+    # during the run (the bank's arithmetic and the stayers' promises use it);
+    # the original deposits are restored before the run returns, for the outputs.
+    # anyOut: the agent has withdrawn something (exogenous shocks take it all).
+    dep0 = partial ? [a.deposit for a in mod.agtList] : Float64[]
+    anyOut = falses(partial ? nAgents : 0)
+    partial && for a in exogList; anyOut[a.idx] = true; end
+    nPartialEvents, nBigDecisions = 0, 0
+    if partial
+        CSV.write(dataDir*"/"*"bankRunWithdrawParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, withdraw="partial", partialMinShare=partialMin),
+                  writeheader=false, append=true)
+    end
+
     # now, whenever an agent withdraws, we reset a state variable since this means all other agents will
     # re-examing their decision to bank
     halt::Bool=false
@@ -918,7 +1023,7 @@ function modelRun(mod::Model; record=nothing)
         # own withdrawn neighbours, never from the true current state. With
         # refresh 0 the view is the post-shock snapshot (the published stale clone).
         if publicOn
-            trueWithdrawn = length(mod.theBank.withdrawHistory)
+            trueWithdrawn = partial ? count(anyOut) : length(mod.theBank.withdrawHistory)
             if publicStale && (t == 1 || (publicRefresh > 0 && (t - 1) % publicRefresh == 0))
                 staleLevel = trueWithdrawn
                 staleView = SubState(mod)
@@ -937,7 +1042,8 @@ function modelRun(mod::Model; record=nothing)
         stillBanking=Random.shuffle(mod.theBank.bankingList)
         # each agent observes the percentage of its neighbors that have withdrawn
         for agt in stillBanking
-            withdrawnNeighbors, neighbourEstimate = neighbourSignal(mod, agt)
+            withdrawnNeighbors, neighbourEstimate = partial ?
+                neighbourSignalPartial(mod, agt, anyOut) : neighbourSignal(mod, agt)
             priorDraws = beliefDraws(mod, depth; belief=belief, p0=beliefP0)
             # Informative private signal: replace the draws (made above anyway, to
             # keep the main RNG stream aligned with the uninformative model).
@@ -968,15 +1074,33 @@ function modelRun(mod::Model; record=nothing)
                 thetaSignal === nothing ? returnOf.(rand(beliefRng, depth)) :
                 returnOf.(rand(beliefRng, thetaBelief(thetaSignal[agt.idx], thetaNoise, yNow, ωθ,
                                                       thetaPubNoise), depth))
+            rngBefore = partial ? copy(Random.default_rng()) : nothing
             probFullDepositStay = simulateStay(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
                                                skipWithdrawn=skipWithdrawn, payoff=payoffMode,
                                                returns=returns, stayReturn=stayReturn)
             probFullDepositWD = payoffIfWithdrawNow(decisionState, agt; recovery=payoffMode == "recovery")
             withdrew = decide(probFullDepositWD, probFullDepositStay; tiebreak=tiebreak,
                               stayReturn=stayReturn)
+            frac = withdrew ? 1.0 : 0.0
+            if partial && agt.deposit > partialMin * capacityOf(decisionState)
+                nBigDecisions += 1
+                rngAfter = copy(Random.default_rng())
+                vInterior = map(PARTIAL_GRID) do f
+                    copy!(Random.default_rng(), rngBefore)
+                    partialValue(decisionState, agt, f, withdrawnNeighbors, additionalWithdrawals;
+                                 skipWithdrawn=skipWithdrawn, returns=returns, stayReturn=stayReturn)
+                end
+                copy!(Random.default_rng(), rngAfter)
+                frac = chooseFraction(stayReturn * probFullDepositStay, probFullDepositWD, vInterior;
+                                      tiebreak=tiebreak, pStay=probFullDepositStay)
+                withdrew = frac > 0.0
+            end
             if withdrew
-                paid = withdraw(mod, agt)
-                record === nothing || record!(record, agt.idx, paid, t)
+                amount = frac * agt.deposit
+                paid = frac == 1.0 ? withdraw(mod, agt) : withdrawPart!(mod, agt, amount)
+                frac < 1.0 && (nPartialEvents += 1)
+                partial && (anyOut[agt.idx] = true)
+                record === nothing || record!(record, agt.idx, paid, t, amount)
             end
             if logFull()
                 reportRow=DataFrame(key=mod.key,agent=agt.idx,withdraw=withdrew,deposit=agt.deposit,
@@ -1001,7 +1125,7 @@ function modelRun(mod::Model; record=nothing)
         assetsT = max(mod.theBank.vault, 0.0) + mod.theBank.illiquid * returnOf(theta)
         solvent = !liquidityFail && assetsT >= promises
         runState = !solvent
-        deps = [a.deposit for a in mod.agtList]
+        deps = partial ? dep0 : [a.deposit for a in mod.agtList]
         big = argmax(deps)
         CSV.write(dataDir*"/"*"bankRunBalance"*string(workerCore)*".csv",
                   DataFrame(key=mod.key, theta=theta, returnTheta=returnOf(theta),
@@ -1011,8 +1135,23 @@ function modelRun(mod::Model; record=nothing)
                             failType=liquidityFail ? "liquidity" : (solvent ? "none" : "insolvency"),
                             largestShare=deps[big] / sum(deps),
                             largestToCapacity=deps[big] / (vault0 + (1.0 - fireDiscount) * illiquid0),
-                            largestWithdrew=!mod.agtList[big].banked),
+                            largestWithdrew=partial ? anyOut[big] : !mod.agtList[big].banked),
                   writeheader=false, append=true)
+    end
+    if partial
+        # Remaining balances (0 for agents fully out), then the original deposits back.
+        left = [a.banked ? a.deposit : 0.0 for a in mod.agtList]
+        big = argmax(dep0)
+        out = dep0 .- left
+        CSV.write(dataDir*"/"*"bankRunPartial"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, nAnyOut=count(anyOut),
+                            nStillIn=count(i -> anyOut[i] && mod.agtList[i].banked, 1:nAgents),
+                            nPartialEvents=nPartialEvents, nBigDecisions=nBigDecisions,
+                            withdrawnShare=sum(out) / sum(dep0),
+                            largestFracWithdrawn=out[big] / dep0[big]),
+                  writeheader=false, append=true)
+        for a in mod.agtList; a.deposit = dep0[a.idx]; end
+        return (runState, count(anyOut), sum(out))
     end
     return (runState, runSetSize(mod)...)
 end
@@ -1092,10 +1231,11 @@ mutable struct RunRecord
     pubErr1::Float64           # public announcement − true count at tick 1 (NaN if no announcement)
     pubErrSum::Float64         # … summed over ticks with an announcement
     pubErrN::Int               # … number of such ticks
+    amount::Vector{Float64}    # amount withdrawn (endogenous; NaN for the exogenous shock)
 end
-RunRecord() = RunRecord(Int[], Float64[], 0, Int[], 0, NaN, 0.0, 0)
-record!(r::RunRecord, idx::Int, paid::Float64, tick::Int=0) =
-    (push!(r.order, idx); push!(r.paid, paid); push!(r.tick, tick); r)
+RunRecord() = RunRecord(Int[], Float64[], 0, Int[], 0, NaN, 0.0, 0, Float64[])
+record!(r::RunRecord, idx::Int, paid::Float64, tick::Int=0, amount::Float64=NaN) =
+    (push!(r.order, idx); push!(r.paid, paid); push!(r.tick, tick); push!(r.amount, amount); r)
 function notePublic!(r::RunRecord, t::Int, err::Real)
     t == 1 && (r.pubErr1 = err)
     r.pubErrSum += err; r.pubErrN += 1
@@ -1119,16 +1259,26 @@ function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     how = zeros(Int8, n)                 # 0 stayed, 1 exogenous, 2 endogenous
     paid = zeros(Float64, n)
     pos = fill(NaN, n)
-    nEndog = length(rec.order) - rec.nExog
+    # WITHDRAW = partial: an agent can withdraw several times. It counts once, at
+    # its first endogenous withdrawal; paid and wd sum over its withdrawals. With
+    # one withdrawal per agent (WITHDRAW = all) this is the published summary.
+    partial = switchValue(:WITHDRAW) == "partial"
+    wd = zeros(Float64, n)
+    endogOrder = Int[]
     for (k, i) in enumerate(rec.order)
-        paid[i] = rec.paid[k]
+        paid[i] += rec.paid[k]
         if k <= rec.nExog
             how[i] = 1
+            wd[i] = mod.agtList[i].deposit
         else
+            how[i] == 2 || push!(endogOrder, i)
             how[i] = 2
-            r = k - rec.nExog
-            pos[i] = nEndog > 1 ? (r - 1) / (nEndog - 1) : 0.5
+            partial && (wd[i] += rec.amount[k])
         end
+    end
+    nEndog = length(endogOrder)
+    for (r, i) in enumerate(endogOrder)
+        pos[i] = nEndog > 1 ? (r - 1) / (nEndog - 1) : 0.5
     end
     rows = DataFrame(key=String[], type=String[], n=Int[], nExog=Int[], nEndog=Int[],
                      depTotal=Float64[], depExog=Float64[], depEndog=Float64[],
@@ -1140,10 +1290,13 @@ function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
         idx = findall(sel)
         d = [mod.agtList[i].deposit for i in idx]
         h = how[idx]
+        w = wd[idx]
+        # partial: deposits withdrawn endogenously, and every balance left in
         push!(rows, (mod.key, lab, length(idx), count(==(1), h), count(==(2), h),
-                     sum(d; init=0.0), sum(d[h .== 1]; init=0.0), sum(d[h .== 2]; init=0.0),
+                     sum(d; init=0.0), sum(d[h .== 1]; init=0.0),
+                     partial ? sum(w[h .== 2]; init=0.0) : sum(d[h .== 2]; init=0.0),
                      sum(paid[idx][h .== 1]; init=0.0), sum(paid[idx][h .== 2]; init=0.0),
-                     sum(d[h .== 0]; init=0.0),
+                     partial ? sum((d .- w)[h .!= 1]; init=0.0) : sum(d[h .== 0]; init=0.0),
                      sum(pos[idx][h .== 2]; init=0.0), count(<=(0.25), pos[idx][h .== 2]),
                      count(d .<= cap), count((d .<= cap) .& (h .== 2)),
                      sum(d[.!(d .<= cap)]; init=0.0), sum(d[.!(d .<= cap) .& (h .== 0)]; init=0.0),
@@ -1190,8 +1343,11 @@ function timingRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     for c in cols; df[!, c] = Int[]; end
     for (lab, want) in (("I", true), ("C", false))
         counts = zeros(Int, TIMING_TICKS); tsum = 0
+        seen = falses(length(isI))       # partial: an agent counts at its first withdrawal
         for k in (rec.nExog + 1):length(rec.order)
             isI[rec.order[k]] == want || continue
+            seen[rec.order[k]] && continue
+            seen[rec.order[k]] = true
             t = rec.tick[k]; tsum += t
             counts[clamp(t, 1, TIMING_TICKS)] += 1
         end

@@ -153,6 +153,13 @@ DOCK_FILES = {
     # BANKRUN_LAMBDA_SCOPE != count): the public signal at tick 1, its gap
     # y - theta (NaN with no public signal) and the population mean lambda.
     "thetapublic": ("bankRunThetaPublic", False, ["theta", "y1", "gap1", "lambdaBar"]),
+    # Partial withdrawals (2026-10-22, BANKRUN_WITHDRAW = partial): agents who
+    # withdrew anything, those still banked with part of their balance, partial
+    # withdrawals made, decisions that valued the interior fractions, the share
+    # of deposits withdrawn, and the share the largest depositor withdrew.
+    "partial": ("bankRunPartial", False,
+                ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
+                 "largestFracWithdrawn"]),
 }
 
 
@@ -170,6 +177,7 @@ SWITCH_FILES = {
                               "return_lo", "return_hi", "theta_noise"],
     "bankRunThetaPublicParams": ["theta_public", "theta_public_level", "theta_public_gap",
                                  "theta_public_rho", "theta_public_noise", "lambda_scope"],
+    "bankRunWithdrawParams": ["withdraw", "partial_min_share"],
 }
 # An empty manifest field means "the default at submission time". The
 # FIX_DOUBLE_COUNT default changed on 2026-10-20 (false -> true), so an empty
@@ -241,6 +249,7 @@ def switch_file_required(prefix, e, defaults):
         "bankRunStayReturn":     ["stay_return"],
         "bankRunBalanceParams":  ["payoff", "balance", "fundamental"],
         "bankRunThetaPublicParams": ["theta_public", "lambda_scope"],
+        "bankRunWithdrawParams": ["withdraw"],
     }[prefix]
     if any(e[c] is None for c in need):
         return None
@@ -258,6 +267,8 @@ def switch_file_required(prefix, e, defaults):
                 or e["fundamental"] != d["fundamental"])
     if prefix == "bankRunThetaPublicParams":
         return e["theta_public"] != d["theta_public"] or e["lambda_scope"] != d["lambda_scope"]
+    if prefix == "bankRunWithdrawParams":
+        return e["withdraw"] == "partial"
     return e["stay_return"] != d["stay_return"]
 
 

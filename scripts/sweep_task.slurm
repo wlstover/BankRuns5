@@ -80,6 +80,8 @@ export BANKRUN_THETA_PUBLIC_NOISE="${BANKRUN_THETA_PUBLIC_NOISE:-}"
 export BANKRUN_LAMBDA_SCOPE="${BANKRUN_LAMBDA_SCOPE:-}"       # count | theta | both
 export BANKRUN_SEEDING="${BANKRUN_SEEDING:-}"                 # task | common (2026-10-22)
 export BANKRUN_N_INIT="${BANKRUN_N_INIT:-}"                   # 1 | 5 | 25
+export BANKRUN_WITHDRAW="${BANKRUN_WITHDRAW:-}"               # all | partial (2026-10-22)
+export BANKRUN_PARTIAL_MIN_SHARE="${BANKRUN_PARTIAL_MIN_SHARE:-}"
 
 module load julia/1.8.0
 
@@ -133,6 +135,7 @@ echo "decision: tiebreak=${BANKRUN_TIEBREAK:-legacy} belief=${BANKRUN_BELIEF:-ge
 echo "signals: publicMode=${BANKRUN_PUBLIC_MODE:-markup} publicRefresh=${BANKRUN_PUBLIC_REFRESH:-0} privateSignal=${BANKRUN_PRIVATE_SIGNAL:-none} privateNoise=${BANKRUN_PRIVATE_NOISE:-5} stayReturn=${BANKRUN_STAY_RETURN:-1}"
 echo "balance: payoff=${BANKRUN_PAYOFF:-full} balance=${BANKRUN_BALANCE:-vault} fireDiscount=${BANKRUN_FIRE_DISCOUNT:-0.25} equity=${BANKRUN_EQUITY:-0.10} fundamental=${BANKRUN_FUNDAMENTAL:-none} return=[${BANKRUN_RETURN_LO:-0.9}, ${BANKRUN_RETURN_HI:-1.3}] thetaNoise=${BANKRUN_THETA_NOISE:-0.10}"
 echo "theta public: mode=${BANKRUN_THETA_PUBLIC:-none} level=${BANKRUN_THETA_PUBLIC_LEVEL:-0.6} gap=${BANKRUN_THETA_PUBLIC_GAP:-0.0} rho=${BANKRUN_THETA_PUBLIC_RHO:-1.0} noise=${BANKRUN_THETA_PUBLIC_NOISE:-0.10} lambdaScope=${BANKRUN_LAMBDA_SCOPE:-count}"
+echo "withdraw: mode=${BANKRUN_WITHDRAW:-all} partialMinShare=${BANKRUN_PARTIAL_MIN_SHARE:-0.01}"
 echo "reserve=$reserve depq=$depq sigma=$sigma k=$k p=$p alpha=$alpha mu=$mu"
 echo "lambdaI=$lambdaI lambdaC=$lambdaC  genSeed=$GEN_SEED  seeding=${BANKRUN_SEEDING:-task} nInit=${BANKRUN_N_INIT:-5}"
 echo "outdir=${TASK_DIR}"

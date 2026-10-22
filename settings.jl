@@ -54,6 +54,13 @@ const SWITCH_DEFAULTS = (
     # Seeding and allocation (2026-10-22; parameterGen.jl, scripts/sweep_task.slurm).
     SEEDING          = "task",       # task: GEN_SEED = SEED_OFFSET + array index (each cell its own banks); common: GEN_SEED = SEED_OFFSET in every cell, seeds from their own stream (same banks and θ in every cell)
     N_INIT           = 5,            # initialisations per cell (1, 5 or 25), each run 250 / N_INIT times
+    # Partial withdrawals (2026-10-22; decision by the user): all = the whole
+    # balance or nothing (published); partial = a fraction of the remaining
+    # balance, chosen from {0, ¼, ½, ¾, 1} by expected value (functions4.jl,
+    # chooseFraction). Only agents whose balance exceeds PARTIAL_MIN_SHARE of the
+    # bank's current period-1 capacity evaluate the interior fractions.
+    WITHDRAW         = "all",
+    PARTIAL_MIN_SHARE = 0.01,
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -74,6 +81,7 @@ const THETA_PUBLIC_CHOICES = ("none", "stale", "tracks")
 const LAMBDA_SCOPE_CHOICES = ("count", "theta", "both")
 const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
+const WITHDRAW_CHOICES     = ("all", "partial")
 
 """The combinations of switches the model refuses, as an error message (or
 nothing). Checked when the switches are parsed, so a sweep fails at startup, and
@@ -97,6 +105,16 @@ function switchComboError(sw)
     # (modelRun passes only the switches it checks; N_INIT is checked at parse time)
     !hasproperty(sw, :N_INIT) || sw.N_INIT in N_INIT_CHOICES ||
         return "BANKRUN_N_INIT must be one of $(join(N_INIT_CHOICES, "|")) (250 runs per cell)"
+    # Partial withdrawals need the fire-sale bank's recovery payoff, and decisions
+    # that see current balances (a snapshot would hold balances already withdrawn).
+    if hasproperty(sw, :WITHDRAW) && sw.WITHDRAW == "partial"
+        sw.BALANCE != "firesale" &&
+            return "BANKRUN_WITHDRAW=partial needs BANKRUN_BALANCE=firesale"
+        !sw.FRESH_CLONE &&
+            return "BANKRUN_WITHDRAW=partial needs BANKRUN_FRESH_CLONE=true"
+        sw.PUBLIC_MODE == "stale" &&
+            return "BANKRUN_WITHDRAW=partial is not built for BANKRUN_PUBLIC_MODE=stale"
+    end
     sw.RETURN_HI < sw.RETURN_LO &&
         return "BANKRUN_RETURN_HI must be at least BANKRUN_RETURN_LO"
     return nothing
@@ -174,6 +192,8 @@ function parseSwitchesFromEnv()
           LAMBDA_SCOPE       = envChoice("BANKRUN_LAMBDA_SCOPE", D.LAMBDA_SCOPE, LAMBDA_SCOPE_CHOICES),
           SEEDING          = envChoice("BANKRUN_SEEDING", D.SEEDING, SEEDING_CHOICES),
           N_INIT           = envInt("BANKRUN_N_INIT", D.N_INIT, 1, 25),
+          WITHDRAW         = envChoice("BANKRUN_WITHDRAW", D.WITHDRAW, WITHDRAW_CHOICES),
+          PARTIAL_MIN_SHARE = envFloat("BANKRUN_PARTIAL_MIN_SHARE", D.PARTIAL_MIN_SHARE, 0.0, 1.0),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)

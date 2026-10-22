@@ -139,6 +139,9 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #                           BANKRUN_THETA_PUBLIC_NOISE is the noise agents attribute to y.
 #   BANKRUN_LAMBDA_SCOPE    count|theta|both  which blend λ weights (count =
 #                           published); the other uses the population mean λ̄.
+#   BANKRUN_WITHDRAW        all|partial  the whole balance or nothing (published), or a
+#                           fraction of it in {0, ¼, ½, ¾, 1} (2026-10-22); agents above
+#                           BANKRUN_PARTIAL_MIN_SHARE of current capacity value the fractions.
 # Since 2026-10-20 BANKRUN_FIX_DOUBLE_COUNT defaults to true; =false reproduces
 # the published model.
 # Defaults and parsing live in settings.jl (SWITCH_DEFAULTS, parseSwitchesFromEnv).
@@ -190,6 +193,7 @@ println("balance: payoff=", SWITCHES.PAYOFF, " balance=", SWITCHES.BALANCE,
 println("theta public: mode=", SWITCHES.THETA_PUBLIC, " level=", SWITCHES.THETA_PUBLIC_LEVEL,
         " gap=", SWITCHES.THETA_PUBLIC_GAP, " rho=", SWITCHES.THETA_PUBLIC_RHO,
         " noise=", SWITCHES.THETA_PUBLIC_NOISE, " lambdaScope=", SWITCHES.LAMBDA_SCOPE)
+println("withdraw: mode=", SWITCHES.WITHDRAW, " partialMinShare=", SWITCHES.PARTIAL_MIN_SHARE)
 println("output: log=", LOG)
 
 @everywhere include("objects.jl")
