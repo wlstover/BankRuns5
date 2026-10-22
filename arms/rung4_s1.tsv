@@ -1,13 +1,13 @@
 # Rung 4, S1-S4 (2026-10-22): the size gradient of exit and the stylized facts.
 # docs/rung4_prereg.md (S1 decided by the user; S2-S4 drafted for review).
-# The rung-1 reference setting under WITHDRAW=partial, no public signal
-# (THETA_PUBLIC=none, S1 primary), uninsured; sigma 2.5 (primary) and sigma 1
-# (S1's control: little or no gradient expected). Same seed offset as r1t/r1p, so
-# r4-s1-s25 pairs with r1p-none run for run.
+# The reference setting is the rung-1 bank under WITHDRAW=partial and CARA 0.1
+# (the user, 2026-10-22), no public signal (S1 primary), uninsured. Sigma 2.5,
+# S1's primary arm, is r1c-none in arms/rung1_cara.tsv (the same switches), so
+# it is not repeated here. This file holds sigma 1, S1's control (little or no
+# gradient expected); same seed offset, so it pairs with r1c-none run for run.
 # Outputs used: consolidated_exitshape.csv (S1), consolidated_neighbour.csv (S3),
 # consolidated_types.csv and consolidated_wealth.csv (S2b, S4).
 # S2a (insured vs uninsured) needs insured arms: the fire-sale sweep.
 #
 # tag	switches	run_all.sh flags
-r4-s1-s25	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_LAMBDA_SCOPE=both BANKRUN_WITHDRAW=partial	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
-r4-s1-s10	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_LAMBDA_SCOPE=both BANKRUN_WITHDRAW=partial	--grid reference --sigma 1 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r4-s1-s10	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_LAMBDA_SCOPE=both BANKRUN_WITHDRAW=partial BANKRUN_CARA=0.1	--grid reference --sigma 1 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00

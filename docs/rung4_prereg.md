@@ -1,6 +1,6 @@
 # Rung 4 pre-registration: OUTLINE (started 2026-10-22)
 
-Status: S1 decided by the user 2026-10-22 (below); prose by the user. Rung 4 is Ch 2
+Status: S1 decided by the user 2026-10-22 (below; under CARA 0.1); prose by the user. Rung 4 is Ch 2
 indirect calibration (pilot_map feature list F13–F15): Ch 2 evaluates the ABM, it never
 shapes it, so every statistic is fixed here before the arms that test it run.
 Statistics: S1, the one-shot exit share by depositor size (F12); S2–S4, stylized
@@ -55,8 +55,14 @@ Known asymmetries, stated now:
   reported (prediction: little or no gradient, since no depositor moves the bank).
 - [x] **Decided (user):** primary arm has no public signal (THETA_PUBLIC=none), so
   the size gradient is not mixed with the y effects.
+- [x] **Decided (user, 2026-10-22): CARA 0.1** (BANKRUN_CARA; pilot_map F12b).
+  Risk-neutral depositors never split (r1p), so S1 is run under CARA. The value
+  was chosen from the smoke's P(fail), D and splitting counts, before any
+  statistic by size (S1, S2b) was looked at.
+- Primary arm (sigma 2.5): **r1c-none** in arms/rung1_cara.tsv (the same
+  switches); sigma 1: r4-s1-s10 in arms/rung4_s1.tsv.
 - These arms run **after** this file is decided and the output below is built.
-  r1p-* (submitted 2026-10-22) does not record S1, and is not used for it.
+  r1p-* does not record S1, and is not used for it.
 
 ### Output (built 2026-10-22)
 `bankRunExitShape` (functions4.jl exitShapeRows; `consolidated_exitshape.csv`): per
