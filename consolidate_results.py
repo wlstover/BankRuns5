@@ -153,10 +153,6 @@ DOCK_FILES = {
     # BANKRUN_LAMBDA_SCOPE != count): the public signal at tick 1, its gap
     # y - theta (NaN with no public signal) and the population mean lambda.
     "thetapublic": ("bankRunThetaPublic", False, ["theta", "y1", "gap1", "lambdaBar"]),
-    # Partial withdrawals (2026-10-22, BANKRUN_WITHDRAW = partial): agents who
-    # withdrew anything, those still banked with part of their balance, partial
-    # withdrawals made, decisions that valued the interior fractions, the share
-    # of deposits withdrawn, and the share the largest depositor withdrew.
     # Decisions and withdrawals by the share of neighbours already out
     # (2026-10-22, fire-sale runs; functions4.jl neighbourRows, NB_BINS).
     "neighbour": ("bankRunNeighbour", True,
@@ -166,6 +162,11 @@ DOCK_FILES = {
     "exitshape": ("bankRunExitShape", True,
                   [f"{f}_{g}" for g in [f"d{j}" for j in range(1, 11)] + ["top1", "top01"]
                    for f in ("n", "exit", "oneshot", "partial")]),
+    # Partial withdrawals (2026-10-22, BANKRUN_WITHDRAW = partial): agents who
+    # withdrew anything, those still banked with part of their balance, partial
+    # withdrawals made, decisions that valued the interior fractions by
+    # re-simulating (large depositors), the share of deposits withdrawn, and the
+    # share the largest depositor withdrew.
     "partial": ("bankRunPartial", False,
                 ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
                  "largestFracWithdrawn"]),
@@ -187,6 +188,7 @@ SWITCH_FILES = {
     "bankRunThetaPublicParams": ["theta_public", "theta_public_level", "theta_public_gap",
                                  "theta_public_rho", "theta_public_noise", "lambda_scope"],
     "bankRunWithdrawParams": ["withdraw", "partial_min_share"],
+    "bankRunRiskParams":     ["cara"],
 }
 # An empty manifest field means "the default at submission time". The
 # FIX_DOUBLE_COUNT default changed on 2026-10-20 (false -> true), so an empty
@@ -259,6 +261,7 @@ def switch_file_required(prefix, e, defaults):
         "bankRunBalanceParams":  ["payoff", "balance", "fundamental"],
         "bankRunThetaPublicParams": ["theta_public", "lambda_scope"],
         "bankRunWithdrawParams": ["withdraw"],
+        "bankRunRiskParams":     ["cara"],
     }[prefix]
     if any(e[c] is None for c in need):
         return None
@@ -278,6 +281,8 @@ def switch_file_required(prefix, e, defaults):
         return e["theta_public"] != d["theta_public"] or e["lambda_scope"] != d["lambda_scope"]
     if prefix == "bankRunWithdrawParams":
         return e["withdraw"] == "partial"
+    if prefix == "bankRunRiskParams":
+        return e["cara"] > 0
     return e["stay_return"] != d["stay_return"]
 
 

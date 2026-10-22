@@ -11,8 +11,9 @@
 #   B. afterOwnWithdrawal on a hand-computed fire sale.
 #   C. Identity: with nobody above the size cutoff, partial reproduces all run
 #      for run (results, who-runs summary, timing, balance sheet).
-#   D. Large depositors: partial withdrawals happen, the books balance, and the
-#      original deposits are restored for the outputs.
+#   D. Partial withdrawals (under CARA; risk neutral makes none, see
+#      test_cara.jl C): the books balance, and the original deposits are
+#      restored for the outputs.
 #   E. The size cutoff: PARTIAL_MIN_SHARE = 0.01 makes the same decisions as no
 #      cutoff (every agent values the interior fractions).
 #   F. Refused combinations.
@@ -130,8 +131,8 @@ end
 end
 
 # ---------------------------------------------------------------- D
-@testset "D. large depositors withdraw partially; the books balance" begin
-    m, out = arm(:D; WITHDRAW="partial", n_seeds=40)
+@testset "D. partial withdrawals (CARA): the books balance" begin
+    m, out = arm(:D; WITHDRAW="partial", CARA=1.0, n_seeds=40)
     pr = readcsv(m, "bankRunPartial1.csv")
     rename!(pr, [:key, :nAnyOut, :nStillIn, :nPartial, :nBig, :share, :largestFrac])
     @test sum(pr.nBig) > 0

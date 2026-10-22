@@ -61,6 +61,11 @@ const SWITCH_DEFAULTS = (
     # bank's current period-1 capacity evaluate the interior fractions.
     WITHDRAW         = "all",
     PARTIAL_MIN_SHARE = 0.01,
+    # Risk aversion (2026-10-22; the user): 0 = risk neutral (published). > 0 =
+    # CARA utility −exp(−a·w), a = CARA / mean initial deposit, so the depositor
+    # holding the mean deposit has a·b = CARA (functions4.jl ceValue). Fire-sale
+    # bank only; with WITHDRAW = partial every agent values the fractions.
+    CARA             = 0.0,
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -115,6 +120,8 @@ function switchComboError(sw)
         sw.PUBLIC_MODE == "stale" &&
             return "BANKRUN_WITHDRAW=partial is not built for BANKRUN_PUBLIC_MODE=stale"
     end
+    hasproperty(sw, :CARA) && sw.CARA > 0.0 && sw.BALANCE != "firesale" &&
+        return "BANKRUN_CARA > 0 needs BANKRUN_BALANCE=firesale"
     sw.RETURN_HI < sw.RETURN_LO &&
         return "BANKRUN_RETURN_HI must be at least BANKRUN_RETURN_LO"
     return nothing
@@ -194,6 +201,7 @@ function parseSwitchesFromEnv()
           N_INIT           = envInt("BANKRUN_N_INIT", D.N_INIT, 1, 25),
           WITHDRAW         = envChoice("BANKRUN_WITHDRAW", D.WITHDRAW, WITHDRAW_CHOICES),
           PARTIAL_MIN_SHARE = envFloat("BANKRUN_PARTIAL_MIN_SHARE", D.PARTIAL_MIN_SHARE, 0.0, 1.0),
+          CARA             = envFloat("BANKRUN_CARA", D.CARA, 0.0, 1.0e6),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)

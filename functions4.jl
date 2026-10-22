@@ -684,10 +684,29 @@ function simulateStay(s::SubState, agt::Agent, withdrawnNeighbors::Array{Agent},
                                          skipWithdrawn=skipWithdrawn)[1] for k in eachindex(additionalWithdrawals)]
         return mean(paid) / agt.deposit
     end
-    pay = Float64[subModelRunSparse(s, agt, withdrawnNeighbors, additionalWithdrawals[k];
-                                    skipWithdrawn=skipWithdrawn, terminalReturn=returns[k],
-                                    stayReturn=stayReturn)[1] for k in eachindex(additionalWithdrawals)]
+    pay = stayDraws(s, agt, withdrawnNeighbors, additionalWithdrawals;
+                    skipWithdrawn=skipWithdrawn, returns=returns, stayReturn=stayReturn)
     return mean(pay) / (stayReturn * agt.deposit)
+end
+
+# The fire-sale bank's stayer payoff to the focal agent in each sub-simulation
+# draw (an amount, R per unit if the bank survives): simulateStay's mean, and the
+# distribution CARA values (BANKRUN_CARA).
+function stayDraws(s::SubState, agt::Agent, withdrawnNeighbors::Array{Agent},
+                   additionalWithdrawals; skipWithdrawn::Bool, returns, stayReturn::Float64)
+    return Float64[subModelRunSparse(s, agt, withdrawnNeighbors, additionalWithdrawals[k];
+                                     skipWithdrawn=skipWithdrawn, terminalReturn=returns[k],
+                                     stayReturn=stayReturn)[1] for k in eachindex(additionalWithdrawals)]
+end
+
+# Risk aversion (BANKRUN_CARA, 2026-10-22; the user): u(w) = −exp(−a·w), with
+# absolute risk aversion a = CARA / (the bank's mean initial deposit), so a
+# depositor holding the mean deposit has a·b = CARA. The certainty equivalent of
+# payoffs w over equally likely draws (shifted by the smallest, so no overflow).
+# As a → 0 it is mean(w), the risk-neutral value.
+function ceValue(w::AbstractVector{Float64}, a::Float64)
+    m = minimum(w)
+    return m - log1p(mean(expm1.(-a .* (w .- m)))) / a     # log1p/expm1: exact as a → 0
 end
 
 # The value of withdrawing now (withdraw()'s payout rule on the decision state,
@@ -781,11 +800,19 @@ function partialValue(s::SubState, agt::Agent, f::Float64, withdrawnNeighbors::A
                       additionalWithdrawals; skipWithdrawn::Bool, returns, stayReturn::Float64)
     b = s.deposits[agt.idx]
     sf, paid = afterOwnWithdrawal(s, agt.idx, f * b)
+    sf.vault < 0.0 && return -Inf        # drains the bank (see above chooseFraction)
     stay = simulateStay(sf, agt, withdrawnNeighbors, additionalWithdrawals;
                         skipWithdrawn=skipWithdrawn, payoff="recovery", returns=returns,
                         stayReturn=stayReturn)
     return paid / b + stayReturn * stay
 end
+
+# A fraction the bank cannot pay in full fails it, and pays the depositor what
+# the bank has, as withdrawing everything would (with insurance, no more:
+# tests/test_partial.jl G). Such a fraction is not offered (V = −Inf), so a
+# withdrawal that fails the bank is a full one. Until 2026-10-22 the tie went to
+# the smallest such fraction, which recorded the run's failing withdrawal as a
+# partial one (r1p: the only partial withdrawals under risk neutrality).
 
 # The best fraction: the largest V on the grid, ties to the smaller fraction.
 # With no interior values this is decide() (strict comparison), and the
@@ -875,6 +902,7 @@ function modelRun(mod::Model; record=nothing)
     lambdaScope   = switchValue(:LAMBDA_SCOPE)
     partial       = switchValue(:WITHDRAW) == "partial"
     partialMin    = switchValue(:PARTIAL_MIN_SHARE)
+    caraGamma     = switchValue(:CARA)
     publicStale = publicMode == "stale"
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
     privatePost = privateSignal == "shock" ?
@@ -886,7 +914,7 @@ function modelRun(mod::Model; record=nothing)
                                  FRESH_CLONE=freshClone, PAYOFF=payoffMode, BALANCE=balanceMode,
                                  FUNDAMENTAL=fundamental, PRIVATE_SIGNAL=privateSignal,
                                  RETURN_LO=returnLo, RETURN_HI=returnHi, THETA_PUBLIC=thetaPublic,
-                                 WITHDRAW=switchValue(:WITHDRAW)))
+                                 WITHDRAW=switchValue(:WITHDRAW), CARA=caraGamma))
     comboErr === nothing || error(comboErr)
     # Insurance under partial withdrawals is a cumulative quantile cap
     # (afterOwnWithdrawal). The adaptive scheme's cap, the largest deposit
@@ -1007,6 +1035,12 @@ function modelRun(mod::Model; record=nothing)
     anyOut = falses(partial ? nAgents : 0)
     partial && for a in exogList; anyOut[a.idx] = true; end
     nPartialEvents, nBigDecisions = 0, 0
+    # CARA (2026-10-22): absolute risk aversion, scaled by the mean initial deposit.
+    caraA = caraGamma > 0.0 ? caraGamma / mean(a.deposit for a in mod.agtList) : 0.0
+    if caraGamma > 0.0
+        CSV.write(dataDir*"/"*"bankRunRiskParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, cara=caraGamma), writeheader=false, append=true)
+    end
     if partial
         CSV.write(dataDir*"/"*"bankRunWithdrawParams"*string(workerCore)*".csv",
                   DataFrame(key=mod.key, withdraw="partial", partialMinShare=partialMin),
@@ -1090,14 +1124,45 @@ function modelRun(mod::Model; record=nothing)
                 returnOf.(rand(beliefRng, thetaBelief(thetaSignal[agt.idx], thetaNoise, yNow, ωθ,
                                                       thetaPubNoise), depth))
             rngBefore = partial ? copy(Random.default_rng()) : nothing
-            probFullDepositStay = simulateStay(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
-                                               skipWithdrawn=skipWithdrawn, payoff=payoffMode,
-                                               returns=returns, stayReturn=stayReturn)
+            payStay = caraA > 0.0 ?
+                stayDraws(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
+                          skipWithdrawn=skipWithdrawn, returns=returns, stayReturn=stayReturn) : nothing
+            probFullDepositStay = payStay !== nothing ? mean(payStay) / (stayReturn * agt.deposit) :
+                simulateStay(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
+                             skipWithdrawn=skipWithdrawn, payoff=payoffMode,
+                             returns=returns, stayReturn=stayReturn)
             probFullDepositWD = payoffIfWithdrawNow(decisionState, agt; recovery=payoffMode == "recovery")
             withdrew = decide(probFullDepositWD, probFullDepositStay; tiebreak=tiebreak,
                               stayReturn=stayReturn)
             frac = withdrew ? 1.0 : 0.0
-            if partial && agt.deposit > partialMin * capacityOf(decisionState)
+            if caraA > 0.0
+                # CARA: certainty equivalents per unit of balance. Staying values
+                # the stay draws; withdrawing all is paid for sure. Under partial,
+                # every agent values the interior fractions (risk aversion can
+                # make even a small depositor hedge). A large one (above the
+                # cutoff) moves the bank, so each fraction is re-simulated on the
+                # same draws, as in the risk-neutral rule; a small one does not,
+                # so the fraction's stay draws are the balance left in times
+                # staying's, and the fraction is paid in full.
+                b = agt.deposit
+                big = partial && b > partialMin * capacityOf(decisionState)
+                big && (nBigDecisions += 1)
+                rngAfter = big ? copy(Random.default_rng()) : nothing
+                vInterior = !partial ? () : map(PARTIAL_GRID) do f
+                    sf, paid = afterOwnWithdrawal(decisionState, agt.idx, f * b)
+                    sf.vault < 0.0 && return -Inf
+                    pay = big ? (copy!(Random.default_rng(), rngBefore);
+                                 stayDraws(sf, agt, withdrawnNeighbors, additionalWithdrawals;
+                                           skipWithdrawn=skipWithdrawn, returns=returns,
+                                           stayReturn=stayReturn)) :
+                                (1.0 - f) .* payStay
+                    ceValue(paid .+ pay, caraA) / b
+                end
+                big && copy!(Random.default_rng(), rngAfter)
+                frac = chooseFraction(ceValue(payStay, caraA) / b, probFullDepositWD, vInterior;
+                                      tiebreak=tiebreak, pStay=probFullDepositStay)
+                withdrew = frac > 0.0
+            elseif partial && agt.deposit > partialMin * capacityOf(decisionState)
                 nBigDecisions += 1
                 rngAfter = copy(Random.default_rng())
                 vInterior = map(PARTIAL_GRID) do f

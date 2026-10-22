@@ -40,7 +40,8 @@ tie-break, geometric belief, R = 1.
 | cal (2026-10-22) | `calib_d_scan.tsv` | at sigma 2.5, where do liquidity and insolvency failures sit in r x d? | d is the lever; r 0.05, d 0.6 has the widest coordination band (21%) over a small whale floor (4.7%) (F10). cal-r05-d60 reproduces p3-s25-theta-s10 run for run |
 | r1t (2026-10-22) | `rung1_theta.tsv` | relational equivalence: do Ch 1's G1-G4 signs hold with stale y on the fire-sale bank? | **3 of 4 confirmatory tests support** (G1', G4', G2a'; G2b ordering holds). Pre-registered G3 counts against: it passes Holm pooled (p 0.034) but (0.3, 0.5) is wrong-signed (t -2.5); the channel-isolated G3c (post hoc) passes in every pair. corrects-y80-r50 sorts between stale and tracks and fades by tick 4 (F11) |
 | whales (2026-10-22) | `bank_runs_celsius` deposit_concentration (sec. 4), whale_timing | can one depositor sink the platform, and how do large accounts exit? | no (largest account 0.94%, largest user-day 0.69%); exits grow more gradual with size (one-shot 85% small -> 35% top 0.1%). ABM: partial withdrawals (F12) |
-| r1p (built 2026-10-22) | `rung1_partial.tsv` | do rung 1's signs survive partial withdrawals? | not run yet |
+| r1p (2026-10-22) | `rung1_partial.tsv` | do rung 1's signs survive partial withdrawals? | trivially: risk-neutral depositors never split, so head-count D, failure and the withdrawers match r1t run for run (F12b) |
+| cara smoke (2026-10-22) | `scripts/cara_smoke.sh` (local, 75 runs per value) | does CARA make large depositors split, and at what cost to fragility? | yes from CARA 0.1; P(fail) rises with CARA, D does not move (F12b) |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -277,7 +278,40 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
 - Test sample (tests/test_partial.jl, N = 60, sigma 2.5): of endogenous
   withdrawals by depositors holding > 10% of deposits, 11 of 25 were partial (mean
   fraction 0.85); none below the 1%-of-capacity cutoff, and the cutoff makes the
-  same decisions as none in 30 of 30 runs.
+  same decisions as none in 30 of 30 runs. *(Corrected in F12b: these were the
+  failing withdrawal's tie, not real splits.)*
+
+**F12b. Risk-neutral depositors never split; CARA makes them (2026-10-22).**
+- r1p (10 arms, 37,500 runs paired with r1t): about 5.7M large-depositor decisions
+  valued the interior fractions and none chose one, except on the withdrawal
+  that fails the bank. There every fraction from some f up drains the bank and
+  pays what the bank has, and the tie went to the smallest. So the number of
+  withdrawers and failure match r1t in every run, and the head-count rung-1 tests
+  equal F11's to four decimals. D$ differed only through that recorded amount.
+- Why: risk-neutral value V(f) = f + R(1-f)P(f), with P(f) the chance the rest is
+  paid after withdrawing f. A large depositor's own withdrawal forces fire
+  sales, so P falls in f and V lies on or below the chord from V(0) to V(1):
+  all or nothing. Splitting needs a hedging motive.
+- Built: a fraction the bank cannot pay in full is no longer offered, so the
+  failing withdrawal is a full one, and risk-neutral partial now makes exactly
+  all's withdrawals (tests/test_cara.jl C). **BANKRUN_CARA** = gamma: CARA utility
+  with a = gamma / mean initial deposit, so a depositor holding the mean deposit
+  has a*b = gamma (sigma 2.5: median a*b ~ 0.04 gamma; the largest ~170 gamma).
+  Under partial every agent values the fractions; agents above the cutoff
+  re-simulate each fraction, and the rest scale their stay draws.
+- Smoke (`scripts/cara_smoke.sh`, reference bank, uninsured, no public signal,
+  mu 0.25/0.5/0.75 x lambda (0.1, 0.9), 25 banks, same banks at every value):
+
+  | CARA | P(fail) | W_I | W_C | D | deposits out | partial per run | runs with one | failure changed vs 0 |
+  |---|---|---|---|---|---|---|---|---|
+  | 0   | 0.293 | 0.101 | 0.207 | -0.106 | 0.143 | 0    | 0    | - |
+  | 0.1 | 0.360 | 0.130 | 0.233 | -0.103 | 0.178 | 0.59 | 0.36 | 0.067 (5 runs, theta 0.37-0.47) |
+  | 0.3 | 0.427 | 0.158 | 0.260 | -0.102 | 0.204 | 1.43 | 0.49 | 0.133 (10; two at theta 0.68, 0.90) |
+  | 1   | 0.520 | 0.191 | 0.287 | -0.096 | 0.244 | 3.57 | 0.69 | 0.227 (17; five at theta >= 0.68) |
+
+  (CARA 0.01 at 18 runs: identical to 0.) Every change adds a failure; none
+  removes one. Sorting D is flat in CARA. Not looked at: splitting or
+  withdrawal by size (rung-4 S1, S2b), so that CARA is chosen before them.
 
 ## Implications for the systematic sweep (draft)
 

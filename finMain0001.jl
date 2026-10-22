@@ -142,6 +142,8 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #   BANKRUN_WITHDRAW        all|partial  the whole balance or nothing (published), or a
 #                           fraction of it in {0, ¼, ½, ¾, 1} (2026-10-22); agents above
 #                           BANKRUN_PARTIAL_MIN_SHARE of current capacity value the fractions.
+#   BANKRUN_CARA            0 = risk neutral (published); > 0 = CARA utility, absolute
+#                           risk aversion CARA / mean initial deposit (2026-10-22).
 # Since 2026-10-20 BANKRUN_FIX_DOUBLE_COUNT defaults to true; =false reproduces
 # the published model.
 # Defaults and parsing live in settings.jl (SWITCH_DEFAULTS, parseSwitchesFromEnv).
@@ -194,6 +196,7 @@ println("theta public: mode=", SWITCHES.THETA_PUBLIC, " level=", SWITCHES.THETA_
         " gap=", SWITCHES.THETA_PUBLIC_GAP, " rho=", SWITCHES.THETA_PUBLIC_RHO,
         " noise=", SWITCHES.THETA_PUBLIC_NOISE, " lambdaScope=", SWITCHES.LAMBDA_SCOPE)
 println("withdraw: mode=", SWITCHES.WITHDRAW, " partialMinShare=", SWITCHES.PARTIAL_MIN_SHARE)
+println("risk: cara=", SWITCHES.CARA)
 println("output: log=", LOG)
 
 @everywhere include("objects.jl")
