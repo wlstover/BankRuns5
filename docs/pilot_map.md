@@ -353,8 +353,10 @@ institutional lever, and whatever model support the outline's learning section n
   signals, withdrawing the share of members who run. Sigma matched to the
   platform's top shares (F12: 3.15 jointly). Interest, not on the critical path.
 - Partial withdrawals: a finer grid than {0, 1/4, 1/2, 3/4, 1} if results hinge on
-  where "just short of tipping the bank" falls; a cumulative insurance cap so
-  partial runs can be insured (refused today).
+  where "just short of tipping the bank" falls. Insurance under partial is a
+  cumulative quantile cap (built 2026-10-22: a withdrawal the bank cannot pay in
+  full uses cover equal to all it pays; bank-paid withdrawals use none). The
+  adaptive scheme stays refused under partial (user).
 
 - ~~Phase 3 gate~~ done: PASS (F9). It was (`arms/phase3_firesale_gate.tsv`, 2026-10-21): the fire-sale bank
   (BALANCE=firesale, PAYOFF=recovery, FUNDAMENTAL=theta; r 0.05, d 0.6, e 0.06,

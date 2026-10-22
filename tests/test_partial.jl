@@ -16,6 +16,9 @@
 #   E. The size cutoff: PARTIAL_MIN_SHARE = 0.01 makes the same decisions as no
 #      cutoff (every agent values the interior fractions).
 #   F. Refused combinations.
+#   G. Cumulative insurance: a fraction that fails the bank uses the cover it is
+#      paid; splitting never recovers more than withdrawing at once; insured
+#      partial runs keep their books.
 ################################################################################
 
 using Test
@@ -54,12 +57,12 @@ const FIRE = (BALANCE="firesale", PAYOFF="recovery", STAY_RETURN=1.1, FUNDAMENTA
 
 # Runs n_seeds banks through runRow's pieces; returns the module and, per run,
 # (result tuple, record, model, isI).
-function arm(name; n_seeds=30, σ=2.5, kw...)
+function arm(name; n_seeds=30, σ=2.5, insurance=0.0, kw...)
     m = load_model(name)
     setsw!(m; FIRE..., kw...)
     out = Base.invokelatest() do
         map(1:n_seeds) do s
-            mod = build(m, s; σ=σ)
+            mod = build(m, s; σ=σ, insurance=insurance)
             rec = m.RunRecord()
             r = m.modelRun(mod; record=rec)
             (r, rec, mod, [a.individualism < 0.5 for a in mod.agtList])
@@ -91,7 +94,7 @@ end
     m = load_model(:B)
     # vault 10, long asset 100, d 0.5, deposits [40, 20, 50]; agent 1 takes 30.
     s = Base.invokelatest(m.SubState, 10.0, [40.0, 20.0, 50.0], BitVector([1, 1, 1]), [1, 2, 3],
-                          0, -Inf, false, 0.0, 100.0, 0.5, 110.0)
+                          0, -Inf, false, 0.0, 100.0, 0.5, 110.0, 0.0)
     s2, paid = Base.invokelatest(m.afterOwnWithdrawal, s, 1, 30.0)
     @test paid == 30.0
     @test s2.illiquid ≈ 100.0 - 20.0 / 0.5                  # sells 40 face for 20 cash
@@ -173,6 +176,52 @@ end
     @test occursin("FRESH_CLONE", err(merge(base, (FRESH_CLONE=false,))))
     @test occursin("stale", err(merge(base, (PUBLIC_MODE="stale",))))
     setsw!(m; FIRE..., WITHDRAW="partial")
-    mod = Base.invokelatest(build, m, 1; insurance=0.5)
+    mod = Base.invokelatest(build, m, 1; insurance=1.5)        # adaptive scheme: refused
     @test_throws ErrorException Base.invokelatest(m.modelRun, mod)
+end
+
+# ---------------------------------------------------------------- G
+@testset "G. cumulative insurance" begin
+    m = load_model(:G)
+    S(v, deps, ill, cap) = Base.invokelatest(m.SubState, v, deps, BitVector(ones(Bool, length(deps))),
+                                             collect(1:length(deps)), 0, -Inf, false, cap, ill, 0.5,
+                                             sum(deps), 0.0)
+    after(s, i, a) = Base.invokelatest(m.afterOwnWithdrawal, s, i, a)
+    # The remainder's stayer payoff when the bank has nothing left at period 2.
+    stay(s, agt) = Base.invokelatest(m.subModelRunSparse, s, agt, m.Agent[], 0;
+                                     skipWithdrawn=true, terminalReturn=1.0, stayReturn=1.0)[1]
+    # Hand case: vault 10, nothing to sell, deposits [100, 50], cap 30.
+    s = S(10.0, [100.0, 50.0], 0.0, 30.0)
+    agt = m.Agent(1, 100.0, true, 0.1)
+    s1, p1 = after(s, 1, 40.0)
+    @test p1 == 30.0 && s1.focalInsUsed == 30.0              # paid max(10, min(40, 30))
+    @test stay(s1, agt) == 0.0                               # the cap is spent
+    s2, p2 = after(s, 1, 100.0)
+    @test p2 == 30.0                                         # all at once: the same 30
+    # A fraction the bank pays in full uses no cover.
+    s3, p3 = after(s, 1, 5.0)
+    @test p3 == 5.0 && s3.focalInsUsed == 0.0
+    # Property: where insurance is all a depositor can recover (nothing left to
+    # sell, every fraction fails the bank), a fraction plus the cover left on the
+    # remainder never beats withdrawing everything at once.
+    rng = MersenneTwister(7)
+    for _ in 1:2000
+        b, v, cap = 50 + 100rand(rng), 10rand(rng), 120rand(rng)
+        st = S(v, [b, 50.0], 0.0, cap)
+        a1 = m.Agent(1, b, true, 0.1)
+        _, pAll = after(st, 1, b)
+        for f in (0.25, 0.5, 0.75)
+            sf, pf = after(st, 1, f * b)
+            @test pf + stay(sf, a1) <= pAll + 1e-9
+        end
+    end
+    # Insured partial runs: the books balance and at most one withdrawal per run
+    # falls short of its amount (the one that fails the bank, and it is last).
+    mi, oi = arm(:Gi; WITHDRAW="partial", n_seeds=30, insurance=0.5)
+    for o in oi
+        rec = o[2]
+        short = [k for k in (rec.nExog + 1):length(rec.order) if rec.paid[k] < rec.amount[k] - 1e-9]
+        @test length(short) <= 1
+        isempty(short) || @test short[1] == length(rec.order)
+    end
 end

@@ -438,6 +438,8 @@ struct SubState
     illiquid::Float64               # long asset, face units (firesale; 0 in the vault bank)
     discount::Float64               # fire-sale discount d
     bankedDep::Float64              # deposits of the banked agents, summed in agent order
+    focalInsUsed::Float64           # insurance already paid to the focal agent in this
+                                    # valuation (partial withdrawals; 0 otherwise)
 end
 
 # The state clone() would produce: banking list and history are the banked and
@@ -451,7 +453,7 @@ function SubState(agtList, vault::Float64, depositInsurance::Float64, depositDis
     return SubState(vault, deps, banked, [a.idx for a in agtList if a.banked],
                     length(out), isempty(out) ? -Inf : maximum(out), adaptive,
                     adaptive ? 0.0 : quantile(depositDistribution, depositInsurance),
-                    illiquid, discount, sum(a.deposit for a in agtList if a.banked; init=0.0))
+                    illiquid, discount, sum(a.deposit for a in agtList if a.banked; init=0.0), 0.0)
 end
 SubState(mod::simModel) = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution;
                                    illiquid=mod.theBank.illiquid, discount=switchValue(:FIRE_DISCOUNT))
@@ -501,6 +503,7 @@ function subModelRunSparse(s::SubState, agt::Agent, withdrawingAgents::Array{Age
         j += 1
     end
     cap = s.adaptive ? (nHist == 0 ? 0.0 : histMax) : s.quantileCap
+    cap -= s.focalInsUsed     # the focal agent's cover left (0.0 subtracted otherwise)
     dep = s.deposits[agt.idx]
     # Fire-sale bank: the focal agent stays to period 2 (Chapter 1's stay).
     if terminalReturn !== nothing
@@ -693,7 +696,7 @@ end
 # deposit) or 0.0; under payoff = recovery it is the share of the deposit paid.
 # Until 2026-10-15 it was recomputed `depth` times with identical results.
 function payoffIfWithdrawNow(s::SubState, agt::Agent; recovery::Bool=false)
-    cap = s.adaptive ? (s.nHistory == 0 ? 0.0 : s.histMax) : s.quantileCap
+    cap = (s.adaptive ? (s.nHistory == 0 ? 0.0 : s.histMax) : s.quantileCap) - s.focalInsUsed
     dep = s.deposits[agt.idx]
     vault = raiseCash(s.vault, s.illiquid, dep, s.discount)[1]
     received = dep > vault ? max(0.0, vault, min(dep, cap)) : dep
@@ -748,14 +751,25 @@ const PARTIAL_GRID = (0.25, 0.5, 0.75)
 
 # The decision state after the focal agent withdraws `a` now, and what it is
 # paid (withdraw()'s rule, after any fire sale).
+# Insurance is a cumulative quantile cap per depositor (2026-10-22, the user).
+# withdraw()'s rule, max(vault, min(claim, cap)), guarantees a depositor
+# min(claim, cap) in total, bank and insurer together, on the claim the bank
+# cannot pay. A withdrawal the bank pays in full uses no cover (cover applies to
+# the balance at failure); one it cannot pay uses cover equal to all it pays
+# the depositor, so the balance left in is covered only by the rest of the cap
+# (focalInsUsed) and splitting never recovers more than withdrawing at once
+# (tests/test_partial.jl G). In a run a shortfall only happens on the withdrawal
+# that fails the bank, after which the run stops, so the cap binds inside the
+# valuation: a fraction that tips the bank, then the balance left in.
 function afterOwnWithdrawal(s::SubState, idx::Int, a::Float64)
     vault, ill = raiseCash(s.vault, s.illiquid, a, s.discount)
-    cap = s.adaptive ? (s.nHistory == 0 ? 0.0 : s.histMax) : s.quantileCap
+    cap = s.quantileCap - s.focalInsUsed      # adaptive insurance is refused under partial
     paid = a > vault ? max(0.0, vault, min(a, cap)) : a
+    ins = a > vault ? paid : 0.0
     deps = copy(s.deposits)
     deps[idx] -= a
     return SubState(vault - a, deps, s.banked, s.bankedIdx, s.nHistory, s.histMax, s.adaptive,
-                    s.quantileCap, ill, s.discount, s.bankedDep - a), paid
+                    s.quantileCap, ill, s.discount, s.bankedDep - a, s.focalInsUsed + ins), paid
 end
 
 # The bank's period-1 capacity in a decision state: cash plus the long asset at
@@ -874,10 +888,11 @@ function modelRun(mod::Model; record=nothing)
                                  RETURN_LO=returnLo, RETURN_HI=returnHi, THETA_PUBLIC=thetaPublic,
                                  WITHDRAW=switchValue(:WITHDRAW)))
     comboErr === nothing || error(comboErr)
-    # Insurance per withdrawal would pay a partial withdrawer the cap again on
-    # every fraction; a cumulative cap is not built, so partial runs uninsured.
-    partial && !(insuranceCap(mod) == 0.0) &&
-        error("BANKRUN_WITHDRAW=partial needs an uninsured bank (deposit insurance quantile 0)")
+    # Insurance under partial withdrawals is a cumulative quantile cap
+    # (afterOwnWithdrawal). The adaptive scheme's cap, the largest deposit
+    # withdrawn so far, has no settled meaning with fractions: refused (the user).
+    partial && isnan(insuranceCap(mod)) &&
+        error("BANKRUN_WITHDRAW=partial needs quantile deposit insurance (0 <= q < 1), not the adaptive scheme")
     # Fire-sale bank and fundamental (2026-10-21). θ is drawn once per run, and
     # each agent's private signal of it once per run, from their own stream; the
     # agents' Monte Carlo draws of θ from another. Neither touches the main
