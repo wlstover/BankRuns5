@@ -35,6 +35,7 @@ tie-break, geometric belief, R = 1.
 | p2b (2026-10-21) | `phase2b_sigma1.tsv` | the same gate at sigma 1 | **uninformative**: P(run) = 0 in all 1,000 runs; mean cascade 3 agents; arms indistinguishable |
 | p2s (2026-10-21) | `phase2s_reserve_scan.tsv` | at sigma 1, where is the reserve transition? | between r 0.10 and 0.30 (table F3) |
 | p2c (2026-10-21) | `phase2c_gate_r20_r25.tsv` | the gate at sigma 1, r 0.20 and 0.25 | **FAIL at r 0.20** (F8); r 0.25 has no runs. Every arm was submitted twice into the same directory (19:12, 20:18); the copies are identical run for run, so analyses use one copy |
+| fire-sale smoke (2026-10-21, local) | one cell via `finMain0001.jl`, depth 50 | does the fire-sale + theta model run end to end, and where does it fail? | 250/250 runs, 0 switch mismatches. At sigma 2.5, r 0.10, d 0.5, e 0.08, theta signal s 0.1: P(run) 0.06, all at theta <= 0.1 (dominance) bar one liquidity failure; cascades 30-90 of 1,000 agents against A* 0.13-0.32 of deposits. Recalibrated the phase 3 arms to r 0.05, d 0.6, e 0.06 (A* 0.05-0.20) |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -177,7 +178,10 @@ asset's return), not of the shock.
 
 ## Open questions / next pilots
 
-- Redesign the gate for the fire-sale model: a private signal of theta, not of n_exog (F8).
+- Phase 3 gate (`arms/phase3_firesale_gate.tsv`, 2026-10-21): the fire-sale bank
+  (BALANCE=firesale, PAYOFF=recovery, FUNDAMENTAL=theta; r 0.05, d 0.6, e 0.06,
+  R(theta) in [1.0, 1.4], R_stay 1.1; theta_L ~ 0.10, A*(theta) 0.05-0.20) with no signal vs a theta signal at s 0.05 /
+  0.10 / 0.20, at sigma 2.5 and 1. Read with `scripts/theta_response.py`.
 - Where is the sigma 1 transition for other mu and lambda pairs? (Does culture move
   the transition, or only P(run) within it?)
 - R = 1.25: does it move the no-shock failure boundary (F4) and the transition (F3)?

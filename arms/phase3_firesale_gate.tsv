@@ -1,0 +1,30 @@
+# Phase 3 gate (2026-10-21): the fire-sale bank with an unobserved fundamental.
+# The shock-size gate could not pass (docs/pilot_map.md F8): every decision state
+# already contains the shock. Here theta ~ U[0,1] per run sets the long asset's
+# return R(theta) = 1.0 + 0.4 theta, and agents either know only the prior (none) or
+# see x_i = theta + s Z_i (s = 0.05 / 0.10 / 0.20).
+# Balance sheet (Chapter 1 baseline, Rochet-Vives): reserves r 0.05, the rest plus
+# equity e 0.06 in the long asset, sold at discount d 0.6; stayers are promised
+# R = 1.1 x deposit and the bank fails if it cannot pay them at period 2. With these
+# values theta_L ~ 0.10 (fails with no withdrawals) and A*(theta) runs from 0.05 to
+# 0.20 of deposits, the range of the cascades a local smoke run produced. (A first
+# calibration, r 0.10 / d 0.5 / e 0.08, put A* at 0.13-0.32: a smoke cell at sigma
+# 2.5 failed only in the dominance region, P(run) 0.06.)
+# Two deposit dispersions: sigma 2.5 (Celsius-matched, F7: whales present) and 1
+# (no whales), same cell otherwise (k 6, p 0.05, q 0, alpha 0.1, mu 0.5, lambda
+# (0.1, 0.9)), 250 runs per arm. Single-cell arms at seed offset 1000: the same five
+# initialisations per sigma, and theta is shared run for run across the four arms.
+# Read: python3 scripts/theta_response.py outputs/p3-s25-* (and outputs/p3-s1-*)
+# PASS: P(run) falls with theta more steeply as s shrinks (slope none > s20 > s10 > s05
+# in magnitude, i.e. most negative at s 0.05). Also read failType shares and
+# largestWithdrew at sigma 2.5 vs 1.
+#
+# tag	switches	run_all.sh flags
+p3-s25-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+p3-s25-theta-s05	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.05	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+p3-s25-theta-s10	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+p3-s25-theta-s20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.20	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+p3-s1-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1	--grid reference --sigma 1 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+p3-s1-theta-s05	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.05	--grid reference --sigma 1 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+p3-s1-theta-s10	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10	--grid reference --sigma 1 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
+p3-s1-theta-s20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.20	--grid reference --sigma 1 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --time 0-04:00:00 --mem 20G --no-analyze --no-p6b
