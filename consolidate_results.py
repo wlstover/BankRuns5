@@ -149,6 +149,10 @@ DOCK_FILES = {
                 ["theta", "returnTheta", "vaultInit", "illiquidInit", "vaultFinal",
                  "illiquidFinal", "assetsT", "promises", "solvent", "failType",
                  "largestShare", "largestToCapacity", "largestWithdrew"]),
+    # Public signal of theta (2026-10-22, BANKRUN_THETA_PUBLIC != none or
+    # BANKRUN_LAMBDA_SCOPE != count): the public signal at tick 1, its gap
+    # y - theta (NaN with no public signal) and the population mean lambda.
+    "thetapublic": ("bankRunThetaPublic", False, ["theta", "y1", "gap1", "lambdaBar"]),
 }
 
 
@@ -164,6 +168,8 @@ SWITCH_FILES = {
     "bankRunStayReturn":     ["stay_return"],
     "bankRunBalanceParams":  ["payoff", "balance", "fire_discount", "equity", "fundamental",
                               "return_lo", "return_hi", "theta_noise"],
+    "bankRunThetaPublicParams": ["theta_public", "theta_public_level", "theta_public_gap",
+                                 "theta_public_rho", "theta_public_noise", "lambda_scope"],
 }
 # An empty manifest field means "the default at submission time". The
 # FIX_DOUBLE_COUNT default changed on 2026-10-20 (false -> true), so an empty
@@ -234,6 +240,7 @@ def switch_file_required(prefix, e, defaults):
         "bankRunPrivateParams":  ["private_signal"],
         "bankRunStayReturn":     ["stay_return"],
         "bankRunBalanceParams":  ["payoff", "balance", "fundamental"],
+        "bankRunThetaPublicParams": ["theta_public", "lambda_scope"],
     }[prefix]
     if any(e[c] is None for c in need):
         return None
@@ -249,6 +256,8 @@ def switch_file_required(prefix, e, defaults):
     if prefix == "bankRunBalanceParams":
         return (e["payoff"] != d["payoff"] or e["balance"] != d["balance"]
                 or e["fundamental"] != d["fundamental"])
+    if prefix == "bankRunThetaPublicParams":
+        return e["theta_public"] != d["theta_public"] or e["lambda_scope"] != d["lambda_scope"]
     return e["stay_return"] != d["stay_return"]
 
 

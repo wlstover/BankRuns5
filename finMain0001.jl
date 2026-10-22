@@ -132,6 +132,13 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #                           the fire-sale bank's d, e and R(θ) = R_lo + (R_hi − R_lo)·θ.
 #   BANKRUN_FUNDAMENTAL     none|theta  θ = 1, or θ ~ U[0,1] per run.
 #   BANKRUN_PRIVATE_SIGNAL=theta with BANKRUN_THETA_NOISE s: x_i = θ + s·Z_i.
+#   BANKRUN_THETA_PUBLIC    none|stale|tracks  Chapter 1's public signal y of θ
+#                           (2026-10-22): est_i = (1 − ω)·x_i + ω·y. stale: y fixed
+#                           at BANKRUN_THETA_PUBLIC_LEVEL; tracks: y = θ + BANKRUN_THETA_PUBLIC_GAP;
+#                           the gap decays by BANKRUN_THETA_PUBLIC_RHO per tick;
+#                           BANKRUN_THETA_PUBLIC_NOISE is the noise agents attribute to y.
+#   BANKRUN_LAMBDA_SCOPE    count|theta|both  which blend λ weights (count =
+#                           published); the other uses the population mean λ̄.
 # Since 2026-10-20 BANKRUN_FIX_DOUBLE_COUNT defaults to true; =false reproduces
 # the published model.
 # Defaults and parsing live in settings.jl (SWITCH_DEFAULTS, parseSwitchesFromEnv).
@@ -180,6 +187,9 @@ println("balance: payoff=", SWITCHES.PAYOFF, " balance=", SWITCHES.BALANCE,
         " fireDiscount=", SWITCHES.FIRE_DISCOUNT, " equity=", SWITCHES.EQUITY,
         " fundamental=", SWITCHES.FUNDAMENTAL, " return=[", SWITCHES.RETURN_LO, ", ",
         SWITCHES.RETURN_HI, "] thetaNoise=", SWITCHES.THETA_NOISE)
+println("theta public: mode=", SWITCHES.THETA_PUBLIC, " level=", SWITCHES.THETA_PUBLIC_LEVEL,
+        " gap=", SWITCHES.THETA_PUBLIC_GAP, " rho=", SWITCHES.THETA_PUBLIC_RHO,
+        " noise=", SWITCHES.THETA_PUBLIC_NOISE, " lambdaScope=", SWITCHES.LAMBDA_SCOPE)
 println("output: log=", LOG)
 
 @everywhere include("objects.jl")

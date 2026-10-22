@@ -71,6 +71,13 @@ export BANKRUN_RETURN_LO="${BANKRUN_RETURN_LO:-}"
 export BANKRUN_RETURN_HI="${BANKRUN_RETURN_HI:-}"
 export BANKRUN_THETA_NOISE="${BANKRUN_THETA_NOISE:-}"
 export BANKRUN_PRIVATE_NOISE="${BANKRUN_PRIVATE_NOISE:-}"
+# Public signal of theta and the scope of lambda (2026-10-22)
+export BANKRUN_THETA_PUBLIC="${BANKRUN_THETA_PUBLIC:-}"       # none | stale | tracks
+export BANKRUN_THETA_PUBLIC_LEVEL="${BANKRUN_THETA_PUBLIC_LEVEL:-}"
+export BANKRUN_THETA_PUBLIC_GAP="${BANKRUN_THETA_PUBLIC_GAP:-}"
+export BANKRUN_THETA_PUBLIC_RHO="${BANKRUN_THETA_PUBLIC_RHO:-}"
+export BANKRUN_THETA_PUBLIC_NOISE="${BANKRUN_THETA_PUBLIC_NOISE:-}"
+export BANKRUN_LAMBDA_SCOPE="${BANKRUN_LAMBDA_SCOPE:-}"       # count | theta | both
 
 module load julia/1.8.0
 
@@ -116,6 +123,7 @@ echo "public: alpha=${BANKRUN_PUBLIC_ALPHA:-0} bias=${BANKRUN_PUBLIC_BIAS:-0} rh
 echo "decision: tiebreak=${BANKRUN_TIEBREAK:-legacy} belief=${BANKRUN_BELIEF:-geometric} beliefP0=${BANKRUN_BELIEF_P0:-0.02} log=${BANKRUN_LOG:-full}"
 echo "signals: publicMode=${BANKRUN_PUBLIC_MODE:-markup} publicRefresh=${BANKRUN_PUBLIC_REFRESH:-0} privateSignal=${BANKRUN_PRIVATE_SIGNAL:-none} privateNoise=${BANKRUN_PRIVATE_NOISE:-5} stayReturn=${BANKRUN_STAY_RETURN:-1}"
 echo "balance: payoff=${BANKRUN_PAYOFF:-full} balance=${BANKRUN_BALANCE:-vault} fireDiscount=${BANKRUN_FIRE_DISCOUNT:-0.25} equity=${BANKRUN_EQUITY:-0.10} fundamental=${BANKRUN_FUNDAMENTAL:-none} return=[${BANKRUN_RETURN_LO:-0.9}, ${BANKRUN_RETURN_HI:-1.3}] thetaNoise=${BANKRUN_THETA_NOISE:-0.10}"
+echo "theta public: mode=${BANKRUN_THETA_PUBLIC:-none} level=${BANKRUN_THETA_PUBLIC_LEVEL:-0.6} gap=${BANKRUN_THETA_PUBLIC_GAP:-0.0} rho=${BANKRUN_THETA_PUBLIC_RHO:-1.0} noise=${BANKRUN_THETA_PUBLIC_NOISE:-0.10} lambdaScope=${BANKRUN_LAMBDA_SCOPE:-count}"
 echo "reserve=$reserve depq=$depq sigma=$sigma k=$k p=$p alpha=$alpha mu=$mu"
 echo "lambdaI=$lambdaI lambdaC=$lambdaC  genSeed=$GEN_SEED"
 echo "outdir=${TASK_DIR}"

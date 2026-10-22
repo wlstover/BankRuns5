@@ -605,6 +605,33 @@ end
 privateDraws(pp::PrivatePosterior, agt::Agent, depth::Integer) =
     pp.lo .- 1 .+ rand(pp.rng, pp.samplers[agt.idx], depth)
 
+# The agent's belief about θ given its private signal x_i (s.d. sx) and, when
+# BANKRUN_THETA_PUBLIC is on, the public signal y (2026-10-22). Chapter 1's
+# subjective belief: the agent treats est_i = (1 − ω)·x_i + ω·y as if it were
+# Bayes-optimal, with the window (1 − ω)·sx + ω·sy, where sy is the noise it
+# attributes to y (BANKRUN_THETA_PUBLIC_NOISE; it does not see the gap y − θ).
+# ω is the agent's λ (LAMBDA_SCOPE theta / both) or the population mean λ̄
+# (count). Chapter 1's uniform window is a normal here, truncated to θ's support
+# [0, 1]. With y = nothing it is the private posterior of 2026-10-21 exactly.
+function thetaBelief(x::Float64, sx::Float64, y, ω::Float64, sy::Float64)
+    y === nothing && return truncated(Normal(x, sx), 0.0, 1.0)
+    return truncated(Normal((1.0 - ω) * x + ω * y, (1.0 - ω) * sx + ω * sy), 0.0, 1.0)
+end
+
+# The public signal of θ at tick t: θ plus a gap that decays as gap₀·ρ^(t-1).
+#   stale:  gap₀ = y₀ − θ, so with ρ = 1 y stays at y₀ whatever θ is (Chapter 1's
+#           realised, stale y; δ = y₀ − θ varies run by run);
+#   tracks: gap₀ = δ, a constant markup that moves with θ (the alternative
+#           Chapter 1 declines because it restores uniqueness).
+# ρ < 1 is Table 1.x's "error corrects" column: y converges on θ during the run.
+# Clamped to θ's support. Deterministic: no RNG draws.
+function thetaPublicAt(mode::String, theta::Float64, t::Integer; level::Float64,
+                       gap::Float64, rho::Float64)
+    gap0 = mode == "stale" ? level - theta : gap
+    rho == 1.0 && mode == "stale" && return level
+    return clamp(theta + gap0 * rho^(t - 1), 0.0, 1.0)
+end
+
 # Blend each prior draw with the social signal, then convert to the number of
 # additional withdrawals the agent anticipates beyond those already out.
 #   social = α·publicPoint + (1−α)·neighbourEstimate,   ω_t = λ·φ^(t−1)
@@ -619,9 +646,11 @@ privateDraws(pp::PrivatePosterior, agt::Agent, depth::Integer) =
 # local count (the sub-model replays only those neighbours). Production runs
 # use the fresh clone (decided 2026-10-20). Under BANKRUN_PUBLIC_MODE=stale it
 # is the population total in the agent's stale view (nInView), 2026-10-21.
+# λ (2026-10-22): the agent's own λ unless BANKRUN_LAMBDA_SCOPE = theta, where the
+# head-count blend carries no culture and every agent uses the population mean λ̄.
 function anticipatedWithdrawals(agt::Agent, priorDraws, neighbourEstimate, publicPoint,
-                                alreadyOut, nAgents, t; pubAlpha, weightPhi)
-    λ = agt.individualism
+                                alreadyOut, nAgents, t; pubAlpha, weightPhi,
+                                λ::Float64=agt.individualism)
     ω = weightPhi == 1.0 ? λ : λ * weightPhi^(t-1)
     socialPoint = pubAlpha == 0.0 ? Float64(neighbourEstimate) :
         pubAlpha * Float64(publicPoint) + (1.0 - pubAlpha) * Float64(neighbourEstimate)
@@ -740,6 +769,12 @@ function modelRun(mod::Model; record=nothing)
     returnLo      = switchValue(:RETURN_LO)
     returnHi      = switchValue(:RETURN_HI)
     thetaNoise    = switchValue(:THETA_NOISE)
+    thetaPublic   = switchValue(:THETA_PUBLIC)
+    thetaPubLevel = switchValue(:THETA_PUBLIC_LEVEL)
+    thetaPubGap   = switchValue(:THETA_PUBLIC_GAP)
+    thetaPubRho   = switchValue(:THETA_PUBLIC_RHO)
+    thetaPubNoise = switchValue(:THETA_PUBLIC_NOISE)
+    lambdaScope   = switchValue(:LAMBDA_SCOPE)
     publicStale = publicMode == "stale"
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
     privatePost = privateSignal == "shock" ?
@@ -750,7 +785,7 @@ function modelRun(mod::Model; record=nothing)
     comboErr = switchComboError((PUBLIC_MODE=publicMode, FIX_DOUBLE_COUNT=switchValue(:FIX_DOUBLE_COUNT),
                                  FRESH_CLONE=freshClone, PAYOFF=payoffMode, BALANCE=balanceMode,
                                  FUNDAMENTAL=fundamental, PRIVATE_SIGNAL=privateSignal,
-                                 RETURN_LO=returnLo, RETURN_HI=returnHi))
+                                 RETURN_LO=returnLo, RETURN_HI=returnHi, THETA_PUBLIC=thetaPublic))
     comboErr === nothing || error(comboErr)
     # Fire-sale bank and fundamental (2026-10-21). θ is drawn once per run, and
     # each agent's private signal of it once per run, from their own stream; the
@@ -839,6 +874,25 @@ function modelRun(mod::Model; record=nothing)
         end
     end
 
+    # Public signal of θ and the scope of λ (2026-10-22). λ̄ is the population
+    # mean of the agents' λ: the weight of the blend that carries no culture.
+    thetaPubOn = thetaPublic != "none"
+    lambdaBar = sum(a.individualism for a in mod.agtList) / nAgents
+    if thetaPubOn || lambdaScope != SWITCH_DEFAULTS.LAMBDA_SCOPE
+        CSV.write(dataDir*"/"*"bankRunThetaPublicParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, thetaPublic=thetaPublic, thetaPublicLevel=thetaPubLevel,
+                            thetaPublicGap=thetaPubGap, thetaPublicRho=thetaPubRho,
+                            thetaPublicNoise=thetaPubNoise, lambdaScope=lambdaScope),
+                  writeheader=false, append=true)
+        y1 = thetaPubOn ? thetaPublicAt(thetaPublic, theta, 1; level=thetaPubLevel,
+                                        gap=thetaPubGap, rho=thetaPubRho) : NaN
+        CSV.write(dataDir*"/"*"bankRunThetaPublic"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, theta=theta, y1=y1, gap1=y1 - theta, lambdaBar=lambdaBar),
+                  writeheader=false, append=true)
+    end
+    λcountOf(a) = lambdaScope == "theta" ? lambdaBar : a.individualism
+    λthetaOf(a) = lambdaScope == "count" ? lambdaBar : a.individualism
+
     # now, whenever an agent withdraws, we reset a state variable since this means all other agents will
     # re-examing their decision to bank
     halt::Bool=false
@@ -878,6 +932,8 @@ function modelRun(mod::Model; record=nothing)
                                 publicPoint=publicPoint),
                       writeheader=false, append=true)
         end
+        yNow = thetaPubOn ? thetaPublicAt(thetaPublic, theta, t; level=thetaPubLevel,
+                                          gap=thetaPubGap, rho=thetaPubRho) : nothing
         stillBanking=Random.shuffle(mod.theBank.bankingList)
         # each agent observes the percentage of its neighbors that have withdrawn
         for agt in stillBanking
@@ -899,13 +955,19 @@ function modelRun(mod::Model; record=nothing)
                 length(withdrawnNeighbors)
             additionalWithdrawals = anticipatedWithdrawals(agt, priorDraws, neighbourEstimate, publicPoint,
                                                            alreadyOut, nAgents, t;
-                                                           pubAlpha=pubAlpha, weightPhi=weightPhi)
+                                                           pubAlpha=pubAlpha, weightPhi=weightPhi,
+                                                           λ=λcountOf(agt))
             # Fire-sale bank: the long asset's return in each draw, from the
-            # agent's belief about θ (its prior, or its posterior given x_i).
+            # agent's belief about θ (its prior, its posterior given x_i, or
+            # Chapter 1's blend of x_i and y). ω decays with φ as the
+            # head-count weight does (φ = 1 by default).
+            ωθ = yNow === nothing ? 0.0 :
+                (weightPhi == 1.0 ? λthetaOf(agt) : λthetaOf(agt) * weightPhi^(t-1))
             returns = !balanceFire ? nothing :
                 !thetaOn ? fill(returnHi, depth) :
                 thetaSignal === nothing ? returnOf.(rand(beliefRng, depth)) :
-                returnOf.(rand(beliefRng, truncated(Normal(thetaSignal[agt.idx], thetaNoise), 0.0, 1.0), depth))
+                returnOf.(rand(beliefRng, thetaBelief(thetaSignal[agt.idx], thetaNoise, yNow, ωθ,
+                                                      thetaPubNoise), depth))
             probFullDepositStay = simulateStay(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
                                                skipWithdrawn=skipWithdrawn, payoff=payoffMode,
                                                returns=returns, stayReturn=stayReturn)
