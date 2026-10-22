@@ -79,3 +79,14 @@ Decisions (user):
 - G1′ or G4′ significantly signed the wrong way in ≥ 2 λ pairs.
 - G3 ≤ 0: sorting no larger when the signals disagree than when they agree.
 - Report every outcome whatever the result. A failure points to a feature to examine on the relaxation ladder (feature list F10, 2026-10-20 note), not to re-tuning until it passes.
+
+## 6. Results and deviations (recorded 2026-10-22, after the runs)
+
+Results: docs/pilot_map.md F11; tables in outputs/r1t-analysis/rung1_*.csv.
+
+Deviations from the analysis code fixed above:
+- Added G3c (exploratory, not pre-registered): mean |D_stale - D_none| -
+  |D_tracks-g0 - D_none|, run for run. The pre-registered G3 is reported as
+  pre-registered and its verdict stands (counts against: (0.3, 0.5) wrong-signed).
+- Added scripts/rung1_timing.py for the section 4 corrects-arm questions, which
+  section 4 declared but the fixed code did not implement.

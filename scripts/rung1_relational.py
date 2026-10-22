@@ -184,6 +184,19 @@ def tests(stale, base, agree, gap, col):
     return out, pd.DataFrame(split)
 
 
+def g3c(stale, base, agree, col):
+    """Exploratory (post hoc): channel-isolated G3, pooled and per lambda pair."""
+    sb = paired(stale, base, [col], "_base")
+    sab = paired(sb, agree, [col], "_agree")
+    sab["dAbs"] = ((sab[col] - sab[col + "_base"]).abs()
+                   - (sab[col + "_agree"] - sab[col + "_base"]).abs())
+    rows = [dict(test="G3c", lambdas="pooled", **cmean(sab.dAbs, sab.paramSeed, +1))]
+    for li, lc in LAMBDA_ORDER:
+        o = sab[(sab.lambdaI == li) & (sab.lambdaC == lc)]
+        rows.append(dict(test="G3c", lambdas=f"({li}, {lc})", **cmean(o.dAbs, o.paramSeed, +1)))
+    return pd.DataFrame(rows)
+
+
 def g2b(out):
     s = out[(out.test == "G2a'") & (out.lambdas != "pooled")].set_index("lambdas").est
     return bool((s.diff().dropna() < 0).all()) if s.notna().all() else None
@@ -240,6 +253,10 @@ def main():
         print("G1' by failure in the base arm:")
         print(split.round(4).to_string(index=False))
         out[f"tests_{col}"], out[f"g1split_{col}"] = t, split
+        c = g3c(stale, base, agree, col)
+        print("G3c (exploratory, not pre-registered): channel-isolated G3")
+        print(c.round(4).to_string(index=False))
+        out[f"g3c_{col}"] = c
     for g in (0.05, 0.2):
         t, _ = tests(stale, base, agree, g, "D")
         t = t[(t.lambdas == "pooled") & t.test.isin(["G1'", "G4'"])]

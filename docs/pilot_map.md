@@ -38,6 +38,7 @@ tie-break, geometric belief, R = 1.
 | p3 (2026-10-21) | `phase3_firesale_gate.tsv` | fire-sale bank: does a private signal of theta steepen P(run) in theta? | **PASS at both sigmas** (F9): paired slope differences -0.46 / -0.55 / -0.58 at sigma 1, -0.14 / -0.15 / -0.20 at sigma 2.5 (s 0.20 / 0.10 / 0.05) |
 | fire-sale smoke (2026-10-21, local) | one cell via `finMain0001.jl`, depth 50 | does the fire-sale + theta model run end to end, and where does it fail? | 250/250 runs, 0 switch mismatches. At sigma 2.5, r 0.10, d 0.5, e 0.08, theta signal s 0.1: P(run) 0.06, all at theta <= 0.1 (dominance) bar one liquidity failure; cascades 30-90 of 1,000 agents against A* 0.13-0.32 of deposits. Recalibrated the phase 3 arms to r 0.05, d 0.6, e 0.06 (A* 0.05-0.20) |
 | cal (2026-10-22) | `calib_d_scan.tsv` | at sigma 2.5, where do liquidity and insolvency failures sit in r x d? | d is the lever; r 0.05, d 0.6 has the widest coordination band (21%) over a small whale floor (4.7%) (F10). cal-r05-d60 reproduces p3-s25-theta-s10 run for run |
+| r1t (2026-10-22) | `rung1_theta.tsv` | relational equivalence: do Ch 1's G1-G4 signs hold with stale y on the fire-sale bank? | **3 of 4 confirmatory tests support** (G1', G4', G2a'; G2b ordering holds). Pre-registered G3 counts against: it passes Holm pooled (p 0.034) but (0.3, 0.5) is wrong-signed (t -2.5); the channel-isolated G3c (post hoc) passes in every pair. corrects-y80-r50 sorts between stale and tracks and fades by tick 4 (F11) |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -211,6 +212,43 @@ solvency is tested only after the cascade stops, so a run already past A*(theta)
 continues until the bank sells out. failType records how a run ended, not what
 caused it. To build: the tick at which promises first exceed assets at R(theta).
 
+**F11. Rung 1: relational equivalence holds for who runs and for reassurance; G3 needs the base subtracted.**
+`arms/rung1_theta.tsv`, 10 arms x 3,750 runs, read with `scripts/rung1_relational.py`
+(pre-registered, docs/rung1_prereg.md) and `scripts/rung1_timing.py`
+(corrects arm). Head-count D, g 0.1, CR1 SEs on 25 initialisations, t(24):
+
+| test | pooled | t | Holm | per lambda pair (0.1, 0.9) / (0.2, 0.8) / (0.3, 0.5) |
+|---|---|---|---|---|
+| G1' | +0.033 | 10.7 | reject | +0.052 / +0.039 / +0.007 |
+| G4' | -0.024 | -10.6 | reject | -0.042 / -0.028 / -0.002 |
+| G2a' | +0.077 | 12.1 | reject | +0.131 / +0.093 / +0.009 (G2b ordering holds) |
+| G3 (pre-registered) | +0.002 | 1.9 | reject (p 0.034) | +0.005 / +0.003 / **-0.001 (t -2.5, wrong sign: counts against)** |
+| G3c (post hoc, exploratory) | +0.018 | 17.6 | not in family | +0.032 / +0.021 / +0.002 |
+
+- G1' split by failure in the no-public arm: +0.047 (fails) vs +0.024 (survives).
+  g 0.05 and 0.2 give the same signs. D$ agrees on G1', G4', G2a'; D$ G3 fails
+  pooled (t -0.95), D$ G3c passes (t 8.3).
+- Why G3 fails and G3c passes: G3 compares |D| levels, and D starts near -0.10
+  (head-count channel), so optimistic-y sorting moves D toward 0 and shrinks |D|.
+  G3c = |D_stale - D_none| - |D_tracks-g0 - D_none|, run for run.
+- Scope arms: levels G1 at (0.1, 0.9) is -0.12 with lambda in the count blend only
+  and +0.12 with lambda in the theta blend only. The theta blend carries Ch 1's sign;
+  in the `both` arms the count blend dominates the levels, so the levels G1 is
+  wrong-signed at sigma 2.5. At sigma 1 (no whales) it is right-signed (+0.009 /
+  +0.012 / +0.004).
+- P(fail) at (0.1, 0.9): stale-y20 0.41, none 0.29, tracks-g0 0.28, stale-y50 0.24,
+  stale-y80 0.16, corrects-y80-r50 0.22. An accurate public signal barely moves
+  failure; an optimistic stale one cuts it. P(fail) rises with lambda dispersion in
+  every arm.
+- corrects-y80-r50 (y gap halves each tick): (a) whole-run |D_arm - D_none| among
+  |gap1| > 0.1 is between stale-y80 and tracks-g0 in every pair (pooled 0.035 /
+  0.027 / 0.015). (b) Optimistic side, mean D_t - D_t(none) by decision tick:
+  identical to stale at tick 1 (same y), corrects/stale ratio 0.77 at tick 2, 0.53 at
+  tick 3, about 0 from tick 4 (stale still +0.002, t 3.2). It fades more slowly than
+  the gap (0.5, 0.25), consistent with earlier decisions feeding the head count. The
+  pessimistic side (theta > 0.9, 234 runs) has no detectable sorting at any tick in
+  either arm. Caveat: D_t conditions on the run still going at tick t.
+
 ## Implications for the systematic sweep (draft)
 
 1. **sigma's realistic level is ~2.5 (F7), which is the whale regime.** sigma 1 is a
@@ -265,8 +303,9 @@ the agent's view), sigma calibrated to Celsius (F7), docking outputs, pipeline g
    cell (e.g. 25 x 10 instead of 5 x 50; implication 4). Calibration pilots: where
    the fire-sale transition sits across reserves r and discount d (and e, R_stay),
    so the sweep's axes are packed around it.
-4. Drafted 2026-10-22: `arms/rung1_theta.tsv` (10 arms), `docs/rung1_prereg.md`
-   (outline), `scripts/rung1_relational.py`. Waiting on r, d and sign-off. Was: **Redesign the rung-1 arms** (`arms/rung1_relational.tsv`, drafted on the vault
+4. **RUN and read 2026-10-22 (F11)**: 3 of 4 confirmatory tests support; G3 counts
+   against (G3c, post hoc, passes). Drafted 2026-10-22: `arms/rung1_theta.tsv` (10 arms), `docs/rung1_prereg.md`
+   (outline), `scripts/rung1_relational.py`. Was: **Redesign the rung-1 arms** (`arms/rung1_relational.tsv`, drafted on the vault
    bank with stale counts) on the fire-sale bank with stale theta, and pre-register
    the G1-G4 statistics, signs and contrasts.
 5. **The systematic sweep.**
