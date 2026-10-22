@@ -42,6 +42,7 @@ tie-break, geometric belief, R = 1.
 | whales (2026-10-22) | `bank_runs_celsius` deposit_concentration (sec. 4), whale_timing | can one depositor sink the platform, and how do large accounts exit? | no (largest account 0.94%, largest user-day 0.69%); exits grow more gradual with size (one-shot 85% small -> 35% top 0.1%). ABM: partial withdrawals (F12) |
 | r1p (2026-10-22) | `rung1_partial.tsv` | do rung 1's signs survive partial withdrawals? | trivially: risk-neutral depositors never split, so head-count D, failure and the withdrawers match r1t run for run (F12b) |
 | cara smoke (2026-10-22) | `scripts/cara_smoke.sh` (local, 75 runs per value) | does CARA make large depositors split, and at what cost to fragility? | yes from CARA 0.1; P(fail) rises with CARA, D does not move (F12b) |
+| r1c (2026-10-22) | `rung1_cara.tsv` | rung 1 and rung-4 S1-S4 under CARA 0.1 | **rung 1 unchanged** (all four pooled tests as F11; G3's (0.3, 0.5) still wrong-signed). P(fail) +0.03 vs r1p, 108 failures added, 6 removed. **S1a, S2b, S3, S4a support; S1b and S4b count against** (F12c) |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -312,6 +313,47 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
   (CARA 0.01 at 18 runs: identical to 0.) Every change adds a failure; none
   removes one. Sorting D is flat in CARA. Not looked at: splitting or
   withdrawal by size (rung-4 S1, S2b), so that CARA is chosen before them.
+
+**F12c. r1c: rung 1 and S1-S4 under CARA 0.1 (2026-10-22).**
+- Rung 1 (`scripts/rung1_relational.py`, `outputs/r1c-analysis`), pooled, Holm:
+  G1' +0.0365 (t 14.8), G4' -0.0250 (t -10.4), G2a' +0.0819 (t 14.3), G3
+  +0.0033 (p 0.012); r1t/r1p: +0.0328, -0.0241, +0.0774, +0.0023. Same verdicts
+  as F11: G3 passes pooled but (0.3, 0.5) is wrong-signed (-0.0059, t -3.0); G3c
+  +0.0195 passes, (0.3, 0.5) only at p 0.052. G2b ordering holds. The corrects
+  arm again sorts between stale and tracks and fades by tick 4 (`rung1_timing.py`).
+- Splitting (all 5 mu): 0.45 partial withdrawals per run, 20% of runs have one,
+  0.09 agents per run end holding part of their deposit. Against r1p, paired:
+  P(fail) 0.297 vs 0.269 in r1c-none (108 failures added, 6 removed); +0.03 to
+  +0.026 to +0.037 in the other sigma 2.5 arms. stale-y50-s1 (sigma 1): 0.01 partial per run, failure
+  identical to r1p.
+- Rung 4 (`scripts/rung4_stats.py`; mixed cells, 2,250 runs, 25 clusters,
+  one-sided):
+
+  | stat | est | t | p | verdict |
+  |---|---|---|---|---|
+  | S1a one-shot share, D10 - D1-5 (< 0) | -0.046 | -3.8 | 0.0004 | supports |
+  | S1b one-shot share, largest - D10 (< 0) | +0.006 | +2.9 | 0.996 | against |
+  | S2b withdrawal rate, D10 - D1-5 (> 0) | +0.0016 | 1.8 | 0.041 | supports (barely) |
+  | S2b in r1p, paired | -0.0003 | -0.3 | 0.61 | - |
+  | S2b r1c - r1p (what CARA adds) | +0.0019 | 2.7 | 0.006 | - |
+  | S3a slope of P(withdraw) in neighbours out (> 0) | +0.52 | 11.6 | <0.001 | supports (partly built in) |
+  | S3b slope C - I (> 0) | +0.93 | 15.1 | <0.001 | supports |
+  | S4a head-count share W (< 0.5) | 0.114 | -31 | <0.001 | supports; W < 0.5 in 93% of runs, 74% of failed runs |
+  | S4b W$ - W (> 0) | -0.005 | -1.0 | 0.83 | against |
+
+- S1 curve (pooled one-shot share of exiters): 1.000 in D1-D7, 0.997 D8, 0.995
+  D9, 0.980 D10, 0.930 top 1%, **1.000 for the largest agent** (223 exits).
+  Celsius: ~0.85, 0.52, 0.38, 0.35. The gradient has Celsius's sign and a small
+  fraction of its size. Partial-exit share: 0.006 in D10, 0.030 in the top 1%,
+  0 for the largest.
+- Why the largest agent never splits: in every one of its 223 exits the bank
+  fails by liquidity (balance file: largestWithdrew x failType), and it holds
+  18% of deposits (39% of capacity at the start, median 32%). When it decides
+  to go, every interior fraction already drains the bank, so the drain rule
+  leaves only 0 or 1. In this bank the largest depositor is the last straw, not
+  a gradual exiter.
+- Withdrawal rates are flat in size (0.112-0.115 in every decile), which is why
+  S2b is tiny and S4b fails: size does not change who runs here, only how.
 
 ## Implications for the systematic sweep (draft)
 
