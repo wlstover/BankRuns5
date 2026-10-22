@@ -37,7 +37,7 @@ tie-break, geometric belief, R = 1.
 | p2c (2026-10-21) | `phase2c_gate_r20_r25.tsv` | the gate at sigma 1, r 0.20 and 0.25 | **FAIL at r 0.20** (F8); r 0.25 has no runs. Every arm was submitted twice into the same directory (19:12, 20:18); the copies are identical run for run, so analyses use one copy |
 | p3 (2026-10-21) | `phase3_firesale_gate.tsv` | fire-sale bank: does a private signal of theta steepen P(run) in theta? | **PASS at both sigmas** (F9): paired slope differences -0.46 / -0.55 / -0.58 at sigma 1, -0.14 / -0.15 / -0.20 at sigma 2.5 (s 0.20 / 0.10 / 0.05) |
 | fire-sale smoke (2026-10-21, local) | one cell via `finMain0001.jl`, depth 50 | does the fire-sale + theta model run end to end, and where does it fail? | 250/250 runs, 0 switch mismatches. At sigma 2.5, r 0.10, d 0.5, e 0.08, theta signal s 0.1: P(run) 0.06, all at theta <= 0.1 (dominance) bar one liquidity failure; cascades 30-90 of 1,000 agents against A* 0.13-0.32 of deposits. Recalibrated the phase 3 arms to r 0.05, d 0.6, e 0.06 (A* 0.05-0.20) |
-| cal (2026-10-22) | `calib_d_scan.tsv` | at sigma 2.5, where do liquidity and insolvency failures sit in r x d? | submitted 2026-10-22; pending |
+| cal (2026-10-22) | `calib_d_scan.tsv` | at sigma 2.5, where do liquidity and insolvency failures sit in r x d? | d is the lever; r 0.05, d 0.6 has the widest coordination band (21%) over a small whale floor (4.7%) (F10). cal-r05-d60 reproduces p3-s25-theta-s10 run for run |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -188,6 +188,28 @@ run while stale theta is built; (b) at realistic concentration the fire-sale
 discount d (period-1 capacity) is a first-order axis, not a nuisance: the
 calibration pilot should scan d at sigma 2.5 and record failType, since the
 liquidity floor and the theta-sorted failures respond to different levers.
+
+**F10. The fire-sale discount d is the lever; r 0.05, d 0.6 is the rung-1 setting.**
+`arms/calib_d_scan.tsv` (sigma 2.5, theta signal s 0.10, mu 0.5, lambda (0.1, 0.9)).
+Failure rates by theta region: the dominance region theta < theta_L (fails with no
+withdrawals; ~96-100% everywhere), the coordination band theta_L <= theta < 0.4
+(failures that need withdrawals), and the high-theta floor theta >= 0.4:
+
+| r | d | band | floor |
+|---|---|---|---|
+| 0.05 | 0.2 / 0.4 / 0.6 / 0.8 | 0 / 0.04 / 0.21 / 0.44 | 0 / 0 / 0.047 / 0.42 |
+| 0.10 | 0.2 / 0.4 / 0.6 / 0.8 | 0 / 0 / 0.12 / 0.28 | 0 / 0 / 0.007 / 0.15 |
+| 0.20 | 0.2 / 0.4 / 0.6 / 0.8 | 0 / 0 / 0 / 0.04 | 0 / 0 / 0 / 0.007 |
+
+At d <= 0.4 selling is cheap enough that withdrawals almost never sink the bank:
+failures are the dominance region only, with nothing for culture to sort. Between d
+0.6 and 0.8 the whale floor switches on (liquidity failures at sound
+fundamentals). r 0.05, d 0.6 has the widest band over a small floor and is the
+rung-1 setting; r 0.10, d 0.8 is the alternative (wider band, 15% floor).
+Labelling caveat: band failures are almost all failType = liquidity, because
+solvency is tested only after the cascade stops, so a run already past A*(theta)
+continues until the bank sells out. failType records how a run ended, not what
+caused it. To build: the tick at which promises first exceed assets at R(theta).
 
 ## Implications for the systematic sweep (draft)
 

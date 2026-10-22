@@ -1,8 +1,8 @@
 # Rung 1 (relational equivalence) on the fire-sale bank with Chapter 1's stale y
 # (2026-10-22). Supersedes rung1_relational.tsv (vault bank, shock signal; F8 showed
-# a signal of the shock cannot pass). DRAFT until (1) the calibration pilot
-# (calib_d_scan.tsv) sets r and d (placeholders: p3's r 0.05, d 0.6) and (2) the
-# pre-registration (docs/rung1_prereg.md) is signed off.
+# a signal of the shock cannot pass). r 0.05, d 0.6 set by the calibration pilot
+# (docs/pilot_map.md F10). DRAFT until the pre-registration (docs/rung1_prereg.md)
+# is signed off.
 #
 # Every arm: fire-sale bank, theta ~ U[0,1], private signal x_i = theta + 0.10 Z,
 # e 0.06, R(theta) = 1.0 + 0.4 theta, R_stay 1.1, attributed public noise s_y 0.10,

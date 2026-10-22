@@ -14,7 +14,7 @@ that adds this file). Any change after the runs land is reported as a deviation.
   arm, so the same 25 banks × 10 runs, with the same θ and the same shocks, in every
   cell and arm.
 - Fire-sale bank, θ ~ U[0,1], private x_i = θ + 0.10·Z, s_y = 0.10, one λ for
-  both blends. r = [calib], d = [calib], e = 0.06, R(θ) = 1 + 0.4θ, R_stay = 1.1,
+  both blends. r = 0.05, d = 0.6 (pilot_map F10), e = 0.06, R(θ) = 1 + 0.4θ, R_stay = 1.1,
   σ = 2.5 (σ = 1 in one arm).
 
 ## 2. Unit and statistic (fixed)
