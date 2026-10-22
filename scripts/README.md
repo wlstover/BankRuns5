@@ -341,11 +341,31 @@ run_all.sh's untagged-arm guard (`--model` drops `OUTPUT_ONLY_SWITCHES` such as
 replay's column map. `finMain0001.jl` broadcasts the whole set as `SWITCHES`, and
 `switchValue()` falls back to it. To add a switch:
 1. Add a line to `SWITCH_DEFAULTS` and its parser entry in `parseSwitchesFromEnv()`.
+   A combination the model must refuse goes in `switchComboError()`, which both
+   the parser (at startup) and `modelRun` check.
 2. Use it through `switchValue(:NAME)` in the model.
 3. Write a log file only when it is non-default.
-4. Add a test in the style of `tests/test_stay_return.jl`.
+4. Export it in `scripts/sweep_task.slurm` (`export BANKRUN_X="${BANKRUN_X:-}"`)
+   and add it to the echo lines there and to `finMain0001.jl`'s banner.
+5. If it writes a switch file: add the file to `consolidate_results.py`'s
+   `SWITCH_FILES` and to `switch_file_required()` (a prefix missing there raises
+   `KeyError`), and the column to `tests/test_consolidate.py`'s `SWITCH_COLS`.
+6. Add a test in the style of `tests/test_stay_return.jl` and list it in
+   `tests/run_tests.sh`.
 
-Nothing else needs editing.
+The registry readers (`switch_names.sh`, `write_manifest.sh`, `run_all.sh`,
+`run_arms.sh`, `replay_run.jl`) need no edit. (Corrected 2026-10-21: this used
+to say "nothing else needs editing", which missed items 4 and 5.)
+
+**Fire-sale bank (2026-10-21).** `BANKRUN_BALANCE=firesale` (with
+`PAYOFF=recovery`) is Chapter 1's baseline bank: withdrawals beyond reserves are
+paid by selling the long asset at 1 − `FIRE_DISCOUNT`, and the bank fails at
+period 2 if it cannot pay the stayers' promises (`STAY_RETURN` × deposit). With
+`FUNDAMENTAL=theta`, θ ~ U[0,1] per run sets the long asset's return, and
+`PRIVATE_SIGNAL=theta` gives agents a signal of it. Each run writes
+`bankRunBalance*.csv` (θ, the balance sheet, `failType` none / liquidity /
+insolvency, the largest depositor), gathered into `consolidated_balance.csv`;
+`scripts/theta_response.py` reads the θ gate.
 
 **Arm sets.** `scripts/run_arms.sh arms/<set>.tsv [--dry-run|--list|--only TAG]`
 submits one `run_all.sh` call per row (tag, switches, flags). It refuses if the

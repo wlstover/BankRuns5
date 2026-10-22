@@ -833,6 +833,45 @@ The 2023 collapse of Silicon Valley Bank directly validates specific model featu
 
 ---
 
+### 9.10a Fire-Sale Balance Sheet (2026-10-21)
+
+The results above are for the vault bank (`BANKRUN_BALANCE=vault`, the default):
+the bank pays only from reserves, a run means the vault is empty, and agents
+compare P(paid in full). Chapter 1's baseline bank is different (Rochet–Vives):
+runners are always paid, by selling the long asset at a discount, and the bank
+fails at period 2 if it is insolvent. Three switches bring that bank into the
+model, and change what the lemmas cover.
+
+- **`PAYOFF=recovery`** replaces P(paid in full) by the expected share of the
+  deposit recovered (the payout rule already pays `max(vault, min(δ, cap))`).
+  Lemma 1's case for the binary criterion (§9.3) no longer applies under it, and
+  the legacy salvage clause (`P_WD == 0`) rarely fires: a depositor larger than
+  the vault now withdraws because withdrawing recovers more than staying, not by
+  the tie-break. Schuler ≡ strict holds only under `full`.
+- **`BALANCE=firesale`** gives the bank a long asset, (1 − r + e)·D in face units,
+  sold at 1 − d to cover what reserves cannot (`raiseCash`). It fails in period 1
+  only when everything is sold and it still cannot pay (Chapter 1's rationing
+  footnote), otherwise at period 2 if cash plus the long asset at R(θ) cannot pay
+  the stayers' promises, R·deposit. A stayer's payoff is then pro rata with an
+  insurance floor (`stayerPayoff`). Lemma 2 (§9.4) is stated for payoffs min(δ, V);
+  under fire sales the payout is the vault plus fire-sale proceeds, and the stay
+  value is a period-2 claim, so the lemma needs restating for this bank. Theorem 3's
+  monotonicity argument (§9.7) uses the legacy clause and is a vault-bank result.
+- **`FUNDAMENTAL=theta`** draws θ ~ U[0,1] per run, with R(θ) = R_lo + (R_hi − R_lo)·θ,
+  and `PRIVATE_SIGNAL=theta` gives each agent x_i = θ + s·Z_i. This is the
+  unobserved fundamental the shock-size signal lacked (docs/pilot_map.md F8).
+
+With no withdrawals the bank is solvent iff r + (1 − r + e)·R(θ) ≥ R_stay, which
+fixes the lower dominance point θ_L. Withdrawals covered by reserves raise the
+solvency ratio (cash pays 1 against a promise of R_stay), so A*(θ) jumps from 0 to
+about r at θ_L and grows with θ beyond it; only withdrawals past the reserves cost
+the stayers. Coordination therefore matters only where reserves are thin relative
+to realistic cascades and fire sales are costly (the phase 3 pilot uses r 0.05,
+d 0.6, e 0.06, R(θ) ∈ [1.0, 1.4], R_stay 1.1: θ_L ≈ 0.10, A*(θ) from 0.05 to 0.20;
+at r 0.10, d 0.5, e 0.08, A* is 0.13-0.32 and a smoke cell failed only below θ_L).
+
+---
+
 ### 9.11 Outstanding Theoretical Work
 
 - Work through DD artifact theorem algebra formally (f\* calculation under c₁ = 1).

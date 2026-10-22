@@ -142,6 +142,13 @@ DOCK_FILES = {
                ["tickSumEndog"] + [f"t{k}" for k in range(1, 10)] + ["t10plus"]),
     "wealth": ("bankRunWealth", True,
                [f"n_d{j}" for j in range(1, 11)] + [f"endog_d{j}" for j in range(1, 11)]),
+    # Fire-sale bank (2026-10-21, BANKRUN_BALANCE = firesale; functions4.jl
+    # modelRun): theta, the balance sheet before and after, period-2 solvency,
+    # failType (none / liquidity / insolvency) and the largest depositor.
+    "balance": ("bankRunBalance", False,
+                ["theta", "returnTheta", "vaultInit", "illiquidInit", "vaultFinal",
+                 "illiquidFinal", "assetsT", "promises", "solvent", "failType",
+                 "largestShare", "largestToCapacity", "largestWithdrew"]),
 }
 
 
@@ -155,6 +162,8 @@ SWITCH_FILES = {
     "bankRunPublicMode":     ["public_mode", "public_refresh"],
     "bankRunPrivateParams":  ["private_signal", "private_noise"],
     "bankRunStayReturn":     ["stay_return"],
+    "bankRunBalanceParams":  ["payoff", "balance", "fire_discount", "equity", "fundamental",
+                              "return_lo", "return_hi", "theta_noise"],
 }
 # An empty manifest field means "the default at submission time". The
 # FIX_DOUBLE_COUNT default changed on 2026-10-20 (false -> true), so an empty
@@ -224,6 +233,7 @@ def switch_file_required(prefix, e, defaults):
         "bankRunPublicMode":     ["public_mode"],
         "bankRunPrivateParams":  ["private_signal"],
         "bankRunStayReturn":     ["stay_return"],
+        "bankRunBalanceParams":  ["payoff", "balance", "fundamental"],
     }[prefix]
     if any(e[c] is None for c in need):
         return None
@@ -235,7 +245,10 @@ def switch_file_required(prefix, e, defaults):
     if prefix == "bankRunPublicMode":
         return e["public_mode"] == "stale"
     if prefix == "bankRunPrivateParams":
-        return e["private_signal"] == "shock"
+        return e["private_signal"] != d["private_signal"]
+    if prefix == "bankRunBalanceParams":
+        return (e["payoff"] != d["payoff"] or e["balance"] != d["balance"]
+                or e["fundamental"] != d["fundamental"])
     return e["stay_return"] != d["stay_return"]
 
 
@@ -479,7 +492,7 @@ def consolidate(arm_dir, manifest_path, out_path):
 
             for n, (prefix, per_type, fields) in DOCK_FILES.items():
                 width = 1 + int(per_type) + len(fields)
-                for df in task_dir.glob(f"{prefix}*.csv"):
+                for df in task_dir.glob(f"{prefix}[0-9]*.csv"):   # not bankRunBalanceParams for bankRunBalance
                     with open(df, newline="") as fh:
                         for row in csv.reader(fh):
                             if not row:

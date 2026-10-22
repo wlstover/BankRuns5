@@ -32,6 +32,17 @@ const SWITCH_DEFAULTS = (
     PRIVATE_NOISE    = 5.0,          # shock mode: s.d. of the private signal, in agents
     # Stayers' return (2026-10-20): Chapter 1's R. 1 = published (stayers earn nothing).
     STAY_RETURN      = 1.0,          # R ≥ 1: withdraw iff P_WD > R·P_stay (L = 0); see decide()
+    # Balance sheet and fundamental (2026-10-21), docking with Chapter 1's
+    # fire-sale bank (Rochet–Vives). The defaults are today's model; the values
+    # of the four numeric settings matter only under firesale / theta.
+    PAYOFF           = "full",       # full = compare P(paid in full); recovery = expected recovery fraction
+    BALANCE          = "vault",      # vault = pay from reserves only, fail when they run out; firesale = sell the long asset at a discount, fail when insolvent at the end
+    FIRE_DISCOUNT    = 0.25,         # firesale: the long asset sells for 1 − d per unit
+    EQUITY           = 0.10,         # firesale: equity per unit of deposits, held in the long asset
+    FUNDAMENTAL      = "none",       # none = the long asset returns RETURN_HI; theta = θ ~ U[0,1] per run, return R_lo + (R_hi − R_lo)·θ
+    RETURN_LO        = 0.9,          # firesale: gross return of the long asset at θ = 0
+    RETURN_HI        = 1.3,          # firesale: gross return at θ = 1
+    THETA_NOISE      = 0.10,         # PRIVATE_SIGNAL = theta: s.d. of x_i = θ + s·Z_i
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -44,7 +55,31 @@ const LOG_CHOICES      = ("full", "summary")
 const TIEBREAK_CHOICES = ("legacy", "schuler", "strict")
 const BELIEF_CHOICES   = ("geometric", "point")
 const PUBLIC_MODE_CHOICES    = ("markup", "stale")
-const PRIVATE_SIGNAL_CHOICES = ("none", "shock")
+const PRIVATE_SIGNAL_CHOICES = ("none", "shock", "theta")
+const PAYOFF_CHOICES      = ("full", "recovery")
+const BALANCE_CHOICES     = ("vault", "firesale")
+const FUNDAMENTAL_CHOICES = ("none", "theta")
+
+"""The combinations of switches the model refuses, as an error message (or
+nothing). Checked when the switches are parsed, so a sweep fails at startup, and
+again in modelRun, for scripts and tests that set the switches directly."""
+function switchComboError(sw)
+    sw.PUBLIC_MODE == "stale" && !sw.FIX_DOUBLE_COUNT && !sw.FRESH_CLONE &&
+        return "BANKRUN_PUBLIC_MODE=stale needs BANKRUN_FIX_DOUBLE_COUNT=true or BANKRUN_FRESH_CLONE=true"
+    # Pro-rata payouts make "paid in full" the wrong criterion, and phase 1 of a
+    # sub-simulation must not sell assets for neighbours already out.
+    sw.BALANCE == "firesale" && sw.PAYOFF != "recovery" &&
+        return "BANKRUN_BALANCE=firesale needs BANKRUN_PAYOFF=recovery"
+    sw.BALANCE == "firesale" && !sw.FIX_DOUBLE_COUNT && !sw.FRESH_CLONE &&
+        return "BANKRUN_BALANCE=firesale needs BANKRUN_FIX_DOUBLE_COUNT=true or BANKRUN_FRESH_CLONE=true"
+    sw.FUNDAMENTAL == "theta" && sw.BALANCE != "firesale" &&
+        return "BANKRUN_FUNDAMENTAL=theta needs BANKRUN_BALANCE=firesale (θ enters only the terminal valuation)"
+    sw.PRIVATE_SIGNAL == "theta" && sw.FUNDAMENTAL != "theta" &&
+        return "BANKRUN_PRIVATE_SIGNAL=theta needs BANKRUN_FUNDAMENTAL=theta"
+    sw.RETURN_HI < sw.RETURN_LO &&
+        return "BANKRUN_RETURN_HI must be at least BANKRUN_RETURN_LO"
+    return nothing
+end
 
 """The value of switch `name`: a const of that name in this module (finMain0001.jl's
 per-switch consts, or a test setting it), else the SWITCHES NamedTuple finMain0001.jl
@@ -102,10 +137,16 @@ function parseSwitchesFromEnv()
           PRIVATE_SIGNAL   = envChoice("BANKRUN_PRIVATE_SIGNAL", D.PRIVATE_SIGNAL, PRIVATE_SIGNAL_CHOICES),
           PRIVATE_NOISE    = envFloat("BANKRUN_PRIVATE_NOISE", D.PRIVATE_NOISE, 0.0, 1.0e6; loOpen=true),
           STAY_RETURN      = envFloat("BANKRUN_STAY_RETURN", D.STAY_RETURN, 1.0, 100.0),
+          PAYOFF           = envChoice("BANKRUN_PAYOFF", D.PAYOFF, PAYOFF_CHOICES),
+          BALANCE          = envChoice("BANKRUN_BALANCE", D.BALANCE, BALANCE_CHOICES),
+          FIRE_DISCOUNT    = envFloat("BANKRUN_FIRE_DISCOUNT", D.FIRE_DISCOUNT, 0.0, 0.99),
+          EQUITY           = envFloat("BANKRUN_EQUITY", D.EQUITY, 0.0, 10.0),
+          FUNDAMENTAL      = envChoice("BANKRUN_FUNDAMENTAL", D.FUNDAMENTAL, FUNDAMENTAL_CHOICES),
+          RETURN_LO        = envFloat("BANKRUN_RETURN_LO", D.RETURN_LO, 0.0, 100.0),
+          RETURN_HI        = envFloat("BANKRUN_RETURN_HI", D.RETURN_HI, 0.0, 100.0),
+          THETA_NOISE      = envFloat("BANKRUN_THETA_NOISE", D.THETA_NOISE, 0.0, 100.0; loOpen=true),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
-    # Stale mode's view needs the double-count fix (functions4.jl modelRun
-    # checks it too); refused here so a sweep fails at startup, not in a worker.
-    sw.PUBLIC_MODE == "stale" && !sw.FIX_DOUBLE_COUNT && !sw.FRESH_CLONE &&
-        error("BANKRUN_PUBLIC_MODE=stale needs BANKRUN_FIX_DOUBLE_COUNT=true or BANKRUN_FRESH_CLONE=true")
+    msg = switchComboError(sw)
+    msg === nothing || error(msg)
     return sw
 end

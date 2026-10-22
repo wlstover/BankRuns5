@@ -120,6 +120,10 @@ function modelGenTyped(key::String,
         bankingList,
         Agent[]
     )
+    # BANKRUN_BALANCE = firesale (2026-10-21): the rest of the balance sheet is the
+    # long asset, deposits not held as reserves plus equity e per unit of deposits.
+    switchValue(:BALANCE) == "firesale" &&
+        (theBank.illiquid = (1.0 - reserveRatio + switchValue(:EQUITY)) * sum(deposits))
     mod=Model(
         key,
         agtList,
@@ -168,7 +172,8 @@ function clone(mod::Model)
     theBank=simBank(
         mod.theBank.vault,
         simAgent[],
-        simAgent[]
+        simAgent[],
+        mod.theBank.illiquid
     )
     for agt in cloneAgtList
         if agt.banked
@@ -195,7 +200,8 @@ function clone(mod::simModel)
     theBank=simBank(
         mod.theBank.vault,
         simAgent[],
-        simAgent[]
+        simAgent[],
+        mod.theBank.illiquid
     )
     for agt in cloneAgtList
         if agt.banked
@@ -210,6 +216,21 @@ function clone(mod::simModel)
         mod.depositInsurance,
         mod.depositDistribution
     )
+end
+
+# Fire sale (2026-10-21, BANKRUN_BALANCE = firesale). Before paying a deposit
+# the vault cannot cover, the bank sells the long asset at 1 − d per unit:
+# enough to cover it if it can, everything otherwise (a period-1 liquidity
+# failure, Chapter 1's rationing footnote). Returns the new (vault, illiquid).
+# One pure function, used by withdraw() and by both sub-simulations, so all three
+# do the same arithmetic. With nothing to sell (the vault bank, illiquid = 0) it
+# returns its inputs, so the default model is unchanged bit for bit.
+function raiseCash(vault::Float64, illiquid::Float64, dep::Float64, d::Float64)
+    (dep > vault && illiquid > 0.0) || return (vault, illiquid)
+    need = dep - vault                   # vault >= 0 here: it goes negative only once illiquid is 0
+    capacity = (1.0 - d) * illiquid
+    capacity >= need && return (dep, max(illiquid - need / (1.0 - d), 0.0))
+    return (vault + capacity, 0.0)
 end
 
 # and a function to perform the withdrawal
@@ -244,6 +265,9 @@ function withdraw(mod::Model,agt::Agent)
     push!(mod.theBank.withdrawHistory,agt)
     # remove the agent from the banking list
     mod.theBank.bankingList=filter(x->x.idx!=agt.idx,mod.theBank.bankingList)
+    # fire-sale bank: sell the long asset first if the vault falls short
+    mod.theBank.vault, mod.theBank.illiquid =
+        raiseCash(mod.theBank.vault, mod.theBank.illiquid, agt.deposit, switchValue(:FIRE_DISCOUNT))
     # what does the agent get out?
     if agt.deposit>mod.theBank.vault
         agtReturn=max(0.0,mod.theBank.vault,min(agt.deposit,maxDepositInsurance))
@@ -286,6 +310,8 @@ function withdraw(mod::simModel,agt::simAgent)
     push!(mod.theBank.withdrawHistory,agt)
     # remove the agent from the banking list
     mod.theBank.bankingList=filter(x->x.idx!=agt.idx,mod.theBank.bankingList)
+    mod.theBank.vault, mod.theBank.illiquid =
+        raiseCash(mod.theBank.vault, mod.theBank.illiquid, agt.deposit, switchValue(:FIRE_DISCOUNT))
     # what does the agent get out?
     if agt.deposit>mod.theBank.vault
         agtReturn=max(0.0,mod.theBank.vault,min(agt.deposit,maxDepositInsurance))
@@ -326,8 +352,30 @@ function index(agt::simAgent)
     return agt.idx
 end
 
+# A stayer's payoff at period 2 in the fire-sale bank (2026-10-21; Chapter 1's
+# stay branch). Stayers hold debt worth R·deposit (R = BANKRUN_STAY_RETURN). The
+# bank pays the promises in full if its terminal assets, cash plus the long asset
+# at gross return Rθ, cover them; otherwise stayers share the assets pro rata,
+# and insurance tops each up to min(deposit, cap). With no stayers left the
+# promises are 0 and the bank is solvent.
+function stayerPayoff(vault::Float64, illiquid::Float64, Rθ::Float64, promises::Float64,
+                      dep::Float64, cap::Float64, R::Float64)
+    promises <= 0.0 && return R * dep
+    rho = (max(vault, 0.0) + illiquid * Rθ) / promises
+    return rho >= 1.0 ? R * dep : max(rho * R * dep, min(dep, cap))
+end
+
+# The insurance cap a withdrawal from `mod` would face now (withdraw()'s rule).
+currentCap(mod) = !(0.0 <= mod.depositInsurance < 1.0) ?
+    (isempty(mod.theBank.withdrawHistory) ? 0.0 : maximum(deposit.(mod.theBank.withdrawHistory))) :
+    quantile(mod.depositDistribution, mod.depositInsurance)
+
 function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},additionalWithdrawals::Int64;
-                     skipWithdrawn::Bool=false)
+                     skipWithdrawn::Bool=false, terminalReturn=nothing, stayReturn::Float64=1.0)
+    # Deposits of the agents banked at the start, summed in agent order, and of
+    # those this sub-simulation withdraws (for the stayers' promises, firesale).
+    bankedDep = sum(a.deposit for a in mod.agtList if a.banked; init=0.0)
+    removedDep = 0.0
     # Phase 1: force withdrawals of observed (exogenous) neighbors in the submodel.
     #
     # ⚠️ DOUBLE COUNT (found 2026-10-08). The submodel is cloned AFTER the
@@ -340,6 +388,7 @@ function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},ad
         # get the agent
         currAgt=mod.agtList[idx]
         skipWithdrawn && !currAgt.banked && continue
+        currAgt.banked && (removedDep += currAgt.deposit)
         # withdraw the agent
         withdraw(mod,currAgt)
     end
@@ -350,10 +399,17 @@ function subModelRun(mod::simModel,agt::Agent,withdrawingAgents::Array{Agent},ad
     idx::Int64=1
     while numWithdrawn < additionalWithdrawals && idx <= length(stillBanking)
         if stillBanking[idx].idx!=agt.idx
+            removedDep += stillBanking[idx].deposit
             withdraw(mod,stillBanking[idx])
             numWithdrawn+=1
         end
         idx+=1
+    end
+    # Fire-sale bank: the focal agent stays to period 2 instead (Chapter 1's stay).
+    if terminalReturn !== nothing
+        pay = stayerPayoff(mod.theBank.vault, mod.theBank.illiquid, Float64(terminalReturn),
+                           stayReturn * (bankedDep - removedDep), agt.deposit, currentCap(mod), stayReturn)
+        return (pay, pay < stayReturn * agt.deposit)
     end
     # Now simulate the focal agent withdrawing.
     currAgt=filter(x->x.idx==agt.idx,mod.agtList)[1]
@@ -379,21 +435,28 @@ struct SubState
     histMax::Float64                # largest deposit among them (-Inf if none)
     adaptive::Bool                  # adaptive insurance (depositInsurance outside [0,1))
     quantileCap::Float64            # quantile insurance cap otherwise
+    illiquid::Float64               # long asset, face units (firesale; 0 in the vault bank)
+    discount::Float64               # fire-sale discount d
+    bankedDep::Float64              # deposits of the banked agents, summed in agent order
 end
 
 # The state clone() would produce: banking list and history are the banked and
 # withdrawn agents in agent order, whatever order the source lists hold.
-function SubState(agtList, vault::Float64, depositInsurance::Float64, depositDistribution)
+function SubState(agtList, vault::Float64, depositInsurance::Float64, depositDistribution;
+                  illiquid::Float64=0.0, discount::Float64=0.0)
     deps = [a.deposit for a in agtList]
     banked = BitVector([a.banked for a in agtList])
     out = [a.deposit for a in agtList if !a.banked]
     adaptive = !(0.0 <= depositInsurance < 1.0)
     return SubState(vault, deps, banked, [a.idx for a in agtList if a.banked],
                     length(out), isempty(out) ? -Inf : maximum(out), adaptive,
-                    adaptive ? 0.0 : quantile(depositDistribution, depositInsurance))
+                    adaptive ? 0.0 : quantile(depositDistribution, depositInsurance),
+                    illiquid, discount, sum(a.deposit for a in agtList if a.banked; init=0.0))
 end
-SubState(mod::simModel) = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution)
-SubState(mod::Model)    = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution)
+SubState(mod::simModel) = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution;
+                                   illiquid=mod.theBank.illiquid, discount=switchValue(:FIRE_DISCOUNT))
+SubState(mod::Model)    = SubState(mod.agtList, mod.theBank.vault, mod.depositInsurance, mod.depositDistribution;
+                                   illiquid=mod.theBank.illiquid, discount=switchValue(:FIRE_DISCOUNT))
 
 # The withdrawals a sub-simulation from `s` contains once phase 1 has replayed
 # the observed neighbours: those already out in `s`, plus each replayed
@@ -404,15 +467,23 @@ nInView(s::SubState, withdrawnNeighbors; skipWithdrawn::Bool) =
     s.nHistory + count(nb -> !skipWithdrawn || s.banked[nb.idx], withdrawnNeighbors)
 
 # Same signature and result as subModelRun(clone(decisionModel), ...).
+# terminalReturn (fire-sale bank): the long asset's gross return in this draw;
+# the focal agent then stays to period 2 and the result is its stayer payoff.
+# Every withdrawal goes through raiseCash first, as in withdraw(); with nothing
+# to sell (the vault bank) that is a no-op.
 function subModelRunSparse(s::SubState, agt::Agent, withdrawingAgents::Array{Agent},
-                           additionalWithdrawals::Int64; skipWithdrawn::Bool=false)
+                           additionalWithdrawals::Int64; skipWithdrawn::Bool=false,
+                           terminalReturn=nothing, stayReturn::Float64=1.0)
     vault, nHist, histMax = s.vault, s.nHistory, s.histMax
+    ill, d = s.illiquid, s.discount
     removed = Int[]
+    removedDep = 0.0
     # Phase 1: replay the observed withdrawals (the double count when not skipped).
     for nb in withdrawingAgents
         i = nb.idx
         skipWithdrawn && !s.banked[i] && continue
-        s.banked[i] && push!(removed, i)
+        s.banked[i] && (push!(removed, i); removedDep += s.deposits[i])
+        vault, ill = raiseCash(vault, ill, s.deposits[i], d)
         nHist += 1; histMax = max(histMax, s.deposits[i]); vault -= s.deposits[i]
     end
     # Phase 2: the anticipated additional withdrawals, in a random order.
@@ -422,14 +493,23 @@ function subModelRunSparse(s::SubState, agt::Agent, withdrawingAgents::Array{Age
     while numWithdrawn < additionalWithdrawals && j <= length(stillBanking)
         i = stillBanking[j]
         if i != agt.idx
+            removedDep += s.deposits[i]
+            vault, ill = raiseCash(vault, ill, s.deposits[i], d)
             nHist += 1; histMax = max(histMax, s.deposits[i]); vault -= s.deposits[i]
             numWithdrawn += 1
         end
         j += 1
     end
-    # Phase 3: the focal agent withdraws (withdraw()'s payout rule).
     cap = s.adaptive ? (nHist == 0 ? 0.0 : histMax) : s.quantileCap
     dep = s.deposits[agt.idx]
+    # Fire-sale bank: the focal agent stays to period 2 (Chapter 1's stay).
+    if terminalReturn !== nothing
+        pay = stayerPayoff(vault, ill, Float64(terminalReturn), stayReturn * (s.bankedDep - removedDep),
+                           dep, cap, stayReturn)
+        return (pay, pay < stayReturn * agt.deposit)
+    end
+    # Phase 3: the focal agent withdraws (withdraw()'s payout rule).
+    vault, ill = raiseCash(vault, ill, dep, d)
     result = dep > vault ? max(0.0, vault, min(dep, cap)) : dep
     return (result, result < agt.deposit)
 end
@@ -550,24 +630,45 @@ function anticipatedWithdrawals(agt::Agent, priorDraws, neighbourEstimate, publi
     return max.(0, blendedTotal .- alreadyOut)
 end
 
-# P(full deposit | stay): the share of sub-simulations, one per prior draw, in
-# which the agent is paid in full when it withdraws after the anticipated others.
-# Uses the sparse sub-simulation (identical results to subModelRun on clones).
+# The value of staying, one sub-simulation per prior draw (sparse; identical to
+# subModelRun on clones).
+#   payoff = full (published): P(full deposit | stay), the share of draws in which
+#            the agent is paid in full when it withdraws after the anticipated others.
+#   payoff = recovery (2026-10-21): the expected share of its deposit it is paid then.
+#   returns (fire-sale bank): the long asset's gross return in each draw; the agent
+#            stays to period 2, and the value is its expected payoff over its
+#            promise R·deposit, so decide()'s R·P_stay is the expected payoff per
+#            unit of deposit.
 function simulateStay(s::SubState, agt::Agent, withdrawnNeighbors::Array{Agent},
-                      additionalWithdrawals; skipWithdrawn::Bool)
-    lossStay = Bool[subModelRunSparse(s, agt, withdrawnNeighbors, additionalWithdrawals[k];
-                                      skipWithdrawn=skipWithdrawn)[2] for k in eachindex(additionalWithdrawals)]
-    return 1 - mean(lossStay)
+                      additionalWithdrawals; skipWithdrawn::Bool, payoff::String="full",
+                      returns=nothing, stayReturn::Float64=1.0)
+    if returns === nothing
+        if payoff == "full"
+            lossStay = Bool[subModelRunSparse(s, agt, withdrawnNeighbors, additionalWithdrawals[k];
+                                              skipWithdrawn=skipWithdrawn)[2] for k in eachindex(additionalWithdrawals)]
+            return 1 - mean(lossStay)
+        end
+        paid = Float64[subModelRunSparse(s, agt, withdrawnNeighbors, additionalWithdrawals[k];
+                                         skipWithdrawn=skipWithdrawn)[1] for k in eachindex(additionalWithdrawals)]
+        return mean(paid) / agt.deposit
+    end
+    pay = Float64[subModelRunSparse(s, agt, withdrawnNeighbors, additionalWithdrawals[k];
+                                    skipWithdrawn=skipWithdrawn, terminalReturn=returns[k],
+                                    stayReturn=stayReturn)[1] for k in eachindex(additionalWithdrawals)]
+    return mean(pay) / (stayReturn * agt.deposit)
 end
 
-# P(full deposit | withdraw now). Withdrawing now involves no random draw, so this
-# is exactly 1.0 (the vault or the insurance cap covers the deposit) or 0.0.
+# The value of withdrawing now (withdraw()'s payout rule on the decision state,
+# without a clone, after any fire sale). It involves no random draw. Under
+# payoff = full it is exactly 1.0 (the bank or the insurance cap covers the
+# deposit) or 0.0; under payoff = recovery it is the share of the deposit paid.
 # Until 2026-10-15 it was recomputed `depth` times with identical results.
-# (withdraw()'s payout rule on the decision state, without a clone.)
-function payoffIfWithdrawNow(s::SubState, agt::Agent)
+function payoffIfWithdrawNow(s::SubState, agt::Agent; recovery::Bool=false)
     cap = s.adaptive ? (s.nHistory == 0 ? 0.0 : s.histMax) : s.quantileCap
     dep = s.deposits[agt.idx]
-    received = dep > s.vault ? max(0.0, s.vault, min(dep, cap)) : dep
+    vault = raiseCash(s.vault, s.illiquid, dep, s.discount)[1]
+    received = dep > vault ? max(0.0, vault, min(dep, cap)) : dep
+    recovery && return received / agt.deposit
     return received < agt.deposit ? 0.0 : 1.0
 end
 
@@ -604,6 +705,7 @@ function modelRun(mod::Model; record=nothing)
     runState::Bool=false
     # set the seed
     Random.seed!(mod.seed2)
+    vault0, illiquid0 = mod.theBank.vault, mod.theBank.illiquid   # before the shock
 
 
 
@@ -630,14 +732,46 @@ function modelRun(mod::Model; record=nothing)
     privateSignal = switchValue(:PRIVATE_SIGNAL)
     privateNoise  = switchValue(:PRIVATE_NOISE)
     stayReturn    = switchValue(:STAY_RETURN)
+    payoffMode    = switchValue(:PAYOFF)
+    balanceMode   = switchValue(:BALANCE)
+    fireDiscount  = switchValue(:FIRE_DISCOUNT)
+    equity        = switchValue(:EQUITY)
+    fundamental   = switchValue(:FUNDAMENTAL)
+    returnLo      = switchValue(:RETURN_LO)
+    returnHi      = switchValue(:RETURN_HI)
+    thetaNoise    = switchValue(:THETA_NOISE)
     publicStale = publicMode == "stale"
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
     privatePost = privateSignal == "shock" ?
         privatePosteriors(mod, length(exogList), privateNoise; belief=belief, p0=beliefP0) : nothing
-    # Stale mode's view needs the double-count fix: phase 1 would otherwise take
-    # neighbours already out of the snapshot off its vault a second time.
-    publicStale && !skipWithdrawn &&
-        error("BANKRUN_PUBLIC_MODE=stale needs BANKRUN_FIX_DOUBLE_COUNT=true or BANKRUN_FRESH_CLONE=true")
+    # Refused combinations (settings.jl switchComboError), e.g. stale mode's view
+    # needs the double-count fix: phase 1 would otherwise take neighbours already
+    # out of the snapshot off its vault a second time.
+    comboErr = switchComboError((PUBLIC_MODE=publicMode, FIX_DOUBLE_COUNT=switchValue(:FIX_DOUBLE_COUNT),
+                                 FRESH_CLONE=freshClone, PAYOFF=payoffMode, BALANCE=balanceMode,
+                                 FUNDAMENTAL=fundamental, PRIVATE_SIGNAL=privateSignal,
+                                 RETURN_LO=returnLo, RETURN_HI=returnHi))
+    comboErr === nothing || error(comboErr)
+    # Fire-sale bank and fundamental (2026-10-21). θ is drawn once per run, and
+    # each agent's private signal of it once per run, from their own stream; the
+    # agents' Monte Carlo draws of θ from another. Neither touches the main
+    # stream, so arms that differ only in these switches see the same shocks and
+    # shuffles, and paired arms share each run's θ. FUNDAMENTAL = none: θ = 1,
+    # the long asset returns RETURN_HI for sure.
+    balanceFire = balanceMode == "firesale"
+    thetaOn = fundamental == "theta"
+    returnOf(x) = returnLo + (returnHi - returnLo) * x
+    theta, thetaSignal, beliefRng = 1.0, nothing, nothing
+    if balanceFire
+        thetaRng = MersenneTwister(xor(reinterpret(UInt64, mod.seed2), 0x7f4a7c15f39cc060))
+        beliefRng = MersenneTwister(xor(reinterpret(UInt64, mod.seed2), 0x2545f4914f6cdd1d))
+        thetaOn && (theta = rand(thetaRng))
+        privateSignal == "theta" &&
+            (thetaSignal = [theta + thetaNoise * randn(thetaRng) for _ in 1:length(mod.agtList)])
+    end
+    # The vault bank fails when its vault is exhausted; the fire-sale bank fails
+    # in period 1 only when it has sold everything and still cannot pay (vault < 0).
+    failedNow() = balanceFire ? mod.theBank.vault < 0.0 : mod.theBank.vault <= 0.0
     staleLevel = 0
     staleView = staleState
     nAgents = length(mod.agtList)
@@ -686,16 +820,33 @@ function modelRun(mod::Model; record=nothing)
                   DataFrame(key=mod.key, stayReturn=stayReturn),
                   writeheader=false, append=true)
     end
+    if payoffMode != SWITCH_DEFAULTS.PAYOFF || balanceFire || thetaOn
+        CSV.write(dataDir*"/"*"bankRunBalanceParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, payoff=payoffMode, balance=balanceMode,
+                            fireDiscount=fireDiscount, equity=equity, fundamental=fundamental,
+                            returnLo=returnLo, returnHi=returnHi, thetaNoise=thetaNoise),
+                  writeheader=false, append=true)
+    end
+    if thetaSignal !== nothing
+        CSV.write(dataDir*"/"*"bankRunPrivateParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, privateSignal=privateSignal, privateNoise=privateNoise,
+                            nExog=length(exogList)),
+                  writeheader=false, append=true)
+        if logFull()
+            CSV.write(dataDir*"/"*"bankRunPrivate"*string(workerCore)*".csv",
+                      DataFrame(key=mod.key, agent=1:nAgents, signal=thetaSignal),
+                      writeheader=false, append=true)
+        end
+    end
 
     # now, whenever an agent withdraws, we reset a state variable since this means all other agents will
     # re-examing their decision to bank
     halt::Bool=false
     # now, randomize the order of the agents still banking
     t=0
-    if mod.theBank.vault<=0.0
+    if failedNow()
         # if the bank is bankrupt, we need to stop the simulation
         runState=true
-        return (runState, runSetSize(mod)...)
     end
     while !halt && !runState
         halt=true
@@ -749,9 +900,16 @@ function modelRun(mod::Model; record=nothing)
             additionalWithdrawals = anticipatedWithdrawals(agt, priorDraws, neighbourEstimate, publicPoint,
                                                            alreadyOut, nAgents, t;
                                                            pubAlpha=pubAlpha, weightPhi=weightPhi)
+            # Fire-sale bank: the long asset's return in each draw, from the
+            # agent's belief about θ (its prior, or its posterior given x_i).
+            returns = !balanceFire ? nothing :
+                !thetaOn ? fill(returnHi, depth) :
+                thetaSignal === nothing ? returnOf.(rand(beliefRng, depth)) :
+                returnOf.(rand(beliefRng, truncated(Normal(thetaSignal[agt.idx], thetaNoise), 0.0, 1.0), depth))
             probFullDepositStay = simulateStay(decisionState, agt, withdrawnNeighbors, additionalWithdrawals;
-                                               skipWithdrawn=skipWithdrawn)
-            probFullDepositWD = payoffIfWithdrawNow(decisionState, agt)
+                                               skipWithdrawn=skipWithdrawn, payoff=payoffMode,
+                                               returns=returns, stayReturn=stayReturn)
+            probFullDepositWD = payoffIfWithdrawNow(decisionState, agt; recovery=payoffMode == "recovery")
             withdrew = decide(probFullDepositWD, probFullDepositStay; tiebreak=tiebreak,
                               stayReturn=stayReturn)
             if withdrew
@@ -765,12 +923,34 @@ function modelRun(mod::Model; record=nothing)
             end
             withdrew && (halt = false)
 
-            if mod.theBank.vault<=0.0
+            if failedNow()
                 # if the bank is bankrupt, we need to stop the simulation
                 runState=true
                 break
             end
         end
+    end
+    # Fire-sale bank: once the cascade has stopped without a liquidity failure,
+    # period 2. The bank fails if cash plus the long asset at its realised return
+    # cannot pay the stayers' promises (Chapter 1's A > A*(θ)).
+    if balanceFire
+        liquidityFail = runState
+        promises = stayReturn * sum(a.deposit for a in mod.theBank.bankingList; init=0.0)
+        assetsT = max(mod.theBank.vault, 0.0) + mod.theBank.illiquid * returnOf(theta)
+        solvent = !liquidityFail && assetsT >= promises
+        runState = !solvent
+        deps = [a.deposit for a in mod.agtList]
+        big = argmax(deps)
+        CSV.write(dataDir*"/"*"bankRunBalance"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, theta=theta, returnTheta=returnOf(theta),
+                            vaultInit=vault0, illiquidInit=illiquid0,
+                            vaultFinal=mod.theBank.vault, illiquidFinal=mod.theBank.illiquid,
+                            assetsT=assetsT, promises=promises, solvent=solvent,
+                            failType=liquidityFail ? "liquidity" : (solvent ? "none" : "insolvency"),
+                            largestShare=deps[big] / sum(deps),
+                            largestToCapacity=deps[big] / (vault0 + (1.0 - fireDiscount) * illiquid0),
+                            largestWithdrew=!mod.agtList[big].banked),
+                  writeheader=false, append=true)
     end
     return (runState, runSetSize(mod)...)
 end

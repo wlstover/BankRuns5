@@ -124,6 +124,14 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #   BANKRUN_PRIVATE_NOISE   s > 0  s.d. of that signal, in agents (default 5).
 #   BANKRUN_STAY_RETURN     R ≥ 1  stayers' return (Chapter 1's R; L = 0): withdraw
 #                           iff P_WD > R·P_stay. 1 = published (default).
+#   BANKRUN_PAYOFF          full|recovery  decide on P(paid in full) or on the
+#                           expected recovery share (2026-10-21).
+#   BANKRUN_BALANCE         vault|firesale  reserves only, or Chapter 1's bank:
+#                           sell the long asset at 1 − d, fail if insolvent at the end.
+#   BANKRUN_FIRE_DISCOUNT, BANKRUN_EQUITY, BANKRUN_RETURN_LO, BANKRUN_RETURN_HI
+#                           the fire-sale bank's d, e and R(θ) = R_lo + (R_hi − R_lo)·θ.
+#   BANKRUN_FUNDAMENTAL     none|theta  θ = 1, or θ ~ U[0,1] per run.
+#   BANKRUN_PRIVATE_SIGNAL=theta with BANKRUN_THETA_NOISE s: x_i = θ + s·Z_i.
 # Since 2026-10-20 BANKRUN_FIX_DOUBLE_COUNT defaults to true; =false reproduces
 # the published model.
 # Defaults and parsing live in settings.jl (SWITCH_DEFAULTS, parseSwitchesFromEnv).
@@ -167,6 +175,11 @@ println("decision: tiebreak=", TIEBREAK, " belief=", BELIEF, " beliefP0=", BELIE
         " stayReturn=", STAY_RETURN)
 println("signals: publicMode=", PUBLIC_MODE, " publicRefresh=", PUBLIC_REFRESH,
         " privateSignal=", PRIVATE_SIGNAL, " privateNoise=", PRIVATE_NOISE)
+# Balance sheet and fundamental (2026-10-21; read through switchValue from SWITCHES).
+println("balance: payoff=", SWITCHES.PAYOFF, " balance=", SWITCHES.BALANCE,
+        " fireDiscount=", SWITCHES.FIRE_DISCOUNT, " equity=", SWITCHES.EQUITY,
+        " fundamental=", SWITCHES.FUNDAMENTAL, " return=[", SWITCHES.RETURN_LO, ", ",
+        SWITCHES.RETURN_HI, "] thetaNoise=", SWITCHES.THETA_NOISE)
 println("output: log=", LOG)
 
 @everywhere include("objects.jl")

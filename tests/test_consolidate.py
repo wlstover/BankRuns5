@@ -14,6 +14,9 @@ the consolidator as run_all.sh does.
   f  manifest at defaults, bankRunPrivateParams present (a stale-shell leak): exit 1
   g  no manifest and a 16-column dump: refused
   h  a manifest that predates the switch columns: no switch check, exit 0
+  i  fire-sale arm: bankRunBalanceParams matches, balance rows gathered, exit 0
+  j  bankRunBalanceParams disagrees with the manifest (d 0.5 vs 0.25): exit 1
+  k  manifest says firesale, no bankRunBalanceParams: exit 1
 
 Run:  python3 tests/test_consolidate.py
 """
@@ -47,7 +50,9 @@ MANIFEST_COLS = ["task_id", "reserve", "depq", "sigma", "k", "p", "alpha", "mu",
                  "submitted_at"]
 SWITCH_COLS = ["public_alpha", "public_bias", "public_rho", "weight_phi", "fix_double_count",
                "fresh_clone", "tiebreak", "belief", "belief_p0", "log", "git_commit",
-               "public_mode", "public_refresh", "private_signal", "private_noise", "stay_return"]
+               "public_mode", "public_refresh", "private_signal", "private_noise", "stay_return",
+               "payoff", "balance", "fire_discount", "equity", "fundamental", "return_lo",
+               "return_hi", "theta_noise"]
 KEYS = ["T-111-1", "T-111-2"]
 
 
@@ -100,6 +105,12 @@ def build(d, switches=None, with_switch_cols=True, manifest=True, extra=None):
     if "private" in x:
         write_rows(os.path.join(t, "bankRunPrivateParams1.csv"),
                    [[k] + x["private"] + [2] for k in KEYS])
+    if "balance_params" in x:
+        write_rows(os.path.join(t, "bankRunBalanceParams1.csv"),
+                   [[k] + x["balance_params"] for k in KEYS])
+        write_rows(os.path.join(t, "bankRunBalance1.csv"),
+                   [[k, 0.4, 1.06, 30.0, 270.0, -1.0, 0.0, 0.0, 250.0, "false", "liquidity",
+                     0.02, 0.05, "true"] for k in KEYS])
     return t
 
 
@@ -192,6 +203,26 @@ def main():
     d, rc, out = case("h", with_switch_cols=False, extra={"private": ["shock", 2.0]})
     check("exit 0", rc == 0, out[-400:])
     check("0 mismatches", count(out, "Switch-file mismatches:") == 0)
+
+    FIRE_SW = {"payoff": "recovery", "balance": "firesale"}
+    FIRE_ROW = ["recovery", "firesale", 0.25, 0.1, "none", 0.9, 1.3, 0.1]
+
+    print("i  fire-sale arm")
+    d, rc, out = case("i", switches=FIRE_SW, extra={"balance_params": FIRE_ROW})
+    check("exit 0", rc == 0, out[-400:])
+    check("0 mismatches", count(out, "Switch-file mismatches:") == 0)
+    check("balance rows 2", count(out, "balance rows:") == 2, out[-600:])
+    check("balance dropped 0/0", count(out, "balance rows dropped (width/key):") == (0, 0))
+
+    print("j  balance params disagree with the manifest")
+    d, rc, out = case("j", switches=FIRE_SW, extra={"balance_params": FIRE_ROW[:2] + [0.5] + FIRE_ROW[3:]})
+    check("exit 1", rc == 1, out[-400:])
+    check("names the field", "fire_discount = '0.5'" in out, out[-400:])
+
+    print("k  manifest says firesale, no balance params")
+    d, rc, out = case("k", switches=FIRE_SW)
+    check("exit 1", rc == 1)
+    check("names the file", "no bankRunBalanceParams*.csv" in out, out[-400:])
 
     BASE.cleanup()
     print(f"\n{_passed} passed, {_failed} failed")

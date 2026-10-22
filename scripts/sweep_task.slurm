@@ -61,6 +61,15 @@ export BANKRUN_PUBLIC_MODE="${BANKRUN_PUBLIC_MODE:-}"         # markup | stale (
 export BANKRUN_PUBLIC_REFRESH="${BANKRUN_PUBLIC_REFRESH:-}"
 export BANKRUN_PRIVATE_SIGNAL="${BANKRUN_PRIVATE_SIGNAL:-}"   # none | shock (2026-10-20)
 export BANKRUN_STAY_RETURN="${BANKRUN_STAY_RETURN:-}"         # R >= 1 (2026-10-20)
+# Balance sheet and fundamental (2026-10-21)
+export BANKRUN_PAYOFF="${BANKRUN_PAYOFF:-}"                   # full | recovery
+export BANKRUN_BALANCE="${BANKRUN_BALANCE:-}"                 # vault | firesale
+export BANKRUN_FIRE_DISCOUNT="${BANKRUN_FIRE_DISCOUNT:-}"
+export BANKRUN_EQUITY="${BANKRUN_EQUITY:-}"
+export BANKRUN_FUNDAMENTAL="${BANKRUN_FUNDAMENTAL:-}"         # none | theta
+export BANKRUN_RETURN_LO="${BANKRUN_RETURN_LO:-}"
+export BANKRUN_RETURN_HI="${BANKRUN_RETURN_HI:-}"
+export BANKRUN_THETA_NOISE="${BANKRUN_THETA_NOISE:-}"
 export BANKRUN_PRIVATE_NOISE="${BANKRUN_PRIVATE_NOISE:-}"
 
 module load julia/1.8.0
@@ -106,6 +115,7 @@ echo "arm=${ARM_TAG}  task=${SLURM_ARRAY_TASK_ID}  assign=${BANKRUN_ASSIGN_RULE}
 echo "public: alpha=${BANKRUN_PUBLIC_ALPHA:-0} bias=${BANKRUN_PUBLIC_BIAS:-0} rho=${BANKRUN_PUBLIC_RHO:-1} phi=${BANKRUN_WEIGHT_PHI:-1} fixDoubleCount=${BANKRUN_FIX_DOUBLE_COUNT:-true} freshClone=${BANKRUN_FRESH_CLONE:-false}"
 echo "decision: tiebreak=${BANKRUN_TIEBREAK:-legacy} belief=${BANKRUN_BELIEF:-geometric} beliefP0=${BANKRUN_BELIEF_P0:-0.02} log=${BANKRUN_LOG:-full}"
 echo "signals: publicMode=${BANKRUN_PUBLIC_MODE:-markup} publicRefresh=${BANKRUN_PUBLIC_REFRESH:-0} privateSignal=${BANKRUN_PRIVATE_SIGNAL:-none} privateNoise=${BANKRUN_PRIVATE_NOISE:-5} stayReturn=${BANKRUN_STAY_RETURN:-1}"
+echo "balance: payoff=${BANKRUN_PAYOFF:-full} balance=${BANKRUN_BALANCE:-vault} fireDiscount=${BANKRUN_FIRE_DISCOUNT:-0.25} equity=${BANKRUN_EQUITY:-0.10} fundamental=${BANKRUN_FUNDAMENTAL:-none} return=[${BANKRUN_RETURN_LO:-0.9}, ${BANKRUN_RETURN_HI:-1.3}] thetaNoise=${BANKRUN_THETA_NOISE:-0.10}"
 echo "reserve=$reserve depq=$depq sigma=$sigma k=$k p=$p alpha=$alpha mu=$mu"
 echo "lambdaI=$lambdaI lambdaC=$lambdaC  genSeed=$GEN_SEED"
 echo "outdir=${TASK_DIR}"

@@ -27,13 +27,21 @@ mutable struct Bank
     vault::Float64
     bankingList::Array{Agent}
     withdrawHistory::Array{Agent}
+    # Face units of the long (illiquid) asset (2026-10-21, BANKRUN_BALANCE =
+    # firesale). 0 in the vault bank, where withdraw() never sells.
+    illiquid::Float64
 end
+# The 3-field form every caller used before 2026-10-21 (and the old code
+# test_public_signal.jl replays): a vault bank, nothing to sell.
+Bank(vault, bankingList, withdrawHistory) = Bank(vault, bankingList, withdrawHistory, 0.0)
 
 mutable struct simBank
     vault::Float64
     bankingList::Array{simAgent}
     withdrawHistory::Array{simAgent}
+    illiquid::Float64
 end
+simBank(vault, bankingList, withdrawHistory) = simBank(vault, bankingList, withdrawHistory, 0.0)
 
 mutable struct Model
     key::String
