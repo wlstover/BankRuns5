@@ -34,7 +34,7 @@ tie-break, geometric belief, R = 1.
 | p2 replay (2026-10-21) | `outputs/replay-p2/` | why? | two of five initialisations ran in every run of every arm: one depositor dominated each bank (753714: 56% of deposits, 1.9x the vault; 455326: 92% of the vault). The signal did shrink cascades (-5.7 / -3.7 / -1.3 agents at s 2 / 5 / 20) |
 | p2b (2026-10-21) | `phase2b_sigma1.tsv` | the same gate at sigma 1 | **uninformative**: P(run) = 0 in all 1,000 runs; mean cascade 3 agents; arms indistinguishable |
 | p2s (2026-10-21) | `phase2s_reserve_scan.tsv` | at sigma 1, where is the reserve transition? | between r 0.10 and 0.30 (table F3) |
-| p2c (pending) | `phase2c_gate_r20_r25.tsv` | the gate at sigma 1, r 0.20 and 0.25 | — |
+| p2c (2026-10-21) | `phase2c_gate_r20_r25.tsv` | the gate at sigma 1, r 0.20 and 0.25 | **FAIL at r 0.20** (F8); r 0.25 has no runs. Every arm was submitted twice into the same directory (19:12, 20:18); the copies are identical run for run, so analyses use one copy |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -130,6 +130,27 @@ business-heavy banks are far more concentrated (FDIC 2023: SVB's top depositors,
 who run (Iyer, Puri & Ryan; Martin, Puri & Ufier; FDIC 2023), so the whale channel is
 empirically real, not only a model artifact.
 
+**F8. The phase 2 gate fails at sigma 1 too, and the reason is structural: a private
+signal of the shock is redundant once the agent's sub-model already contains it.** At
+r 0.20 (P(run) 0.092 with no signal) the slope of P(run) per 10 exogenous withdrawers
+is +0.158 (se 0.033) with no signal, +0.152 / +0.154 / +0.120 at s 2 / 5 / 20: no arm
+is above the no-signal arm. The informative signal *reduces* runs instead: P(run) 0.092
+-> 0.076 / 0.076 / 0.072; paired run for run, s 2 turns 7 runs into non-runs and 3
+non-runs into runs, and cuts withdrawers by 3.5 on average (s 5: -3.8, s 20: -2.2),
+as in the sigma 2 replay (-5.7 / -3.7 / -1.3). At r 0.25 no bank fails in any arm,
+so the sigma 1 transition is between r 0.15 (0.73) and 0.20 (0.09).
+
+Why: the posterior draws replace the agent's draws of the run's *total*, centred on
+the realised shock n_exog. Every decision state (fresh clone, stale view, stale clone)
+already contains the shock, so alreadyOut >= n_exog, and an informed, mostly-private
+agent forecasts max(0, ~n_exog - alreadyOut) = 0 further withdrawals: "the run is
+over". The signal can only reassure. In Chapter 1 the private signal is about the
+fundamental theta, which depositors do not observe; the vault-only ABM has no theta,
+so it has nothing unobserved for a private signal to reveal. The gate cannot pass
+until the model has a fundamental, which the fire-sale balance sheet (Ch 1's baseline,
+decided 2026-10-21) supplies: the private signal should be of theta (the illiquid
+asset's return), not of the shock.
+
 ## Implications for the systematic sweep (draft)
 
 1. **sigma's realistic level is ~2.5 (F7), which is the whale regime.** sigma 1 is a
@@ -156,7 +177,7 @@ empirically real, not only a model artifact.
 
 ## Open questions / next pilots
 
-- p2c: the gate at r 0.20 and 0.25 (pending).
+- Redesign the gate for the fire-sale model: a private signal of theta, not of n_exog (F8).
 - Where is the sigma 1 transition for other mu and lambda pairs? (Does culture move
   the transition, or only P(run) within it?)
 - R = 1.25: does it move the no-shock failure boundary (F4) and the transition (F3)?
