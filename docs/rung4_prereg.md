@@ -1,6 +1,6 @@
 # Rung 4 pre-registration: OUTLINE (started 2026-10-22)
 
-Status: outline; decisions open (marked [ ]); prose by the user. Rung 4 is Ch 2
+Status: S1 decided by the user 2026-10-22 (below); prose by the user. Rung 4 is Ch 2
 indirect calibration (pilot_map feature list F13–F15): Ch 2 evaluates the ABM, it never
 shapes it, so every statistic is fixed here before the arms that test it run.
 First statistic: S1, the one-shot exit share by depositor size (F12). Others to add
@@ -36,22 +36,22 @@ Known asymmetries, stated now:
   **Levels at the small end are therefore not a test**; the gradient is.
 
 ### Test
-- [ ] **Primary (relational):** the one-shot share among exiters is lower in the top
+- [x] **Decided (user, 2026-10-22). Primary (relational):** the one-shot share among exiters is lower in the top
   decile than in D1–D5 pooled, and lower for the largest agent than in the top
   decile. Pooled over runs; CR1 SEs clustered on the initialisation (as rung 1);
-  one-sided. Recommended.
-- [ ] **Secondary (plausibility, F15):** is Celsius's curve (D6–D10, top 1%, top
+  one-sided.
+- [x] **Secondary (plausibility, F15):** is Celsius's curve (D6–D10, top 1%, top
   0.1%) inside the ABM's run-to-run distribution of the same curve? It is reported,
   not pass/fail, until F15's acceptance-region method is fixed.
-- [ ] Also report: the partial-exit share (exiters who keep part of their balance)
+- [x] **Decided (user):** also report the partial-exit share (exiters who keep part of their balance)
   by size. Celsius top 0.1%: 25% partial vs 29% full exit.
 
 ### Arms and cells
-- [ ] The rung-1 reference setting under `WITHDRAW=partial` (r 0.05, d 0.6, e 0.06,
+- [x] **Decided (user):** the rung-1 reference setting under `WITHDRAW=partial` (r 0.05, d 0.6, e 0.06,
   R_stay 1.1, theta signal s 0.10, uninsured), pooled over the mixed cells
   (mu 0.25 / 0.5 / 0.75) and the 3 lambda pairs. Primary sigma 2.5; sigma 1
   reported (prediction: little or no gradient, since no depositor moves the bank).
-- [ ] Which public-signal arm: none (no public signal) is recommended as primary, so
+- [x] **Decided (user):** primary arm has no public signal (THETA_PUBLIC=none), so
   the size gradient is not mixed with the y effects.
 - These arms run **after** this file is decided and the output below is built.
   r1p-* (submitted 2026-10-22) does not record S1, and is not used for it.
