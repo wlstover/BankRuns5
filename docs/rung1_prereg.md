@@ -1,8 +1,8 @@
 # Rung 1 pre-registration: OUTLINE (2026-10-22)
 
 Status: decisions made by the user 2026-10-22 (below); prose by the user. Nothing in
-`arms/rung1_theta.tsv` runs until this is signed off and r, d are set from the
-calibration pilot (`arms/calib_d_scan.tsv`).
+`arms/rung1_theta.tsv` runs before the user's go. r 0.05, d 0.6 were set by the
+calibration pilot (`arms/calib_d_scan.tsv`, pilot_map F10).
 
 Analysis code, fixed before the runs: `scripts/rung1_relational.py` (the commit
 that adds this file). Any change after the runs land is reported as a deviation.
