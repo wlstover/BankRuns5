@@ -8,6 +8,7 @@
 #   1  clean shell: --restart prints the manifest's settings and the sweep sbatch
 #   2  a conflicting BANKRUN_* in the shell is refused
 #   3  a manifest from another commit is refused
+#   4  a fresh (non --restart/--tasks) sweep into an arm with outputs is refused
 #
 # Needs a clean checkout (the manifest's commit must be HEAD); tests/run_tests.sh
 # reports it SKIPPED otherwise. Writes a throwaway arm under outputs/ and removes it.
@@ -56,6 +57,12 @@ echo "3  manifest from another commit"
 manifest 0000000
 run
 check "refused" '[[ $RC -ne 0 && "$OUT" == *"the arm ran at 0000000"* ]]'
+
+echo "4  fresh sweep into an arm that already ran"
+manifest "$HEAD_SHORT"
+OUT="$(env -i PATH="$PATH" HOME="$HOME" BANKRUN_PROJECT_ROOT="$ROOT" \
+       bash "$ROOT/scripts/run_all.sh" --tag "$TAG" --grid reference --dry-run 2>&1)"; RC=$?
+check "refused" '[[ $RC -ne 0 && "$OUT" == *"already has outputs"* ]]'
 
 echo ""
 echo "${PASS} passed, ${FAIL} failed"

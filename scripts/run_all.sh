@@ -243,6 +243,20 @@ if [[ -n "$RERUN_TASKS" ]] || [[ $RESTART -eq 1 ]]; then
     fi
 fi
 
+# ── A fresh sweep never writes into an arm that already ran ─────────────────
+# The model appends to its output CSVs, so a second fresh submission under the
+# same tag doubles every run (the p2c arms, 2026-10-21: each submitted twice,
+# 500 runs per 250-run arm). A manifest or a task_* directory means a real
+# submission happened (--dry-run writes neither). Checked in --dry-run too.
+if [[ $DO_SWEEP -eq 1 ]] && [[ -z "$RERUN_TASKS" ]] && [[ $RESTART -eq 0 ]]; then
+    if [[ -f "$MANIFEST" ]] || compgen -G "${ARM_DIR}/task_*" > /dev/null; then
+        echo "ERROR: arm '${TAG}' already has outputs in ${ARM_DIR}." >&2
+        echo "       A fresh sweep would append to them. Use --restart or --tasks to add to" >&2
+        echo "       this arm, a new --tag for a new one, or move ${ARM_DIR} aside." >&2
+        exit 1
+    fi
+fi
+
 if [[ -n "$RERUN_TASKS" ]] || [[ $RESTART -eq 1 ]]; then
     RESUB_FLAG=$([[ -n "$RERUN_TASKS" ]] && echo --tasks || echo --restart)
     if [[ ! -f "$MANIFEST" ]]; then
