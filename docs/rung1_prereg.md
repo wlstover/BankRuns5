@@ -40,7 +40,7 @@ that adds this file). Any change after the runs land is reported as a deviation.
 | G3 | 2×2, "signals agree" | mean \|D_arm\| − \|D_tracks-g0\|, run for run | stale arms | > 0 |
 
 To decide (user):
-- [ ] Are the **levels** (G1, G4) or the **channel-isolated** versions (G1′, G4′) the primary test? Phase 3 shows D ≈ −0.10 at every θ with the private signal alone: the head-count channel makes collectivists herd. That biases the level G1 toward failure, and that channel has no counterpart in Ch 1.
+- [x] **Decided (user, 2026-10-22):** G1′/G4′ are the tests for who runs and for the effect of heterogeneous signal weights, so that network heterogeneity is not conflated with cultural heterogeneity. The levels G1/G4 describe outcomes under all depositor heterogeneity together (P(run) and the other aggregate findings), and are reported alongside. Was: are the **levels** (G1, G4) or the **channel-isolated** versions (G1′, G4′) the primary test? Phase 3 shows D ≈ −0.10 at every θ with the private signal alone: the head-count channel makes collectivists herd. That biases the level G1 toward failure, and that channel has no counterpart in Ch 1.
 - [ ] The decision rule: one-sided z > 1.645 per test, with Holm across the family {G1′, G4′, G2a, G3} × 3 λ pairs? Or a sign-consistency count (e.g. support if ≥ 2 of the 3 λ pairs are significant and none is significant the wrong way)?
 - [ ] g = 0.1 (equal to the private noise s). Report g = 0.05 and 0.2 as robustness.
 - [ ] Is G2c in the confirmatory family or exploratory?
