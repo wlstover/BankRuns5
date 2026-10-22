@@ -176,6 +176,38 @@ asset's return), not of the shock.
 5. **Exclude cells that fail with no shock** (F4) from any signal or culture
    contrast, or move the boundary with R first.
 
+## Build order to the systematic sweep (agreed 2026-10-21)
+
+Built so far: the fire-sale bank with period-2 solvency (vault bank kept as the
+default), expected recovery, theta with a private signal of it, STAY_RETURN (Ch 1's
+R), neighbour and public withdrawal-count signals (accurate or stale, stale freezing
+the agent's view), sigma calibrated to Celsius (F7), docking outputs, pipeline guards.
+
+1. **Read the phase 3 gate** (`arms/phase3_firesale_gate.tsv`, running 2026-10-21).
+   If it passes, the calibration pilots (step 3's scans) can run while step 2 is
+   built: they are single-cell fire-sale arms and need neither stale theta nor the
+   seeding change. If it fails, calibration comes before step 2.
+2. **Public signal of theta (stale y), the main missing model piece.** In Ch 1 the
+   cultural weight is on theta, est_i = (1 - w_i) x_i + w_i y with y stale; in the
+   ABM lambda weights only head-count beliefs (social vs own prior), and theta
+   beliefs carry no culture. **Decision needed first:** does lambda govern the theta
+   blend, the head-count blend, or both (both = a second weight).
+3. **Seeding and allocation, plus calibration.** Same banks in every cell (seed by
+   initialisation, not array index; implication 3) and more initialisations per
+   cell (e.g. 25 x 10 instead of 5 x 50; implication 4). Calibration pilots: where
+   the fire-sale transition sits across reserves r and discount d (and e, R_stay),
+   so the sweep's axes are packed around it.
+4. **Redesign the rung-1 arms** (`arms/rung1_relational.tsv`, drafted on the vault
+   bank with stale counts) on the fire-sale bank with stale theta, and pre-register
+   the G1-G4 statistics, signs and contrasts.
+5. **The systematic sweep.**
+
+Alongside any step: **fix the who-runs loss accounting** (`scripts/who_runs_production.py`
+assumes failed-bank stayers recover only insurance, L = 0; under firesale they
+recover pro rata). To schedule: deposit size correlated with cultural type
+(calibrated to Ch 2), an explicit withdrawal suspension (the Celsius freeze) as an
+institutional lever, and whatever model support the outline's learning section needs.
+
 ## Open questions / next pilots
 
 - Phase 3 gate (`arms/phase3_firesale_gate.tsv`, 2026-10-21): the fire-sale bank
