@@ -1409,6 +1409,46 @@ function neighbourRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     return df
 end
 
+# bankRunExitShape (2026-10-22, WITHDRAW = partial; rung-4 S1, docs/rung4_prereg.md):
+# one row per run x type. For each size group of the bank's own deposits (deciles
+# D1-D10, the top 1% and the top 0.1% of agents, at least one agent each): agents
+# not hit by the shock, exiters (withdrew anything endogenously), one-shot
+# exiters (a single endogenous withdrawal, so all of it in one tick), and partial
+# exiters (still holding part of their deposit at the end).
+const EXIT_GROUPS = vcat(["d$j" for j in 1:10], ["top1", "top01"])
+
+function exitShapeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
+    n = length(mod.agtList)
+    d = [a.deposit for a in mod.agtList]
+    cuts = quantile(d, 0.1:0.1:0.9)
+    dec = [1 + count(x .> cuts) for x in d]
+    ord = sortperm(d; rev=true)
+    top1 = falses(n); top1[ord[1:max(1, round(Int, 0.01n))]] .= true
+    top01 = falses(n); top01[ord[1:max(1, round(Int, 0.001n))]] .= true
+    exog = falses(n); for k in 1:rec.nExog; exog[rec.order[k]] = true; end
+    events = zeros(Int, n); taken = zeros(Float64, n)
+    for k in (rec.nExog + 1):length(rec.order)
+        i = rec.order[k]; events[i] += 1; taken[i] += rec.amount[k]
+    end
+    exit = events .> 0
+    oneshot = events .== 1
+    part = exit .& (taken .< d .* (1 - 1e-9))
+    df = DataFrame(key=String[], type=String[])
+    for g in EXIT_GROUPS, f in ("n", "exit", "oneshot", "partial")
+        df[!, Symbol("$(f)_$(g)")] = Int[]
+    end
+    for (lab, want) in (("I", true), ("C", false))
+        vals = Int[]
+        for g in EXIT_GROUPS
+            sel = (isI .== want) .& .!exog .&
+                  (g == "top1" ? top1 : g == "top01" ? top01 : dec .== parse(Int, g[2:end]))
+            push!(vals, count(sel), count(sel .& exit), count(sel .& oneshot), count(sel .& part))
+        end
+        push!(df, (mod.key, lab, vals...))
+    end
+    return df
+end
+
 function wealthRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     d = [a.deposit for a in mod.agtList]
     cuts = quantile(d, 0.1:0.1:0.9)
@@ -1460,6 +1500,9 @@ function runRow(row)
               writeheader=false,append=true)
     isempty(rec.nbAgent) ||
         CSV.write(dataDir*"/"*"bankRunNeighbour"*string(workerCore)*".csv",neighbourRows(mod, isI, rec),
+                  writeheader=false,append=true)
+    switchValue(:WITHDRAW) == "partial" &&
+        CSV.write(dataDir*"/"*"bankRunExitShape"*string(workerCore)*".csv",exitShapeRows(mod, isI, rec),
                   writeheader=false,append=true)
     return (rMod, nWithdrawn, depositWithdrawn)
 end

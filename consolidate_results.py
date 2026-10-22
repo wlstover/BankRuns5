@@ -161,6 +161,11 @@ DOCK_FILES = {
     # (2026-10-22, fire-sale runs; functions4.jl neighbourRows, NB_BINS).
     "neighbour": ("bankRunNeighbour", True,
                   [f"dec_b{j}" for j in range(6)] + [f"wd_b{j}" for j in range(6)]),
+    # Exit shape by size group (2026-10-22, WITHDRAW = partial; rung-4 S1;
+    # functions4.jl exitShapeRows, EXIT_GROUPS).
+    "exitshape": ("bankRunExitShape", True,
+                  [f"{f}_{g}" for g in [f"d{j}" for j in range(1, 11)] + ["top1", "top01"]
+                   for f in ("n", "exit", "oneshot", "partial")]),
     "partial": ("bankRunPartial", False,
                 ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
                  "largestFracWithdrawn"]),

@@ -11,6 +11,9 @@
 #      the withdrawals to its endogenous withdrawal events, and the file is
 #      written once per run with two type rows.
 #   C. Vault runs record no decisions and write no file.
+#   D. bankRunExitShape (rung-4 S1): counts nest (one-shot and partial exiters
+#      are exiters), deciles cover every agent not hit by the shock, and with
+#      nobody above the size cutoff every exit is one-shot and none partial.
 ################################################################################
 
 using Test
@@ -82,4 +85,30 @@ end
         m.modelRun(mod; record=r); r
     end
     @test isempty(rec.nbAgent)
+end
+
+@testset "D. exit shape" begin
+    for (nm, cut) in ((:Dcut, 0.01), (:Dnone, 1.0e9))
+        m = load_model(nm)
+        setsw!(m; FIRE..., WITHDRAW="partial", PARTIAL_MIN_SHARE=cut)
+        res = Base.invokelatest() do
+            map(1:20) do s
+                mod = build(m, s); rec = m.RunRecord()
+                m.modelRun(mod; record=rec)
+                isI = [a.individualism < 0.5 for a in mod.agtList]
+                (rec, m.exitShapeRows(mod, isI, rec))
+            end
+        end
+        for (rec, df) in res
+            for g in m.EXIT_GROUPS
+                @test all(df[!, "exit_$g"] .<= df[!, "n_$g"])
+                @test all(df[!, "oneshot_$g"] .<= df[!, "exit_$g"])
+                @test all(df[!, "partial_$g"] .<= df[!, "exit_$g"])
+                cut > 1 && @test all(df[!, "oneshot_$g"] .== df[!, "exit_$g"])
+                cut > 1 && @test all(df[!, "partial_$g"] .== 0)
+            end
+            @test sum(sum(df[!, "n_d$j"]) for j in 1:10) == 60 - rec.nExog
+            @test sum(sum(df[!, "exit_d$j"]) for j in 1:10) == length(unique(rec.order[rec.nExog+1:end]))
+        end
+    end
 end

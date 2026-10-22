@@ -58,9 +58,12 @@ Known asymmetries, stated now:
 - These arms run **after** this file is decided and the output below is built.
   r1p-* (submitted 2026-10-22) does not record S1, and is not used for it.
 
-### Output to build (before the arms)
-`bankRunExitShape`: per run × type × size group (D1–D10, top 1%, top 0.1%): agents,
-endogenous exiters, one-shot exiters, partial exiters. A partial run only.
+### Output (built 2026-10-22)
+`bankRunExitShape` (functions4.jl exitShapeRows; `consolidated_exitshape.csv`): per
+run × type × size group (D1–D10, top 1%, top 0.1%): agents not hit by the shock,
+endogenous exiters, one-shot exiters (a single endogenous withdrawal), partial
+exiters (part of the deposit still in at the end). Written by partial runs only.
+tests/test_neighbour_output.jl D.
 
 ### What would count against
 - The top decile's one-shot share is not below D1–D5's (no gradient) at sigma 2.5.
