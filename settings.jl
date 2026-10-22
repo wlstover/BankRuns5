@@ -51,6 +51,9 @@ const SWITCH_DEFAULTS = (
     THETA_PUBLIC_RHO   = 1.0,        # the gap decays as gap₀·ρ^(t-1) (1 = it persists; < 1 = y corrects)
     THETA_PUBLIC_NOISE = 0.10,       # ε_y: the noise agents attribute to y; window (1 − ω)·s_x + ω·s_y
     LAMBDA_SCOPE       = "count",    # which blend λ weights: count (published) | theta | both; the other uses the population mean λ̄
+    # Seeding and allocation (2026-10-22; parameterGen.jl, scripts/sweep_task.slurm).
+    SEEDING          = "task",       # task: GEN_SEED = SEED_OFFSET + array index (each cell its own banks); common: GEN_SEED = SEED_OFFSET in every cell, seeds from their own stream (same banks and θ in every cell)
+    N_INIT           = 5,            # initialisations per cell (1, 5 or 25), each run 250 / N_INIT times
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -69,6 +72,8 @@ const BALANCE_CHOICES     = ("vault", "firesale")
 const FUNDAMENTAL_CHOICES = ("none", "theta")
 const THETA_PUBLIC_CHOICES = ("none", "stale", "tracks")
 const LAMBDA_SCOPE_CHOICES = ("count", "theta", "both")
+const SEEDING_CHOICES      = ("task", "common")
+const N_INIT_CHOICES       = (1, 5, 25)
 
 """The combinations of switches the model refuses, as an error message (or
 nothing). Checked when the switches are parsed, so a sweep fails at startup, and
@@ -89,6 +94,9 @@ function switchComboError(sw)
     # y is blended with the private signal x_i, so it needs one.
     sw.THETA_PUBLIC != "none" && sw.PRIVATE_SIGNAL != "theta" &&
         return "BANKRUN_THETA_PUBLIC needs BANKRUN_PRIVATE_SIGNAL=theta"
+    # (modelRun passes only the switches it checks; N_INIT is checked at parse time)
+    !hasproperty(sw, :N_INIT) || sw.N_INIT in N_INIT_CHOICES ||
+        return "BANKRUN_N_INIT must be one of $(join(N_INIT_CHOICES, "|")) (250 runs per cell)"
     sw.RETURN_HI < sw.RETURN_LO &&
         return "BANKRUN_RETURN_HI must be at least BANKRUN_RETURN_LO"
     return nothing
@@ -164,6 +172,8 @@ function parseSwitchesFromEnv()
           THETA_PUBLIC_RHO   = envFloat("BANKRUN_THETA_PUBLIC_RHO", D.THETA_PUBLIC_RHO, 0.0, 1.0),
           THETA_PUBLIC_NOISE = envFloat("BANKRUN_THETA_PUBLIC_NOISE", D.THETA_PUBLIC_NOISE, 0.0, 100.0; loOpen=true),
           LAMBDA_SCOPE       = envChoice("BANKRUN_LAMBDA_SCOPE", D.LAMBDA_SCOPE, LAMBDA_SCOPE_CHOICES),
+          SEEDING          = envChoice("BANKRUN_SEEDING", D.SEEDING, SEEDING_CHOICES),
+          N_INIT           = envInt("BANKRUN_N_INIT", D.N_INIT, 1, 25),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)

@@ -20,8 +20,19 @@
 genSeed=parse(Int, CLI_ARGS[2])
 Random.seed!(genSeed)
 
-# how many model initializations to run?
+# how many model initializations to run? seedRun x seedRun rows of seed1 (25),
+# times runSize iterations = 250 runs per cell. BANKRUN_N_INIT (2026-10-22) sets
+# how many distinct initialisations those 25 rows hold (5 = published: each
+# repeated 5 times, so 50 runs each; 25 = 10 runs each).
 seedRun=5
+nInit=switchValue(:N_INIT)
+# BANKRUN_SEEDING = common (2026-10-22): every task of an arm gets the same
+# GEN_SEED (sweep_task.slurm), and seed1/seed2 come from their own stream rather
+# than the global one, whose position after newman_watts_strogatz depends on k
+# and p. Every cell then runs the same initialisations and the same per-run
+# seeds (θ, shocks, shuffles), so contrasts across cells are paired.
+commonSeeds=switchValue(:SEEDING) == "common"
+seedRng=commonSeeds ? MersenneTwister(genSeed) : Random.default_rng()
 # and how many times to run each initialization?
 runSize=10
 
@@ -92,7 +103,7 @@ graphTypes=SimpleGraph{Int64}[newman_watts_strogatz(agtCnts[1], ws_k, ws_p)]
 
 #exogenousProb=Distribution[Binomial(1000,0.1),Binomial(1000,.2),Binomial(1000,.3)]
 exogenousProb=Distribution[truncated(Geometric(0.1),0,1000)]
-seed1=repeat(sample(1:1000000,seedRun,replace=false),seedRun)
+seed1=repeat(sample(seedRng,1:1000000,nInit,replace=false),seedRun*seedRun÷nInit)
 seedIterations=DataFrame(iteration=1:runSize)
 seedFrame=DataFrame(seed1=seed1)
 depFrame=DataFrame(depositDist=depositDistributions)
@@ -108,8 +119,11 @@ twoTypeFrame=DataFrame(fracIndividualists=[fracIndividualists],
 jointFrame=crossjoin(seedFrame,seedIterations,depFrame,graphFrame,exogProbFrame,reserveFrame,depositInsuranceFrame,warmupAlphaFrame,twoTypeFrame)
 
 # now we need to generate the parameters
-jointFrame.seed2=sample(1:1000000,size(jointFrame,1),replace=false)
-jointFrame.key=string(Dates.now())*"-".*string.(jointFrame.seed1).*"-".*string.(jointFrame.seed2)
+jointFrame.seed2=sample(seedRng,1:1000000,size(jointFrame,1),replace=false)
+# Under common seeding every task draws the same seeds, so the key carries the
+# task directory to stay unique across tasks (replay_run.jl reads the last two fields).
+keyPrefix=commonSeeds ? basename(rstrip(dataDir, '/'))*"-" : ""
+jointFrame.key=keyPrefix*string(Dates.now())*"-".*string.(jointFrame.seed1).*"-".*string.(jointFrame.seed2)
 jointFrame.started.=false
 jointFrame.completed.=false
 save_object(dataDir*"/key"*string(genSeed)*string(Dates.now())*".jld2", jointFrame)

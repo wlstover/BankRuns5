@@ -78,6 +78,8 @@ export BANKRUN_THETA_PUBLIC_GAP="${BANKRUN_THETA_PUBLIC_GAP:-}"
 export BANKRUN_THETA_PUBLIC_RHO="${BANKRUN_THETA_PUBLIC_RHO:-}"
 export BANKRUN_THETA_PUBLIC_NOISE="${BANKRUN_THETA_PUBLIC_NOISE:-}"
 export BANKRUN_LAMBDA_SCOPE="${BANKRUN_LAMBDA_SCOPE:-}"       # count | theta | both
+export BANKRUN_SEEDING="${BANKRUN_SEEDING:-}"                 # task | common (2026-10-22)
+export BANKRUN_N_INIT="${BANKRUN_N_INIT:-}"                   # 1 | 5 | 25
 
 module load julia/1.8.0
 
@@ -107,7 +109,14 @@ mkdir -p "$TASK_DIR"
 # GEN_SEED must be unique per task. It seeds parameterGen.jl's RNG, which draws
 # seed1/seed2 for the 50 runs; colliding GEN_SEEDs across arms would make the
 # arms share draws and stop being independent replications.
-GEN_SEED=$((SEED_OFFSET + SLURM_ARRAY_TASK_ID))
+# BANKRUN_SEEDING=common (2026-10-22): the same GEN_SEED in every task, so every
+# cell of the arm runs the same banks (parameterGen.jl draws the seeds from their
+# own stream). Arms compared with each other still differ by SEED_OFFSET.
+if [[ "${BANKRUN_SEEDING:-task}" == "common" ]]; then
+    GEN_SEED=$SEED_OFFSET
+else
+    GEN_SEED=$((SEED_OFFSET + SLURM_ARRAY_TASK_ID))
+fi
 
 read -r reserve depq sigma k p alpha mu lambdaI lambdaC \
     < <(sed -n "${SLURM_ARRAY_TASK_ID}p" "$PARAMS_FILE")
@@ -125,7 +134,7 @@ echo "signals: publicMode=${BANKRUN_PUBLIC_MODE:-markup} publicRefresh=${BANKRUN
 echo "balance: payoff=${BANKRUN_PAYOFF:-full} balance=${BANKRUN_BALANCE:-vault} fireDiscount=${BANKRUN_FIRE_DISCOUNT:-0.25} equity=${BANKRUN_EQUITY:-0.10} fundamental=${BANKRUN_FUNDAMENTAL:-none} return=[${BANKRUN_RETURN_LO:-0.9}, ${BANKRUN_RETURN_HI:-1.3}] thetaNoise=${BANKRUN_THETA_NOISE:-0.10}"
 echo "theta public: mode=${BANKRUN_THETA_PUBLIC:-none} level=${BANKRUN_THETA_PUBLIC_LEVEL:-0.6} gap=${BANKRUN_THETA_PUBLIC_GAP:-0.0} rho=${BANKRUN_THETA_PUBLIC_RHO:-1.0} noise=${BANKRUN_THETA_PUBLIC_NOISE:-0.10} lambdaScope=${BANKRUN_LAMBDA_SCOPE:-count}"
 echo "reserve=$reserve depq=$depq sigma=$sigma k=$k p=$p alpha=$alpha mu=$mu"
-echo "lambdaI=$lambdaI lambdaC=$lambdaC  genSeed=$GEN_SEED"
+echo "lambdaI=$lambdaI lambdaC=$lambdaC  genSeed=$GEN_SEED  seeding=${BANKRUN_SEEDING:-task} nInit=${BANKRUN_N_INIT:-5}"
 echo "outdir=${TASK_DIR}"
 echo "started $(date)"
 echo "======================================================================"

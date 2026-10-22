@@ -90,7 +90,9 @@ function main(args)
     r = man[parse.(Int, man.task_id) .== task, :]
     nrow(r) == 1 || error("task $task not in $(opts["manifest"])")
     r = r[1, :]
-    genSeed = parse(Int, r.seed_offset) + task
+    # BANKRUN_SEEDING=common: every task ran at GEN_SEED = seed_offset (sweep_task.slurm).
+    common = hasproperty(r, :seeding) && !ismissing(r.seeding) && lowercase(strip(r.seeding)) == "common"
+    genSeed = parse(Int, r.seed_offset) + (common ? 0 : task)
     cli = [opts["out"], string(genSeed), r.reserve, r.depq, "LogNormal", "1.0", r.sigma,
            r.k, r.p, r.alpha, r.mu, r.lambdaI, r.lambdaC]
     cell(col) = hasproperty(r, Symbol(col)) && !ismissing(r[Symbol(col)]) ? r[Symbol(col)] : ""

@@ -197,3 +197,15 @@ end
     @test hiI + hiC < loI + loC               # reassurance keeps depositors in
     @test (loC - hiC) > (loI - hiI)           # and moves the collectivists more
 end
+
+# ---------------------------------------------------------------- G
+@testset "G. seeding switches parse" begin
+    m = load_model(:G)
+    withenv("BANKRUN_N_INIT" => "7") do
+        @test_throws ErrorException m.parseSwitchesFromEnv()
+    end
+    withenv("BANKRUN_SEEDING" => "common", "BANKRUN_N_INIT" => "25") do
+        sw = m.parseSwitchesFromEnv()
+        @test sw.SEEDING == "common" && sw.N_INIT == 25
+    end
+end
