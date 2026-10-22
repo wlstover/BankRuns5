@@ -1,6 +1,6 @@
 # Rung 4 pre-registration: OUTLINE (started 2026-10-22)
 
-Status: S1 decided by the user 2026-10-22 (below; under CARA 0.1); prose by the user. Rung 4 is Ch 2
+Status: S1 decided and S2–S4 approved by the user 2026-10-22 (under CARA 0.1); prose by the user. Rung 4 is Ch 2
 indirect calibration (pilot_map feature list F13–F15): Ch 2 evaluates the ABM, it never
 shapes it, so every statistic is fixed here before the arms that test it run.
 Statistics: S1, the one-shot exit share by depositor size (F12); S2–S4, stylized
@@ -78,8 +78,9 @@ tests/test_neighbour_output.jl D.
 
 ## S2–S4. Stylized facts from the bank-run literature (signs)
 
-Added 2026-10-22: the user approved testing these as signed hypotheses. The
-statistics below are drafted for the user's review. There is no usable aggregate
+Added 2026-10-22: the user approved testing these as signed hypotheses, and
+approved the statistics below as drafted (2026-10-22, before r1c ran). Any later
+change counts as a deviation and is reported as one. There is no usable aggregate
 benchmark, such as the probability of a run or the share of a population that
 runs: crisis-frequency data do not map to "one bank, conditional on a shock". So
 these are individual-level facts, tested by sign as in rung 1. Sources are cited
@@ -96,6 +97,11 @@ Stated now:
   positive slope is close to mechanical. The informative part is the cultural one:
   the slope should be steeper for collectivists. Report the slope by type, and
   test C > I as S3b.
+- **S2b is partly built in under CARA** (added 2026-10-22, when CARA 0.1 became
+  the reference): absolute risk aversion makes a larger depositor more risk
+  averse, so a positive S2b is partly mechanical. Report it next to the same
+  statistic in r1p (risk neutral, the same banks); the r1c minus r1p gap is what
+  CARA adds.
 - S2a needs insured arms (the fire-sale sweep's insurance axis). S2b, S3 and S4 use
   the S1 arms.
 - The ABM statistics are pooled over the mixed cells, with CR1 SEs clustered on the
