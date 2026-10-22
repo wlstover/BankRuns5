@@ -39,6 +39,8 @@ tie-break, geometric belief, R = 1.
 | fire-sale smoke (2026-10-21, local) | one cell via `finMain0001.jl`, depth 50 | does the fire-sale + theta model run end to end, and where does it fail? | 250/250 runs, 0 switch mismatches. At sigma 2.5, r 0.10, d 0.5, e 0.08, theta signal s 0.1: P(run) 0.06, all at theta <= 0.1 (dominance) bar one liquidity failure; cascades 30-90 of 1,000 agents against A* 0.13-0.32 of deposits. Recalibrated the phase 3 arms to r 0.05, d 0.6, e 0.06 (A* 0.05-0.20) |
 | cal (2026-10-22) | `calib_d_scan.tsv` | at sigma 2.5, where do liquidity and insolvency failures sit in r x d? | d is the lever; r 0.05, d 0.6 has the widest coordination band (21%) over a small whale floor (4.7%) (F10). cal-r05-d60 reproduces p3-s25-theta-s10 run for run |
 | r1t (2026-10-22) | `rung1_theta.tsv` | relational equivalence: do Ch 1's G1-G4 signs hold with stale y on the fire-sale bank? | **3 of 4 confirmatory tests support** (G1', G4', G2a'; G2b ordering holds). Pre-registered G3 counts against: it passes Holm pooled (p 0.034) but (0.3, 0.5) is wrong-signed (t -2.5); the channel-isolated G3c (post hoc) passes in every pair. corrects-y80-r50 sorts between stale and tracks and fades by tick 4 (F11) |
+| whales (2026-10-22) | `bank_runs_celsius` deposit_concentration (sec. 4), whale_timing | can one depositor sink the platform, and how do large accounts exit? | no (largest account 0.94%, largest user-day 0.69%); exits grow more gradual with size (one-shot 85% small -> 35% top 0.1%). ABM: partial withdrawals (F12) |
+| r1p (built 2026-10-22) | `rung1_partial.tsv` | do rung 1's signs survive partial withdrawals? | not run yet |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -249,9 +251,37 @@ caused it. To build: the tick at which promises first exceed assets at R(theta).
   pessimistic side (theta > 0.9, 234 runs) has no detectable sorting at any tick in
   either arm. Caveat: D_t conditions on the run still going at tick t.
 
+**F12. Large depositors: no single Celsius depositor could sink the platform, and
+large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
+`bank_runs_celsius` f5bd680: `deposit_concentration.py` section 4 and
+`whale_timing.py` (Hopper, 2022-05-07 -> 06-12).
+- Platform: the largest account held 0.94% of deposits; the top 1% held 55%, the
+  top 10% 90%. The largest single-user net outflow in a day was 0.69% of deposits.
+- Scaled down to N = 1,000 by aggregation (each agent = ~542 users), the top agent
+  holds 29% (sigma 3.15 jointly), more whale banks, not fewer: the tail (Hill
+  ~0.89) concentrates further as the population grows. With one depositor per
+  agent at N = 1,000, a realistic distribution and no decisive depositor cannot
+  both hold.
+- Exit timing by anchor-balance group, share of exiters who left in one day:
+  D1-D4 84-90%, D5 82%, D7 73%, D9 63%, D10 52%, top 1% 38%, top 0.1% 35% (median 2
+  out days over 5; largest day 76% of the outflow). Top 0.1%: 29% full exit, 25%
+  partial, 45% stayed. Caveat: one user's outflow is 5,266x their peak (a negative
+  reconstructed balance); drop such users before quoting.
+- Decision (user, 2026-10-22): individual agents, sigma a reported axis (Celsius
+  ~2.5 a plausibility marker, not a target); platform-scale docking later if at
+  all. **BANKRUN_WITHDRAW=partial** built (fractions of the remaining balance by
+  expected value; a partial withdrawal counts as withdrawing). The one-shot share
+  by size above is a candidate rung-4 statistic (fix it in advance, F13).
+  Super-individuals (Scheffer et al. 1995: an agent = a cohort of ~542 users whose
+  withdrawal is the share of members who run) are a separate later run.
+- Test sample (tests/test_partial.jl, N = 60, sigma 2.5): of endogenous
+  withdrawals by depositors holding > 10% of deposits, 11 of 25 were partial (mean
+  fraction 0.85); none below the 1%-of-capacity cutoff, and the cutoff makes the
+  same decisions as none in 30 of 30 runs.
+
 ## Implications for the systematic sweep (draft)
 
-1. **sigma's realistic level is ~2.5 (F7), which is the whale regime.** sigma 1 is a
+1. *(Settled 2026-10-22, F12: partial withdrawals; sigma a reported axis.)* **sigma's realistic level is ~2.5 (F7), which is the whale regime.** sigma 1 is a
    no-whale counterfactual that isolates the cascade (useful for mechanism pilots
    such as the phase 2 gate), not a realistic level. At sigma ~2.5 a sixth to a third
    of banks hold a depositor the vault cannot cover, so the whale's decision rule
@@ -317,6 +347,14 @@ recover pro rata). To schedule: deposit size correlated with cultural type
 institutional lever, and whatever model support the outline's learning section needs.
 
 ## Open questions / next pilots
+
+- **Super-individuals (later, separate run; user 2026-10-22):** the platform scaled
+  down by aggregation, each agent a cohort of ~542 users with dispersed member
+  signals, withdrawing the share of members who run. Sigma matched to the
+  platform's top shares (F12: 3.15 jointly). Interest, not on the critical path.
+- Partial withdrawals: a finer grid than {0, 1/4, 1/2, 3/4, 1} if results hinge on
+  where "just short of tipping the bank" falls; a cumulative insurance cap so
+  partial runs can be insured (refused today).
 
 - ~~Phase 3 gate~~ done: PASS (F9). It was (`arms/phase3_firesale_gate.tsv`, 2026-10-21): the fire-sale bank
   (BALANCE=firesale, PAYOFF=recovery, FUNDAMENTAL=theta; r 0.05, d 0.6, e 0.06,
