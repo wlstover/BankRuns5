@@ -35,6 +35,7 @@ tie-break, geometric belief, R = 1.
 | p2b (2026-10-21) | `phase2b_sigma1.tsv` | the same gate at sigma 1 | **uninformative**: P(run) = 0 in all 1,000 runs; mean cascade 3 agents; arms indistinguishable |
 | p2s (2026-10-21) | `phase2s_reserve_scan.tsv` | at sigma 1, where is the reserve transition? | between r 0.10 and 0.30 (table F3) |
 | p2c (pending) | `phase2c_gate_r20_r25.tsv` | the gate at sigma 1, r 0.20 and 0.25 | — |
+| Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
 
@@ -104,13 +105,42 @@ binomial variance p(1-p), against ~2% expected from 50-run sampling noise alone.
 Because every production cell has its own banks (convention 1), cell-to-cell
 contrasts along mu and lambda mix the axis effect with a five-bank draw.
 
+**F7. Celsius's depositor base matches sigma ~ 2.55, so a realistic bank is in the
+whale regime.** `bank_runs_celsius/src/analysis/deposit_concentration.py` (Hopper,
+2026-10-21; output `outputs/analysis/deposit_concentration/`), ~541K users with a
+positive balance on 2022-05-07 at same-day prices (2022-04-20 and final-day prices
+agree within 0.1). Over 2,000 random banks of N = 1,000 users, the log-normal sigma
+matching each median is 2.45 (largest share), 2.40 (top 1%), 2.60 (top 10%), 2.60
+(Gini), 2.55 jointly. Dust does not drive it: a $100 floor keeps 99.96% of dollars,
+and sd(log) is then 2.03 (4.70 unfloored). The tail is heavier than log-normal (Hill
+tail index ~0.89 on the top 10%), but at N = 1,000 sigma ~ 2.5 reproduces the
+whale probability P(largest > r x total) within ~0.04:
+
+| r | 0.10 | 0.15 | 0.20 | 0.25 | 0.30 | 0.40 |
+|---|---|---|---|---|---|---|
+| Celsius | 0.697 | 0.458 | 0.319 | 0.234 | 0.167 | 0.090 |
+| log-normal sigma 2.0 | 0.379 | 0.180 | 0.090 | 0.052 | 0.036 | 0.015 |
+| log-normal sigma 2.4 | 0.700 | 0.435 | 0.271 | 0.181 | 0.123 | 0.057 |
+| log-normal sigma 2.55 | 0.780 | 0.518 | 0.342 | 0.229 | 0.157 | 0.086 |
+
+External benchmarks point the same way: SCF 2022 household transaction accounts
+(median ~$8,000, mean ~$62,410; secondary sources) imply sigma ~ 2.0 if log-normal;
+business-heavy banks are far more concentrated (FDIC 2023: SVB's top depositors,
+>= $49M, held 39% of deposits). And the largest and uninsured depositors are the ones
+who run (Iyer, Puri & Ryan; Martin, Puri & Ufier; FDIC 2023), so the whale channel is
+empirically real, not only a model artifact.
+
 ## Implications for the systematic sweep (draft)
 
-1. **Decide what sigma represents before it is an axis.** At sigma 3 the model is
-   mostly a single-depositor model (F1); at sigma 1 it is a cascade model. If the
-   chapter's mechanism is the cascade, either keep sigma <= ~1.5 or make
-   concentration an explicit treatment (e.g. a separate largest-depositor share
-   axis), not a nuisance level.
+1. **sigma's realistic level is ~2.5 (F7), which is the whale regime.** sigma 1 is a
+   no-whale counterfactual that isolates the cascade (useful for mechanism pilots
+   such as the phase 2 gate), not a realistic level. At sigma ~2.5 a sixth to a third
+   of banks hold a depositor the vault cannot cover, so the whale's decision rule
+   decides those outcomes. Today it falls out of the tie-break (legacy: withdraw when
+   P(full | WD) = 0; strict: stay) under an all-or-nothing payoff; a real large
+   depositor takes a partial payment. Settle that rule deliberately before the
+   sweep, and record per run whether a whale or a cascade failed the bank, so the two
+   mechanisms can be analysed separately.
 2. **Pack reserve levels around the transition, per sigma.** At sigma 1 the action is
    r 0.10–0.30 (F3); at sigma 2 it is r 0.20–0.35 (F6). Even 0.05 steps cross most of
    the transition in two levels.
