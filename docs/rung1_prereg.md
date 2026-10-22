@@ -57,4 +57,4 @@ To decide (user):
 
 - G1′ or G4′ significantly signed the wrong way in ≥ 2 λ pairs.
 - G3 ≤ 0: sorting no larger when the signals disagree than when they agree.
-- Report every outcome whatever the result. A failure points to a feature to examine on the relaxation ladder (F10), not to re-tuning until it passes.
+- Report every outcome whatever the result. A failure points to a feature to examine on the relaxation ladder (feature list F10, 2026-10-20 note), not to re-tuning until it passes.
