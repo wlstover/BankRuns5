@@ -35,6 +35,7 @@ tie-break, geometric belief, R = 1.
 | p2b (2026-10-21) | `phase2b_sigma1.tsv` | the same gate at sigma 1 | **uninformative**: P(run) = 0 in all 1,000 runs; mean cascade 3 agents; arms indistinguishable |
 | p2s (2026-10-21) | `phase2s_reserve_scan.tsv` | at sigma 1, where is the reserve transition? | between r 0.10 and 0.30 (table F3) |
 | p2c (2026-10-21) | `phase2c_gate_r20_r25.tsv` | the gate at sigma 1, r 0.20 and 0.25 | **FAIL at r 0.20** (F8); r 0.25 has no runs. Every arm was submitted twice into the same directory (19:12, 20:18); the copies are identical run for run, so analyses use one copy |
+| p3 (2026-10-21) | `phase3_firesale_gate.tsv` | fire-sale bank: does a private signal of theta steepen P(run) in theta? | **PASS at both sigmas** (F9): paired slope differences -0.46 / -0.55 / -0.58 at sigma 1, -0.14 / -0.15 / -0.20 at sigma 2.5 (s 0.20 / 0.10 / 0.05) |
 | fire-sale smoke (2026-10-21, local) | one cell via `finMain0001.jl`, depth 50 | does the fire-sale + theta model run end to end, and where does it fail? | 250/250 runs, 0 switch mismatches. At sigma 2.5, r 0.10, d 0.5, e 0.08, theta signal s 0.1: P(run) 0.06, all at theta <= 0.1 (dominance) bar one liquidity failure; cascades 30-90 of 1,000 agents against A* 0.13-0.32 of deposits. Recalibrated the phase 3 arms to r 0.05, d 0.6, e 0.06 (A* 0.05-0.20) |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
@@ -152,6 +153,41 @@ until the model has a fundamental, which the fire-sale balance sheet (Ch 1's bas
 decided 2026-10-21) supplies: the private signal should be of theta (the illiquid
 asset's return), not of the shock.
 
+**F9. The theta gate passes on the fire-sale bank, at both sigmas; at sigma 2.5 a
+liquidity channel the signal barely touches sits under it.** `arms/phase3_firesale_gate.tsv`
+(r 0.05, d 0.6, e 0.06, R(theta) in [1.0, 1.4], R_stay 1.1; 250 runs per arm, theta
+shared run for run). Slope of P(run) in theta, and the paired difference from the
+no-signal arm (regressing run_signal - run_none on theta):
+
+| sigma | no signal | s 0.20 | s 0.10 | s 0.05 |
+|---|---|---|---|---|
+| 1: slope | -0.519 | -0.978 | -1.066 | -1.102 |
+| 1: paired difference (se) | | -0.459 (0.071) | -0.547 (0.074) | -0.583 (0.077) |
+| 2.5: slope | -0.561 | -0.703 | -0.706 | -0.757 |
+| 2.5: paired difference (se) | | -0.142 (0.045) | -0.145 (0.045) | -0.196 (0.047) |
+
+The steepening rises as the noise falls at both sigmas. At sigma 1 the signal turns
+the bank into a theta-sorted one: P(run) at theta 0.1-0.3 goes from ~0.03 to ~0.67
+(s 0.05), withdrawers at theta > 0.7 fall from 20 to 12, and paired, 33-40 non-runs
+become runs against 1-3 the other way. Informed runs at low theta are mostly
+liquidity failures (the bank sells everything), the uninformed ones insolvency.
+
+At sigma 2.5 the effect is a third the size and overall P(run) barely moves (0.196
+-> 0.196 at s 0.05; 6 flips each way). Under the theta-sorted failures sits a floor
+of liquidity failures at mid and high theta: with no signal, 13 liquidity failures at
+theta >= 0.4 (11.8% of runs at theta 0.5-0.7, still 11.8% at s 0.05). Period-1
+capacity is r + (1 - d)(1 - r + e) = 0.454 of deposits, and in the median sigma 2.5
+bank the largest depositor alone holds 38% of that capacity (sigma 1: 4%), so a few
+large withdrawals sell the bank out whatever theta is. This is the whale channel of
+F1/F7 surviving the fire-sale bank through illiquidity: it no longer fails a bank by
+itself, but concentration times a steep discount does.
+
+Implications: (a) the build order's step 1 is passed, so the calibration pilots can
+run while stale theta is built; (b) at realistic concentration the fire-sale
+discount d (period-1 capacity) is a first-order axis, not a nuisance: the
+calibration pilot should scan d at sigma 2.5 and record failType, since the
+liquidity floor and the theta-sorted failures respond to different levers.
+
 ## Implications for the systematic sweep (draft)
 
 1. **sigma's realistic level is ~2.5 (F7), which is the whale regime.** sigma 1 is a
@@ -183,7 +219,7 @@ default), expected recovery, theta with a private signal of it, STAY_RETURN (Ch 
 R), neighbour and public withdrawal-count signals (accurate or stale, stale freezing
 the agent's view), sigma calibrated to Celsius (F7), docking outputs, pipeline guards.
 
-1. **Read the phase 3 gate** (`arms/phase3_firesale_gate.tsv`, running 2026-10-21).
+1. ~~**Read the phase 3 gate**~~ **PASSED 2026-10-21 (F9)** (`arms/phase3_firesale_gate.tsv`).
    If it passes, the calibration pilots (step 3's scans) can run while step 2 is
    built: they are single-cell fire-sale arms and need neither stale theta nor the
    seeding change. If it fails, calibration comes before step 2.
@@ -210,7 +246,7 @@ institutional lever, and whatever model support the outline's learning section n
 
 ## Open questions / next pilots
 
-- Phase 3 gate (`arms/phase3_firesale_gate.tsv`, 2026-10-21): the fire-sale bank
+- ~~Phase 3 gate~~ done: PASS (F9). It was (`arms/phase3_firesale_gate.tsv`, 2026-10-21): the fire-sale bank
   (BALANCE=firesale, PAYOFF=recovery, FUNDAMENTAL=theta; r 0.05, d 0.6, e 0.06,
   R(theta) in [1.0, 1.4], R_stay 1.1; theta_L ~ 0.10, A*(theta) 0.05-0.20) with no signal vs a theta signal at s 0.05 /
   0.10 / 0.20, at sigma 2.5 and 1. Read with `scripts/theta_response.py`.
