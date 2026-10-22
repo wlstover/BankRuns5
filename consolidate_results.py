@@ -157,6 +157,10 @@ DOCK_FILES = {
     # withdrew anything, those still banked with part of their balance, partial
     # withdrawals made, decisions that valued the interior fractions, the share
     # of deposits withdrawn, and the share the largest depositor withdrew.
+    # Decisions and withdrawals by the share of neighbours already out
+    # (2026-10-22, fire-sale runs; functions4.jl neighbourRows, NB_BINS).
+    "neighbour": ("bankRunNeighbour", True,
+                  [f"dec_b{j}" for j in range(6)] + [f"wd_b{j}" for j in range(6)]),
     "partial": ("bankRunPartial", False,
                 ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
                  "largestFracWithdrawn"]),

@@ -1110,6 +1110,11 @@ function modelRun(mod::Model; record=nothing)
                                       tiebreak=tiebreak, pStay=probFullDepositStay)
                 withdrew = frac > 0.0
             end
+            if balanceFire && record !== nothing
+                push!(record.nbAgent, agt.idx)
+                push!(record.nbShare, neighbourEstimate / nAgents)
+                push!(record.nbWithdrew, withdrew)
+            end
             if withdrew
                 amount = frac * agt.deposit
                 paid = frac == 1.0 ? withdraw(mod, agt) : withdrawPart!(mod, agt, amount)
@@ -1247,8 +1252,14 @@ mutable struct RunRecord
     pubErrSum::Float64         # … summed over ticks with an announcement
     pubErrN::Int               # … number of such ticks
     amount::Vector{Float64}    # amount withdrawn (endogenous; NaN for the exogenous shock)
+    # Every decision in a fire-sale run (2026-10-22, rung-4 scorecard S3): the
+    # agent, the share of its neighbours already out when it decided (any
+    # withdrawal counts under WITHDRAW = partial), and whether it withdrew.
+    nbAgent::Vector{Int}
+    nbShare::Vector{Float64}
+    nbWithdrew::Vector{Bool}
 end
-RunRecord() = RunRecord(Int[], Float64[], 0, Int[], 0, NaN, 0.0, 0, Float64[])
+RunRecord() = RunRecord(Int[], Float64[], 0, Int[], 0, NaN, 0.0, 0, Float64[], Int[], Float64[], Bool[])
 record!(r::RunRecord, idx::Int, paid::Float64, tick::Int=0, amount::Float64=NaN) =
     (push!(r.order, idx); push!(r.paid, paid); push!(r.tick, tick); push!(r.amount, amount); r)
 function notePublic!(r::RunRecord, t::Int, err::Real)
@@ -1371,6 +1382,33 @@ function timingRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     return df
 end
 
+# bankRunNeighbour (2026-10-22, fire-sale runs only): one row per run x type.
+# Decisions and withdrawals by the share of the agent's neighbours already out
+# when it decided (the neighbour signal's share, to 1/N), in NB_BINS: 0, then
+# (0, 0.1], (0.1, 0.2], (0.2, 0.35], (0.35, 0.5], (0.5, 1]. The discrete-time
+# counterpart of "depositors run when their network runs" (Iyer & Puri 2012;
+# Kelly & Ó Gráda 2000).
+const NB_BINS = (0.0, 0.1, 0.2, 0.35, 0.5, 1.0)
+nbBin(x) = x <= 0.0 ? 1 : 1 + something(findfirst(b -> x <= b, NB_BINS[2:end]), length(NB_BINS) - 1)
+
+function neighbourRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
+    nb = length(NB_BINS)
+    df = DataFrame(key=String[], type=String[])
+    for j in 1:nb; df[!, Symbol("dec_b$(j-1)")] = Int[]; end
+    for j in 1:nb; df[!, Symbol("wd_b$(j-1)")] = Int[]; end
+    for (lab, want) in (("I", true), ("C", false))
+        dec, wd = zeros(Int, nb), zeros(Int, nb)
+        for k in eachindex(rec.nbAgent)
+            isI[rec.nbAgent[k]] == want || continue
+            j = nbBin(rec.nbShare[k])
+            dec[j] += 1
+            rec.nbWithdrew[k] && (wd[j] += 1)
+        end
+        push!(df, (mod.key, lab, dec..., wd...))
+    end
+    return df
+end
+
 function wealthRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     d = [a.deposit for a in mod.agtList]
     cuts = quantile(d, 0.1:0.1:0.9)
@@ -1420,6 +1458,9 @@ function runRow(row)
               writeheader=false,append=true)
     CSV.write(dataDir*"/"*"bankRunWealth"*string(workerCore)*".csv",wealthRows(mod, isI, rec),
               writeheader=false,append=true)
+    isempty(rec.nbAgent) ||
+        CSV.write(dataDir*"/"*"bankRunNeighbour"*string(workerCore)*".csv",neighbourRows(mod, isI, rec),
+                  writeheader=false,append=true)
     return (rMod, nWithdrawn, depositWithdrawn)
 end
 

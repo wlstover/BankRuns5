@@ -3,8 +3,10 @@
 Status: S1 decided by the user 2026-10-22 (below); prose by the user. Rung 4 is Ch 2
 indirect calibration (pilot_map feature list F13–F15): Ch 2 evaluates the ABM, it never
 shapes it, so every statistic is fixed here before the arms that test it run.
-First statistic: S1, the one-shot exit share by depositor size (F12). Others to add
-later: the near-full-exit gap by type, timing/hazard (F13).
+Statistics: S1, the one-shot exit share by depositor size (F12); S2–S4, stylized
+facts from the bank-run literature, tested by sign (added 2026-10-22, the user
+approved the scorecard). Still to add: the near-full-exit gap by type, and
+timing/hazard (F13).
 
 ## S1. One-shot exit share by depositor size
 
@@ -64,3 +66,39 @@ endogenous exiters, one-shot exiters, partial exiters. A partial run only.
 - The top decile's one-shot share is not below D1–D5's (no gradient) at sigma 2.5.
 - The gradient appears at sigma 1 as strongly as at sigma 2.5. That would mean it
   is not driven by size relative to the bank.
+
+## S2–S4. Stylized facts from the bank-run literature (signs)
+
+Added 2026-10-22: the user approved testing these as signed hypotheses. The
+statistics below are drafted for the user's review. There is no usable aggregate
+benchmark, such as the probability of a run or the share of a population that
+runs: crisis-frequency data do not map to "one bank, conditional on a shock". So
+these are individual-level facts, tested by sign as in rung 1. Sources are cited
+from memory; check them before citing.
+
+| ID | Fact | Source | ABM statistic | Predicted sign | Data |
+|---|---|---|---|---|---|
+| S2 | Uninsured and larger depositors are likelier to run | Iyer & Puri (2012, AER); Martin, Puri & Ufier (deposit flows in failing banks) | (a) withdrawal rate of uninsured minus insured (insured = deposit <= cap), run for run; (b) withdrawal rate of the top size decile minus D1–D5 | > 0 | types (nInsured, nEndogInsured), wealth deciles |
+| S3 | A depositor is likelier to run when its network contacts have run | Iyer & Puri (2012); Kelly & Ó Gráda (2000), county-of-origin networks in the 1854/1857 Emigrant Savings Bank panics | slope of P(withdraw at a decision) in the share of neighbours already out (bankRunNeighbour bins) | > 0 | bankRunNeighbour (built 2026-10-22) |
+| S4 | Runs are partial and outflows concentrate in large accounts | Cipriani, Eisenbach & Kovner (NY Fed, the March 2023 runs); Iyer, Puri & Ryan (2016, JF) | (a) head-count share who withdraw < 0.5 among survivors of the shock; (b) deposit share withdrawn minus head-count share (W$ − W) | (a) holds; (b) > 0 | types (nEndog, depEndog) |
+
+Stated now:
+- **S3 is partly built in.** Depositors weight the neighbour signal by λ, so a
+  positive slope is close to mechanical. The informative part is the cultural one:
+  the slope should be steeper for collectivists. Report the slope by type, and
+  test C > I as S3b.
+- S2a needs insured arms (the fire-sale sweep's insurance axis). S2b, S3 and S4 use
+  the S1 arms.
+- The ABM statistics are pooled over the mixed cells, with CR1 SEs clustered on the
+  initialisation and one-sided tests, as in S1.
+- Not testable, listed in the scorecard as such: Ch 2's threshold reactivity (P1),
+  since the ABM has no discrete public events (F17, parked); run speed in calendar
+  time, since ticks are not days.
+
+## The scorecard (the validation figure)
+
+One row per Ch 2 finding and stylized fact (S1–S4, Ch 2's P1–P3, the timing
+result). The columns are the sign in Ch 2 or the literature, the ABM's sign and
+estimate with its CI, and the verdict. Rows that cannot be tested are kept and
+marked. Companion figures: S1 by size, and exit timing by type (the ABM's
+cumulative exits by tick, next to Ch 2's Kaplan–Meier curves).
