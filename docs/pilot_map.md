@@ -37,6 +37,7 @@ tie-break, geometric belief, R = 1.
 | p2c (2026-10-21) | `phase2c_gate_r20_r25.tsv` | the gate at sigma 1, r 0.20 and 0.25 | **FAIL at r 0.20** (F8); r 0.25 has no runs. Every arm was submitted twice into the same directory (19:12, 20:18); the copies are identical run for run, so analyses use one copy |
 | p3 (2026-10-21) | `phase3_firesale_gate.tsv` | fire-sale bank: does a private signal of theta steepen P(run) in theta? | **PASS at both sigmas** (F9): paired slope differences -0.46 / -0.55 / -0.58 at sigma 1, -0.14 / -0.15 / -0.20 at sigma 2.5 (s 0.20 / 0.10 / 0.05) |
 | fire-sale smoke (2026-10-21, local) | one cell via `finMain0001.jl`, depth 50 | does the fire-sale + theta model run end to end, and where does it fail? | 250/250 runs, 0 switch mismatches. At sigma 2.5, r 0.10, d 0.5, e 0.08, theta signal s 0.1: P(run) 0.06, all at theta <= 0.1 (dominance) bar one liquidity failure; cascades 30-90 of 1,000 agents against A* 0.13-0.32 of deposits. Recalibrated the phase 3 arms to r 0.05, d 0.6, e 0.06 (A* 0.05-0.20) |
+| cal (2026-10-22) | `calib_d_scan.tsv` | at sigma 2.5, where do liquidity and insolvency failures sit in r x d? | submitted 2026-10-22; pending |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -223,17 +224,27 @@ the agent's view), sigma calibrated to Celsius (F7), docking outputs, pipeline g
    If it passes, the calibration pilots (step 3's scans) can run while step 2 is
    built: they are single-cell fire-sale arms and need neither stale theta nor the
    seeding change. If it fails, calibration comes before step 2.
-2. **Public signal of theta (stale y), the main missing model piece.** In Ch 1 the
+2. ~~**Public signal of theta (stale y)**~~ **BUILT 2026-10-22** (f0bbdf2):
+   `THETA_PUBLIC` none|stale|tracks, `_LEVEL`, `_GAP`, `_RHO`, `_NOISE`; decision
+   (user): one lambda governs both blends, `LAMBDA_SCOPE=both` in the rung-1 arms
+   (count = published, theta = Ch 1 nest); the blend without culture uses mean lambda.
+   Smoke property (tests/test_theta_public.jl F): an optimistic stale y keeps more
+   in and moves collectivists more. Phase 3 baseline: with the private signal
+   alone D = W_I - W_C ~ -0.10 at every theta (the count channel), so rung 1 tests
+   the channel-isolated difference against the no-public arm too.
+   Was: **Public signal of theta (stale y), the main missing model piece.** In Ch 1 the
    cultural weight is on theta, est_i = (1 - w_i) x_i + w_i y with y stale; in the
    ABM lambda weights only head-count beliefs (social vs own prior), and theta
    beliefs carry no culture. **Decision needed first:** does lambda govern the theta
    blend, the head-count blend, or both (both = a second weight).
-3. **Seeding and allocation, plus calibration.** Same banks in every cell (seed by
+3. Seeding and allocation **BUILT 2026-10-22** (4ef038e: `SEEDING=common`,
+   `N_INIT=25`); calibration pilot submitted. Was: **Seeding and allocation, plus calibration.** Same banks in every cell (seed by
    initialisation, not array index; implication 3) and more initialisations per
    cell (e.g. 25 x 10 instead of 5 x 50; implication 4). Calibration pilots: where
    the fire-sale transition sits across reserves r and discount d (and e, R_stay),
    so the sweep's axes are packed around it.
-4. **Redesign the rung-1 arms** (`arms/rung1_relational.tsv`, drafted on the vault
+4. Drafted 2026-10-22: `arms/rung1_theta.tsv` (10 arms), `docs/rung1_prereg.md`
+   (outline), `scripts/rung1_relational.py`. Waiting on r, d and sign-off. Was: **Redesign the rung-1 arms** (`arms/rung1_relational.tsv`, drafted on the vault
    bank with stale counts) on the fire-sale bank with stale theta, and pre-register
    the G1-G4 statistics, signs and contrasts.
 5. **The systematic sweep.**

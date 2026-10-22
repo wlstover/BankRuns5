@@ -1,0 +1,36 @@
+# Rung 1 (relational equivalence) on the fire-sale bank with Chapter 1's stale y
+# (2026-10-22). Supersedes rung1_relational.tsv (vault bank, shock signal; F8 showed
+# a signal of the shock cannot pass). DRAFT until (1) the calibration pilot
+# (calib_d_scan.tsv) sets r and d (placeholders: p3's r 0.05, d 0.6) and (2) the
+# pre-registration (docs/rung1_prereg.md) is signed off.
+#
+# Every arm: fire-sale bank, theta ~ U[0,1], private signal x_i = theta + 0.10 Z,
+# e 0.06, R(theta) = 1.0 + 0.4 theta, R_stay 1.1, attributed public noise s_y 0.10,
+# one lambda for both blends (LAMBDA_SCOPE=both) unless the tag says otherwise.
+# Grid reference: 5 mu x 3 lambda pairs = 15 cells; sigma 2.5 (Celsius, F7).
+# BANKRUN_SEEDING=common, N_INIT=25 and the same seed offset (1000) in every arm:
+# all 150 cells run the same 25 banks x 10 runs with the same theta and shocks,
+# so every contrast below is run for run.
+#   none            private signal only (the G1'/G4' base)
+#   stale-y20/50/80 y fixed at y0; theta < y0 is optimistic (G1), theta > y0
+#                   pessimistic (G4); y0 is G2's reassurance comparative static
+#   tracks-g0       y = theta: signals agree (G3's reference)
+#   tracks-g20      y = theta + 0.2: Chapter 1's declined constant markup
+#   corrects-y80-r50 gap decays by half each tick: Table 1.x's "error corrects"
+#   stale-y80-count / -theta  lambda in one blend only (the other at mean lambda):
+#                   which channel carries the sorting
+#   stale-y50-s1    sigma 1, no whales: the mechanism without the liquidity floor
+# Read: python3 scripts/rung1_relational.py outputs/r1t-stale-* outputs/r1t-corrects-* \
+#         outputs/r1t-tracks-g20 --base outputs/r1t-none --agree outputs/r1t-tracks-g0
+#
+# tag	switches	run_all.sh flags
+r1t-none	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_LAMBDA_SCOPE=both	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-stale-y20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.2 BANKRUN_LAMBDA_SCOPE=both	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-stale-y50	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.5 BANKRUN_LAMBDA_SCOPE=both	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-stale-y80	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.8 BANKRUN_LAMBDA_SCOPE=both	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-tracks-g0	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=tracks BANKRUN_THETA_PUBLIC_GAP=0.0 BANKRUN_LAMBDA_SCOPE=both	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-tracks-g20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=tracks BANKRUN_THETA_PUBLIC_GAP=0.2 BANKRUN_LAMBDA_SCOPE=both	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-corrects-y80-r50	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.8 BANKRUN_THETA_PUBLIC_RHO=0.5 BANKRUN_LAMBDA_SCOPE=both	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-stale-y80-count	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.8 BANKRUN_LAMBDA_SCOPE=count	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-stale-y80-theta	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.8 BANKRUN_LAMBDA_SCOPE=theta	--grid reference --sigma 2.5 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
+r1t-stale-y50-s1	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.5 BANKRUN_LAMBDA_SCOPE=both	--grid reference --sigma 1 --reserve 0.05 --concurrency 20 --mem 20G --time 0-06:00:00
