@@ -137,7 +137,8 @@ ROWS = [
                              "fractions (grid\nafter r4-g20)", "share of cohort"]),
     ("Risk preference",     ["neutral", "neutral", "neutral (r1p);\nCARA 0.1 (r1c)", "CARA 0.1", "CARA 0.1", "to decide"]),
     ("Deposit insurance",   ["quantile axis", "none", "none", "none", "quantile axis", "none"]),
-    ("Deposit spread σ",    ["axis", "2.5 (1 in one arm)", "=2.5 (1 in one arm)", "=2.5 (1 reported)", "axis", "3.15 (platform)"]),
+    ("Deposit spread σ",    ["axis", "2.5 (1 in one arm)", "=2.5 (1 in one arm)", "=2.5 (1 reported)",
+                             "2.5, capped at 1%;\n1 counterfactual", "3.15 (platform)"]),
     ("Agent",               ["depositor", "depositor", "depositor", "depositor", "depositor", "cohort of ~542"]),
     ("Banks across cells",  ["own per cell", "shared (paired)", "shared (paired)", "shared (paired)", "shared (paired)", "shared (paired)"]),
 ]

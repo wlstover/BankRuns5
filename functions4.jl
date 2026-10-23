@@ -91,6 +91,10 @@ function modelGenTyped(key::String,
     # Reset to seed1 so deposit draws are unaffected by warm-up or λ draws.
     Random.seed!(seed1)
     deposits=rand(depositDistribution,agtCnt)
+    # BANKRUN_DEPOSIT_CAP (2026-10-23; the user): no deposit above that share of
+    # the bank's total. Deterministic, so the draws (and pairing) are unchanged.
+    depositCap = switchValue(:DEPOSIT_CAP)
+    depositCap > 0.0 && (deposits = capDeposits(deposits, depositCap))
 
     # ---- Agent construction ----
     # individualism holds the agent's drawn λ (continuous, from Beta).
@@ -699,6 +703,32 @@ function stayDraws(s::SubState, agt::Agent, withdrawnNeighbors::Array{Agent},
                                      stayReturn=stayReturn)[1] for k in eachindex(additionalWithdrawals)]
 end
 
+# The deposit cap (BANKRUN_DEPOSIT_CAP = c, 2026-10-23; the user). At N = 1,000 a
+# log-normal(1, 2.5) bank has a depositor holding ~15% of deposits (median), who
+# fails the bank whenever it leaves (F12d); Celsius's largest account held 0.94%
+# among ~541K users, and N would have to reach the platform's size for the draw
+# to match (scripts/whale_scaling.py). The cap removes that last straw and keeps
+# most of the concentration: the k largest deposits are set to a common level L
+# with L = c · (total after capping), the smallest k for which the (k+1)th
+# deposit is at or below L. Order and every deposit below L are unchanged.
+function capDeposits(d::Vector{Float64}, c::Float64)
+    n = length(d)
+    c * n > 1.0 || error("BANKRUN_DEPOSIT_CAP = $c is infeasible for $n depositors (needs c > 1/n)")
+    order = sortperm(d, rev=true)
+    rest = sum(d)
+    for k in 1:n-1
+        rest -= d[order[k]]
+        L = c * rest / (1.0 - k * c)
+        if d[order[k+1]] <= L
+            d[order[1]] <= L * (1.0 + 1e-12) && return d     # nobody above the cap (to rounding)
+            out = copy(d)
+            out[order[1:k]] .= L
+            return out
+        end
+    end
+    error("unreachable: c > 1/n caps at most n - 1 deposits")
+end
+
 # Risk aversion (BANKRUN_CARA, 2026-10-22; the user): u(w) = −exp(−a·w), with
 # absolute risk aversion a = CARA / (the bank's mean initial deposit), so a
 # depositor holding the mean deposit has a·b = CARA. The certainty equivalent of
@@ -907,6 +937,7 @@ function modelRun(mod::Model; record=nothing)
     partialSteps  = switchValue(:PARTIAL_STEPS)
     grid          = partial ? partialGrid(partialSteps) : ()
     caraGamma     = switchValue(:CARA)
+    depositCap    = switchValue(:DEPOSIT_CAP)
     publicStale = publicMode == "stale"
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
     privatePost = privateSignal == "shock" ?
@@ -1052,6 +1083,10 @@ function modelRun(mod::Model; record=nothing)
     end
     # PARTIAL_STEPS (2026-10-23): written only when it is not the default 4, so
     # outputs from before the switch stay valid.
+    if depositCap > 0.0
+        CSV.write(dataDir*"/"*"bankRunDepositParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, depositCap=depositCap), writeheader=false, append=true)
+    end
     if partial && partialSteps != 4
         CSV.write(dataDir*"/"*"bankRunGridParams"*string(workerCore)*".csv",
                   DataFrame(key=mod.key, partialSteps=partialSteps), writeheader=false, append=true)

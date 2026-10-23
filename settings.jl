@@ -64,6 +64,10 @@ const SWITCH_DEFAULTS = (
     # The grid's step (2026-10-23; the user): fractions k / PARTIAL_STEPS. 4 =
     # {0, ¼, ½, ¾, 1} (r1p, r1c); 20 = steps of 0.05 (the S1b pilot).
     PARTIAL_STEPS    = 4,
+    # Deposit cap (2026-10-23; the user): 0 = none (published); c > 0 = no deposit
+    # above c of the bank's total (functions4.jl capDeposits). 0.01 = Celsius's
+    # largest account (0.94%): the reference bank without a last-straw whale.
+    DEPOSIT_CAP      = 0.0,
     # Risk aversion (2026-10-22; the user): 0 = risk neutral (published). > 0 =
     # CARA utility −exp(−a·w), a = CARA / mean initial deposit, so the depositor
     # holding the mean deposit has a·b = CARA (functions4.jl ceValue). Fire-sale
@@ -208,6 +212,7 @@ function parseSwitchesFromEnv()
           WITHDRAW         = envChoice("BANKRUN_WITHDRAW", D.WITHDRAW, WITHDRAW_CHOICES),
           PARTIAL_MIN_SHARE = envFloat("BANKRUN_PARTIAL_MIN_SHARE", D.PARTIAL_MIN_SHARE, 0.0, 1.0),
           PARTIAL_STEPS    = envInt("BANKRUN_PARTIAL_STEPS", D.PARTIAL_STEPS, 2, 1000),
+          DEPOSIT_CAP      = envFloat("BANKRUN_DEPOSIT_CAP", D.DEPOSIT_CAP, 0.0, 1.0),
           CARA             = envFloat("BANKRUN_CARA", D.CARA, 0.0, 1.0e6),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)

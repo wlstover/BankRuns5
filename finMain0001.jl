@@ -144,6 +144,8 @@ println("Monte Carlo depth: ", MC_DEPTH)
 #                           BANKRUN_PARTIAL_MIN_SHARE of current capacity value the fractions.
 #   BANKRUN_PARTIAL_STEPS   n: the grid is k / n (4 = {0, ¼, ½, ¾, 1}, the default;
 #                           2026-10-23); needs BANKRUN_WITHDRAW=partial.
+#   BANKRUN_DEPOSIT_CAP     0 = none (published); c = no deposit above c of the total
+#                           (2026-10-23; 0.01 = Celsius's largest account).
 #   BANKRUN_CARA            0 = risk neutral (published); > 0 = CARA utility, absolute
 #                           risk aversion CARA / mean initial deposit (2026-10-22).
 # Since 2026-10-20 BANKRUN_FIX_DOUBLE_COUNT defaults to true; =false reproduces
@@ -199,6 +201,7 @@ println("theta public: mode=", SWITCHES.THETA_PUBLIC, " level=", SWITCHES.THETA_
         " noise=", SWITCHES.THETA_PUBLIC_NOISE, " lambdaScope=", SWITCHES.LAMBDA_SCOPE)
 println("withdraw: mode=", SWITCHES.WITHDRAW, " partialMinShare=", SWITCHES.PARTIAL_MIN_SHARE, " partialSteps=", SWITCHES.PARTIAL_STEPS)
 println("risk: cara=", SWITCHES.CARA)
+println("deposits: cap=", SWITCHES.DEPOSIT_CAP)
 println("output: log=", LOG)
 
 @everywhere include("objects.jl")

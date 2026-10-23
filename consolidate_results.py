@@ -190,6 +190,7 @@ SWITCH_FILES = {
     "bankRunWithdrawParams": ["withdraw", "partial_min_share"],
     "bankRunRiskParams":     ["cara"],
     "bankRunGridParams":     ["partial_steps"],
+    "bankRunDepositParams":  ["deposit_cap"],
 }
 # An empty manifest field means "the default at submission time". The
 # FIX_DOUBLE_COUNT default changed on 2026-10-20 (false -> true), so an empty
@@ -264,6 +265,7 @@ def switch_file_required(prefix, e, defaults):
         "bankRunWithdrawParams": ["withdraw"],
         "bankRunRiskParams":     ["cara"],
         "bankRunGridParams":     ["withdraw", "partial_steps"],
+        "bankRunDepositParams":  ["deposit_cap"],
     }[prefix]
     if any(e[c] is None for c in need):
         return None
@@ -285,6 +287,8 @@ def switch_file_required(prefix, e, defaults):
         return e["withdraw"] == "partial"
     if prefix == "bankRunRiskParams":
         return e["cara"] > 0
+    if prefix == "bankRunDepositParams":
+        return e["deposit_cap"] > 0
     if prefix == "bankRunGridParams":
         return e["withdraw"] == "partial" and e["partial_steps"] != d["partial_steps"]
     return e["stay_return"] != d["stay_return"]

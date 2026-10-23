@@ -83,6 +83,7 @@ export BANKRUN_N_INIT="${BANKRUN_N_INIT:-}"                   # 1 | 5 | 25
 export BANKRUN_WITHDRAW="${BANKRUN_WITHDRAW:-}"               # all | partial (2026-10-22)
 export BANKRUN_PARTIAL_MIN_SHARE="${BANKRUN_PARTIAL_MIN_SHARE:-}"
 export BANKRUN_PARTIAL_STEPS="${BANKRUN_PARTIAL_STEPS:-}"         # grid step 1/n (2026-10-23)
+export BANKRUN_DEPOSIT_CAP="${BANKRUN_DEPOSIT_CAP:-}"             # 0 = none | c = largest share cap (2026-10-23)
 export BANKRUN_CARA="${BANKRUN_CARA:-}"                       # 0 = risk neutral | > 0 CARA (2026-10-22)
 
 module load julia/1.8.0
@@ -139,6 +140,7 @@ echo "balance: payoff=${BANKRUN_PAYOFF:-full} balance=${BANKRUN_BALANCE:-vault} 
 echo "theta public: mode=${BANKRUN_THETA_PUBLIC:-none} level=${BANKRUN_THETA_PUBLIC_LEVEL:-0.6} gap=${BANKRUN_THETA_PUBLIC_GAP:-0.0} rho=${BANKRUN_THETA_PUBLIC_RHO:-1.0} noise=${BANKRUN_THETA_PUBLIC_NOISE:-0.10} lambdaScope=${BANKRUN_LAMBDA_SCOPE:-count}"
 echo "withdraw: mode=${BANKRUN_WITHDRAW:-all} partialMinShare=${BANKRUN_PARTIAL_MIN_SHARE:-0.01} partialSteps=${BANKRUN_PARTIAL_STEPS:-4}"
 echo "risk: cara=${BANKRUN_CARA:-0}"
+echo "deposits: cap=${BANKRUN_DEPOSIT_CAP:-0}"
 echo "reserve=$reserve depq=$depq sigma=$sigma k=$k p=$p alpha=$alpha mu=$mu"
 echo "lambdaI=$lambdaI lambdaC=$lambdaC  genSeed=$GEN_SEED  seeding=${BANKRUN_SEEDING:-task} nInit=${BANKRUN_N_INIT:-5}"
 echo "outdir=${TASK_DIR}"

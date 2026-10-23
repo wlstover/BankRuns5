@@ -45,6 +45,7 @@ tie-break, geometric belief, R = 1.
 | r1c (2026-10-22) | `rung1_cara.tsv` | rung 1 and rung-4 S1-S4 under CARA 0.1 | **rung 1 unchanged** (all four pooled tests as F11; G3's (0.3, 0.5) still wrong-signed). P(fail) +0.03 vs r1p, 108 failures added, 6 removed. **S1a, S2b, S3, S4a support; S1b and S4b count against** (F12c) |
 | r4-s1 (2026-10-22) | `rung4_s1.tsv` | S1's sigma 1 control | no gradient (D10 - D1-5 -0.0007, vs -0.046 at sigma 2.5); S3, S4a hold (F12c) |
 | r4-g20 (2026-10-23, post hoc) | `rung4_grid.tsv` | is S1b's failure an artefact of the {¼, ½, ¾} grid? r1c-none at PARTIAL_STEPS 20, paired | **structural, not the grid**: the largest agent still exits all at once (one-shot 1.000, 218 mixed-cell exits; all 428 of its exits fail the bank by liquidity). The finer grid adds partial exits lower down (2,165 vs 1,676 events; D10 one-shot 0.973 vs 0.980, top 1% 0.912 vs 0.930; S1a -0.060 vs -0.046) and leaves failure almost untouched (mixed P(fail) 0.258 vs 0.257, 10 added, 8 removed). S1b still against (+0.007, p 0.996). Per the stated reading: super-individuals (F12d) |
+| r1k (2026-10-23) | `rung1_cap.tsv` | rung 1 and rung 4 on the capped reference bank (cap 1%, F12e) | *not yet run* |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -375,6 +376,42 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
   --arm outputs/r4-g20 --ref outputs/r1c-none`. Per the reading fixed before the
   run, S1b's failure is structural at N = 1,000 (largest share 18% of deposits);
   super-individuals are the model change that addresses it.
+
+- **F12e, the whale problem at N = 1,000, and the reference bank (2026-10-23;
+  decision by the user).** At sigma 2.5 a bank of 1,000 depositors has a largest
+  depositor holding ~15% of deposits (median; 90th pct 34%), above 10% of the
+  reference bank's capacity in >99% of banks. Celsius's largest account held
+  0.94% among ~541K users, and the draw reproduces that only near the platform's
+  size (`scripts/whale_scaling.py`, `outputs/whale_scaling/`):
+
+  | N | largest share, median | 90th pct | P(largest > 10% of capacity) | tick cost vs N = 1,000 |
+  |---|---|---|---|---|
+  | 1,000 | 14.4% | 34% | 1.00 | 1 |
+  | 10,000 | 6.2% | 16% | 0.72 | ~100 |
+  | 100,000 | 2.2% | 5.4% | 0.15 | ~10^4 |
+  | 541,000 | 1.1% | 2.7% | 0.03 | ~3 x 10^5 |
+
+  The tick cost grows about as N^2 x depth (every banked agent decides by `depth`
+  sub-simulations over the deposit vector) and the cascade is sequential, so
+  raising N is not computationally reasonable. That whale is the last straw: it
+  never splits under any grid (F12d) and fails the bank whenever it leaves. So far
+  the only computationally reasonable way to keep the platform's concentration
+  *and* its small largest share is super-individuals (each agent a cohort of ~542
+  users), left for a later version.
+  **Decision (user):** the reference bank is sigma 2.5 with every deposit capped at
+  1% of the total (`BANKRUN_DEPOSIT_CAP=0.01`, Celsius's largest account); sigma 1
+  (uncapped) is the no-concentration counterfactual. What each keeps (N = 1,000):
+
+  | bank | largest | top 1% | top 10% | agents at the max |
+  |---|---|---|---|---|
+  | sigma 2.5 | 15.1% | 50% | 87% | 1 |
+  | sigma 2.5, cap 1% (reference) | 1.0% | 10% | 70% | 37 |
+  | sigma 1 (counterfactual) | 1.5% | 9% | 39% | 1 |
+
+  The cap's cost is a mass point (~37 agents at L) and a flatter top 1% than the
+  platform's. It is an input calibrated to Ch 2's data, as sigma is, not a fit to
+  exit behaviour. Arms: `arms/rung1_cap.tsv` (r1k-*, paired with r1c-*); r1k-none
+  is rung 4's primary arm on the new reference.
 
 ## Implications for the systematic sweep (draft)
 
