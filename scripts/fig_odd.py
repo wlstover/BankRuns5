@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ODD diagrams for Ch 3 (MOCKUPS, 2026-10-22).
+"""ODD diagrams for Ch 3 (MOCKUPS, 2026-10-22; variants updated 2026-10-23).
 
   overview: entities and state variables (left) and the process schedule (right),
             for the fire-sale reference model (ODD: Overview; Process overview
@@ -122,18 +122,20 @@ def overview(out):
 
 
 # Component rows: (label, {column: setting}); the reference column is r1t.
-COLS = ["Vault model\n(current draft)", "Rung 1\n(r1t)", "Rung 1, partial\n(r1p)",
-        "Rung 4: S1", "Fire-sale sweep\n(§3, §6)", "Super-individuals\n(later)"]
-PLANNED = {"Rung 4: S1", "Fire-sale sweep\n(§3, §6)", "Super-individuals\n(later)"}
+COLS = ["Vault model\n(current draft)", "Rung 1\n(r1t)", "Rung 1, partial\n(r1p, r1c)",
+        "Rung 4: S1\n(r1c-none, r4-*)", "Fire-sale sweep\n(§3, §6)", "Super-individuals\n(later)"]
+PLANNED = {"Fire-sale sweep\n(§3, §6)", "Super-individuals\n(later)"}
 REF = "Rung 1\n(r1t)"
 ROWS = [
     ("Balance sheet",       ["vault only", "fire-sale", "fire-sale", "fire-sale", "fire-sale", "fire-sale"]),
     ("Payoff compared",     ["P(paid in full)", "recovery", "recovery", "recovery", "recovery", "recovery"]),
     ("Fundamental θ",       ["none", "U[0, 1]", "U[0, 1]", "U[0, 1]", "U[0, 1]", "U[0, 1]"]),
     ("Private signal",      ["none", "of θ", "of θ", "of θ", "of θ", "of θ"]),
-    ("Public signal of θ",  ["none", "none / stale /\ntracks / corrects", "=as r1t", "none", "to decide", "to decide"]),
+    ("Public signal of θ",  ["none", "none / stale /\ntracks / corrects", "=as r1t", "none", "stale", "to decide"]),
     ("λ weights",           ["head count", "both blends", "both blends", "both blends", "both blends", "both blends"]),
-    ("Withdrawal",          ["all or nothing", "all or nothing", "fractions", "fractions", "fractions", "share of cohort"]),
+    ("Withdrawal",          ["all or nothing", "all or nothing", "fractions (¼)", "fractions (¼;\n1/20 in r4-g20)",
+                             "fractions (grid\nafter r4-g20)", "share of cohort"]),
+    ("Risk preference",     ["neutral", "neutral", "neutral (r1p);\nCARA 0.1 (r1c)", "CARA 0.1", "CARA 0.1", "to decide"]),
     ("Deposit insurance",   ["quantile axis", "none", "none", "none", "quantile axis", "none"]),
     ("Deposit spread σ",    ["axis", "2.5 (1 in one arm)", "=2.5 (1 in one arm)", "=2.5 (1 reported)", "axis", "3.15 (platform)"]),
     ("Agent",               ["depositor", "depositor", "depositor", "depositor", "depositor", "cohort of ~542"]),
@@ -143,7 +145,7 @@ ROWS = [
 
 def variants(out):
     nr, nc = len(ROWS), len(COLS)
-    fig, ax = plt.subplots(figsize=(9.6, 5.9))
+    fig, ax = plt.subplots(figsize=(9.6, 6.4))
     ax.set_xlim(0, 1); ax.set_ylim(-0.07, 1); ax.axis("off")
     x0, cw = 0.17, (1 - 0.17) / nc
     top, rh = 0.88, 0.88 / nr

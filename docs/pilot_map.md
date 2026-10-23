@@ -44,6 +44,7 @@ tie-break, geometric belief, R = 1.
 | cara smoke (2026-10-22) | `scripts/cara_smoke.sh` (local, 75 runs per value) | does CARA make large depositors split, and at what cost to fragility? | yes from CARA 0.1; P(fail) rises with CARA, D does not move (F12b) |
 | r1c (2026-10-22) | `rung1_cara.tsv` | rung 1 and rung-4 S1-S4 under CARA 0.1 | **rung 1 unchanged** (all four pooled tests as F11; G3's (0.3, 0.5) still wrong-signed). P(fail) +0.03 vs r1p, 108 failures added, 6 removed. **S1a, S2b, S3, S4a support; S1b and S4b count against** (F12c) |
 | r4-s1 (2026-10-22) | `rung4_s1.tsv` | S1's sigma 1 control | no gradient (D10 - D1-5 -0.0007, vs -0.046 at sigma 2.5); S3, S4a hold (F12c) |
+| r4-g20 (2026-10-23, post hoc) | `rung4_grid.tsv` | is S1b's failure an artefact of the {¼, ½, ¾} grid? r1c-none at PARTIAL_STEPS 20, paired | *not yet run*. Reading fixed in the arms file before the run: the largest agent splits -> grid artefact, finer grid for the sweep; still one-shot -> structural (last straw), super-individuals |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -363,6 +364,22 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
   sigma 2.5 gradient comes from size relative to the bank.
 
 ## Implications for the systematic sweep (draft)
+
+*Decided 2026-10-23 (user):* the sweep's public signal is **stale only**
+("corrects" is dropped: it fades by tick 4, F11; "tracks" is not a sweep arm).
+**CARA is held at 0.1**, not a sweep axis. The partial grid for the sweep waits on
+r4-g20.
+
+Candidate justification for CARA 0.1 (to check against the literature before it
+is cited): with CRRA rho over total wealth W, absolute aversion is rho / W, so on
+a gamble the size of the deposit d, a·d = rho·(d / W). Our a·d = 0.1 at the mean
+deposit, i.e. rho 1-2 (the usual range of estimates, e.g. Chetty 2006;
+Gandelman and Hernandez-Murillo 2015, cited from memory) if the mean deposit is
+5-10% of the depositor's wealth. Because a is absolute, a·d grows with size: at
+sigma 2.5, mean / median = exp(sigma^2 / 2) ~ 23, so the median depositor is
+almost risk neutral (a·d ~ 0.004) and the 99th percentile has a·d ~ 1.5. That is
+the pattern CRRA gives if larger depositors hold a larger share of their wealth
+at the bank, which is a claim to check, not an assumption we have evidence for.
 
 1. *(Settled 2026-10-22, F12: partial withdrawals; sigma a reported axis.)* **sigma's realistic level is ~2.5 (F7), which is the whale regime.** sigma 1 is a
    no-whale counterfactual that isolates the cascade (useful for mechanism pilots

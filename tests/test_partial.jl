@@ -17,6 +17,8 @@
 #   E. The size cutoff: PARTIAL_MIN_SHARE = 0.01 makes the same decisions as no
 #      cutoff (every agent values the interior fractions).
 #   F. Refused combinations.
+#   H. PARTIAL_STEPS (2026-10-23): partialGrid(4) is the old grid; a finer grid
+#      is offered, refused without partial, and its runs keep their books.
 #   G. Cumulative insurance: a fraction that fails the bank uses the cover it is
 #      paid; splitting never recovers more than withdrawing at once; insured
 #      partial runs keep their books.
@@ -88,6 +90,10 @@ readcsv(m, f) = (p = joinpath(m.dataDir, f); isfile(p) ? CSV.read(p, DataFrame; 
     @test cf(0.9, 0.9, (0.8, 0.8, 0.8)) == 0.0
     @test cf(0.5, 0.0, (0.1, 0.1, 0.1); tb="legacy") == 1.0   # legacy salvage clause
     @test cf(1.1, 1.2, (1.3, 1.3, 1.3); tb="schuler", ps=1.0) == 0.0
+    g10 = Base.invokelatest(m.partialGrid, 10)
+    vi = [k == 3 ? 0.95 : 0.85 for k in 1:9]
+    @test Base.invokelatest(m.chooseFraction, 0.8, 0.9, vi; tiebreak="strict", pStay=0.5,
+                            grid=g10) == 0.3
 end
 
 # ---------------------------------------------------------------- B
@@ -225,4 +231,38 @@ end
         @test length(short) <= 1
         isempty(short) || @test short[1] == length(rec.order)
     end
+end
+
+# ---------------------------------------------------------------- H
+@testset "H. PARTIAL_STEPS" begin
+    m = load_model(:H)
+    grid(n) = Base.invokelatest(m.partialGrid, n)
+    @test grid(4) === (0.25, 0.5, 0.75)                       # the published grid, exactly
+    @test length(grid(20)) == 19 && grid(20)[1] == 0.05 && grid(20)[end] == 0.95
+    err(sw) = Base.invokelatest(m.switchComboError, sw)
+    base = (PUBLIC_MODE="markup", FIX_DOUBLE_COUNT=true, FRESH_CLONE=true, PAYOFF="recovery",
+            BALANCE="firesale", FUNDAMENTAL="theta", PRIVATE_SIGNAL="theta",
+            RETURN_LO=1.0, RETURN_HI=1.4, THETA_PUBLIC="none", WITHDRAW="partial", PARTIAL_STEPS=20)
+    @test err(base) === nothing
+    @test occursin("PARTIAL_STEPS", err(merge(base, (WITHDRAW="all",))))
+    # A finer grid under CARA: every withdrawal is a multiple of 1/20 of the balance
+    # left at the time, and the books balance as in D.
+    mh, oh = arm(:Hrun; WITHDRAW="partial", PARTIAL_STEPS=20, CARA=0.1)
+    fracs = Float64[]
+    for ((state, n, depOut), rec, mod, isI) in oh
+        endog = (rec.nExog + 1):length(rec.order)
+        rem = [a.deposit for a in mod.agtList]           # original deposits (restored)
+        for j in endog
+            i = rec.order[j]
+            push!(fracs, rec.amount[j] / rem[i])
+            rem[i] -= rec.amount[j]
+        end
+        @test all(rem .>= -1e-9)
+        exogDep = sum(mod.agtList[i].deposit for i in rec.order[1:rec.nExog]; init=0.0)
+        @test depOut ≈ exogDep + sum(rec.amount[endog]; init=0.0)
+    end
+    @test all(abs.(20 .* fracs .- round.(20 .* fracs)) .< 1e-6)
+    @test any(f -> 0.0 < f < 1.0 && !(f in (0.25, 0.5, 0.75)), fracs)   # off the old grid
+    gp = readcsv(mh, "bankRunGridParams1.csv")
+    @test gp !== nothing && all(gp[:, 2] .== 20)
 end

@@ -56,11 +56,14 @@ const SWITCH_DEFAULTS = (
     N_INIT           = 5,            # initialisations per cell (1, 5 or 25), each run 250 / N_INIT times
     # Partial withdrawals (2026-10-22; decision by the user): all = the whole
     # balance or nothing (published); partial = a fraction of the remaining
-    # balance, chosen from {0, ¼, ½, ¾, 1} by expected value (functions4.jl,
+    # balance, chosen from {0, 1/n, ..., 1} (n = PARTIAL_STEPS) by expected value (functions4.jl,
     # chooseFraction). Only agents whose balance exceeds PARTIAL_MIN_SHARE of the
     # bank's current period-1 capacity evaluate the interior fractions.
     WITHDRAW         = "all",
     PARTIAL_MIN_SHARE = 0.01,
+    # The grid's step (2026-10-23; the user): fractions k / PARTIAL_STEPS. 4 =
+    # {0, ¼, ½, ¾, 1} (r1p, r1c); 20 = steps of 0.05 (the S1b pilot).
+    PARTIAL_STEPS    = 4,
     # Risk aversion (2026-10-22; the user): 0 = risk neutral (published). > 0 =
     # CARA utility −exp(−a·w), a = CARA / mean initial deposit, so the depositor
     # holding the mean deposit has a·b = CARA (functions4.jl ceValue). Fire-sale
@@ -120,6 +123,9 @@ function switchComboError(sw)
         sw.PUBLIC_MODE == "stale" &&
             return "BANKRUN_WITHDRAW=partial is not built for BANKRUN_PUBLIC_MODE=stale"
     end
+    hasproperty(sw, :PARTIAL_STEPS) && sw.PARTIAL_STEPS != 4 &&
+        (!hasproperty(sw, :WITHDRAW) || sw.WITHDRAW != "partial") &&
+        return "BANKRUN_PARTIAL_STEPS needs BANKRUN_WITHDRAW=partial"
     hasproperty(sw, :CARA) && sw.CARA > 0.0 && sw.BALANCE != "firesale" &&
         return "BANKRUN_CARA > 0 needs BANKRUN_BALANCE=firesale"
     sw.RETURN_HI < sw.RETURN_LO &&
@@ -201,6 +207,7 @@ function parseSwitchesFromEnv()
           N_INIT           = envInt("BANKRUN_N_INIT", D.N_INIT, 1, 25),
           WITHDRAW         = envChoice("BANKRUN_WITHDRAW", D.WITHDRAW, WITHDRAW_CHOICES),
           PARTIAL_MIN_SHARE = envFloat("BANKRUN_PARTIAL_MIN_SHARE", D.PARTIAL_MIN_SHARE, 0.0, 1.0),
+          PARTIAL_STEPS    = envInt("BANKRUN_PARTIAL_STEPS", D.PARTIAL_STEPS, 2, 1000),
           CARA             = envFloat("BANKRUN_CARA", D.CARA, 0.0, 1.0e6),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)

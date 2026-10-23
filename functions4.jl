@@ -752,21 +752,23 @@ function decide(probFullDepositWD, probFullDepositStay; tiebreak::String="legacy
 end
 
 # ---- Partial withdrawals (2026-10-22, BANKRUN_WITHDRAW = partial) ----
-# An agent may withdraw a fraction f of its remaining balance b, f in {0, ¼, ½,
-# ¾, 1}. Its value per unit of balance is what the bank pays now on f·b, plus R
+# An agent may withdraw a fraction f of its remaining balance b, f in {0, 1/n,
+# ..., (n−1)/n, 1}, n = PARTIAL_STEPS (4 by default: {0, ¼, ½, ¾, 1}). Its value per unit of balance is what the bank pays now on f·b, plus R
 # times the expected stayer payoff on the (1 − f)·b it leaves in, from the bank
 # after its own sale:  V(f) = paid(f·b)/b + R·P_stay(state after f·b).
 # V(0) is decide()'s R·P_stay and V(1) its P_WD. A small depositor's withdrawal
 # does not move the bank, so V is linear in f and the best f is 0 or 1; only an
 # agent large enough to move the bank can gain from an interior f. So only agents
 # whose balance exceeds PARTIAL_MIN_SHARE of the bank's current period-1
-# capacity evaluate ¼, ½ and ¾ (tests/test_partial.jl checks the cutoff against
+# capacity evaluate the interior fractions (tests/test_partial.jl checks the cutoff against
 # a run with no cutoff); the rest use decide() exactly as under WITHDRAW = all.
 # Every fraction is valued on the same sub-simulation draws (common random
 # numbers: the main stream is rewound for each), and the stream then continues
 # from where V(0) left it, so the agents after a large one draw what they
 # would have drawn.
-const PARTIAL_GRID = (0.25, 0.5, 0.75)
+# The interior fractions for PARTIAL_STEPS = n. A finer grid (2026-10-23, the
+# user: S1b's pilot) lets an agent take a fraction just short of draining the bank.
+partialGrid(n::Int) = Tuple(k / n for k in 1:n-1)
 
 # The decision state after the focal agent withdraws `a` now, and what it is
 # paid (withdraw()'s rule, after any fire sale).
@@ -819,11 +821,11 @@ end
 # tie-break rules keep their margins: legacy withdraws everything when even
 # withdrawing pays nothing; schuler stays when staying pays in full for sure.
 function chooseFraction(vStay::Float64, vAll::Float64, vInterior; tiebreak::String,
-                        pStay::Float64)
+                        pStay::Float64, grid=partialGrid(4))
     tiebreak == "legacy" && vAll == 0.0 && return 1.0
     tiebreak == "schuler" && pStay == 1.0 && return 0.0
     best, bestV = 0.0, vStay
-    for (f, v) in zip(PARTIAL_GRID, vInterior)
+    for (f, v) in zip(grid, vInterior)
         v > bestV && ((best, bestV) = (f, v))
     end
     vAll > bestV && (best = 1.0)
@@ -902,6 +904,8 @@ function modelRun(mod::Model; record=nothing)
     lambdaScope   = switchValue(:LAMBDA_SCOPE)
     partial       = switchValue(:WITHDRAW) == "partial"
     partialMin    = switchValue(:PARTIAL_MIN_SHARE)
+    partialSteps  = switchValue(:PARTIAL_STEPS)
+    grid          = partial ? partialGrid(partialSteps) : ()
     caraGamma     = switchValue(:CARA)
     publicStale = publicMode == "stale"
     publicOn = pubAlpha > 0.0 || pubBias > 0.0 || weightPhi < 1.0 || publicStale
@@ -1046,6 +1050,12 @@ function modelRun(mod::Model; record=nothing)
                   DataFrame(key=mod.key, withdraw="partial", partialMinShare=partialMin),
                   writeheader=false, append=true)
     end
+    # PARTIAL_STEPS (2026-10-23): written only when it is not the default 4, so
+    # outputs from before the switch stay valid.
+    if partial && partialSteps != 4
+        CSV.write(dataDir*"/"*"bankRunGridParams"*string(workerCore)*".csv",
+                  DataFrame(key=mod.key, partialSteps=partialSteps), writeheader=false, append=true)
+    end
 
     # now, whenever an agent withdraws, we reset a state variable since this means all other agents will
     # re-examing their decision to bank
@@ -1148,7 +1158,7 @@ function modelRun(mod::Model; record=nothing)
                 big = partial && b > partialMin * capacityOf(decisionState)
                 big && (nBigDecisions += 1)
                 rngAfter = big ? copy(Random.default_rng()) : nothing
-                vInterior = !partial ? () : map(PARTIAL_GRID) do f
+                vInterior = !partial ? () : map(grid) do f
                     sf, paid = afterOwnWithdrawal(decisionState, agt.idx, f * b)
                     sf.vault < 0.0 && return -Inf
                     pay = big ? (copy!(Random.default_rng(), rngBefore);
@@ -1160,19 +1170,19 @@ function modelRun(mod::Model; record=nothing)
                 end
                 big && copy!(Random.default_rng(), rngAfter)
                 frac = chooseFraction(ceValue(payStay, caraA) / b, probFullDepositWD, vInterior;
-                                      tiebreak=tiebreak, pStay=probFullDepositStay)
+                                      tiebreak=tiebreak, pStay=probFullDepositStay, grid=grid)
                 withdrew = frac > 0.0
             elseif partial && agt.deposit > partialMin * capacityOf(decisionState)
                 nBigDecisions += 1
                 rngAfter = copy(Random.default_rng())
-                vInterior = map(PARTIAL_GRID) do f
+                vInterior = map(grid) do f
                     copy!(Random.default_rng(), rngBefore)
                     partialValue(decisionState, agt, f, withdrawnNeighbors, additionalWithdrawals;
                                  skipWithdrawn=skipWithdrawn, returns=returns, stayReturn=stayReturn)
                 end
                 copy!(Random.default_rng(), rngAfter)
                 frac = chooseFraction(stayReturn * probFullDepositStay, probFullDepositWD, vInterior;
-                                      tiebreak=tiebreak, pStay=probFullDepositStay)
+                                      tiebreak=tiebreak, pStay=probFullDepositStay, grid=grid)
                 withdrew = frac > 0.0
             end
             if balanceFire && record !== nothing
