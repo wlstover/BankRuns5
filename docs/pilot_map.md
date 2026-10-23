@@ -44,7 +44,7 @@ tie-break, geometric belief, R = 1.
 | cara smoke (2026-10-22) | `scripts/cara_smoke.sh` (local, 75 runs per value) | does CARA make large depositors split, and at what cost to fragility? | yes from CARA 0.1; P(fail) rises with CARA, D does not move (F12b) |
 | r1c (2026-10-22) | `rung1_cara.tsv` | rung 1 and rung-4 S1-S4 under CARA 0.1 | **rung 1 unchanged** (all four pooled tests as F11; G3's (0.3, 0.5) still wrong-signed). P(fail) +0.03 vs r1p, 108 failures added, 6 removed. **S1a, S2b, S3, S4a support; S1b and S4b count against** (F12c) |
 | r4-s1 (2026-10-22) | `rung4_s1.tsv` | S1's sigma 1 control | no gradient (D10 - D1-5 -0.0007, vs -0.046 at sigma 2.5); S3, S4a hold (F12c) |
-| r4-g20 (2026-10-23, post hoc) | `rung4_grid.tsv` | is S1b's failure an artefact of the {¼, ½, ¾} grid? r1c-none at PARTIAL_STEPS 20, paired | *not yet run*. Reading fixed in the arms file before the run: the largest agent splits -> grid artefact, finer grid for the sweep; still one-shot -> structural (last straw), super-individuals |
+| r4-g20 (2026-10-23, post hoc) | `rung4_grid.tsv` | is S1b's failure an artefact of the {¼, ½, ¾} grid? r1c-none at PARTIAL_STEPS 20, paired | **structural, not the grid**: the largest agent still exits all at once (one-shot 1.000, 218 mixed-cell exits; all 428 of its exits fail the bank by liquidity). The finer grid adds partial exits lower down (2,165 vs 1,676 events; D10 one-shot 0.973 vs 0.980, top 1% 0.912 vs 0.930; S1a -0.060 vs -0.046) and leaves failure almost untouched (mixed P(fail) 0.258 vs 0.257, 10 added, 8 removed). S1b still against (+0.007, p 0.996). Per the stated reading: super-individuals (F12d) |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -362,6 +362,19 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
   S4b -0.0002 (both null). S3a +0.36, S3b +0.57 and S4a (W 0.076) hold. So S1's
   second "against" condition (the gradient as strong at sigma 1) is not met: the
   sigma 2.5 gradient comes from size relative to the bank.
+
+- **F12d, r4-g20 (2026-10-23, post hoc; arms/rung4_grid.tsv).** r1c-none at
+  PARTIAL_STEPS 20, paired run for run. The largest agent never splits: every one
+  of its 428 exits (218 in mixed cells) is a full withdrawal that fails the bank by
+  liquidity, so even at steps of 0.05 no payable fraction beats staying when it
+  decides to go. It is the last straw, not a gradual exiter, and a finer grid cannot
+  change that. The grid matters only below it: partial events +29%, the S1 curve
+  slightly steeper (D10 0.973, top 1% 0.912), still far from Celsius (0.52, 0.38).
+  P(fail) and failure type are almost unchanged (18 of 3,750 runs differ). S2b, S3,
+  S4 as in r1c (S2b arm - ref +0.0004, p 0.09). Reader: `scripts/rung4_stats.py
+  --arm outputs/r4-g20 --ref outputs/r1c-none`. Per the reading fixed before the
+  run, S1b's failure is structural at N = 1,000 (largest share 18% of deposits);
+  super-individuals are the model change that addresses it.
 
 ## Implications for the systematic sweep (draft)
 
