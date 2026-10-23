@@ -43,6 +43,7 @@ tie-break, geometric belief, R = 1.
 | r1p (2026-10-22) | `rung1_partial.tsv` | do rung 1's signs survive partial withdrawals? | trivially: risk-neutral depositors never split, so head-count D, failure and the withdrawers match r1t run for run (F12b) |
 | cara smoke (2026-10-22) | `scripts/cara_smoke.sh` (local, 75 runs per value) | does CARA make large depositors split, and at what cost to fragility? | yes from CARA 0.1; P(fail) rises with CARA, D does not move (F12b) |
 | r1c (2026-10-22) | `rung1_cara.tsv` | rung 1 and rung-4 S1-S4 under CARA 0.1 | **rung 1 unchanged** (all four pooled tests as F11; G3's (0.3, 0.5) still wrong-signed). P(fail) +0.03 vs r1p, 108 failures added, 6 removed. **S1a, S2b, S3, S4a support; S1b and S4b count against** (F12c) |
+| r4-s1 (2026-10-22) | `rung4_s1.tsv` | S1's sigma 1 control | no gradient (D10 - D1-5 -0.0007, vs -0.046 at sigma 2.5); S3, S4a hold (F12c) |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -354,6 +355,12 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
   a gradual exiter.
 - Withdrawal rates are flat in size (0.112-0.115 in every decile), which is why
   S2b is tiny and S4b fails: size does not change who runs here, only how.
+- sigma 1 control (r4-s1-s10, the same banks at sigma 1; P(fail) 0.204): the S1
+  gradient is gone, as predicted: one-shot D10 - D1-5 = -0.0007 (p 0.09), one-shot
+  share >= 0.999 in every group, the largest agent 1.000 (170 exits). S2b -0.0001,
+  S4b -0.0002 (both null). S3a +0.36, S3b +0.57 and S4a (W 0.076) hold. So S1's
+  second "against" condition (the gradient as strong at sigma 1) is not met: the
+  sigma 2.5 gradient comes from size relative to the bank.
 
 ## Implications for the systematic sweep (draft)
 
