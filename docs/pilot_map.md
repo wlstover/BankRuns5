@@ -366,7 +366,9 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
 ## Implications for the systematic sweep (draft)
 
 *Decided 2026-10-23 (user):* the sweep's public signal is **stale only**
-("corrects" is dropped: it fades by tick 4, F11; "tracks" is not a sweep arm).
+("corrects" is dropped: it fades by tick 4, F11; "tracks" is not a sweep arm),
+with a **no-public-signal (none) baseline** kept, so the public signal's effect
+is separable as in G1'/G4'.
 **CARA is held at 0.1**, not a sweep axis. The partial grid for the sweep waits on
 r4-g20.
 
