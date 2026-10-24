@@ -420,8 +420,9 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
   - Rung 1 (`rung1_relational.py`; head-count D, g 0.1, pooled, Holm): G1' +0.0328
     (t 15.2), G4' -0.0312 (t -24.5), G2a' +0.0931 (t 31.4), G3 +0.0034 (p 0.019);
     r1c: +0.0365, -0.0250, +0.0819, +0.0033. Same verdicts as F11 and F12c: G3
-    passes pooled but (0.3, 0.5) is wrong-signed (-0.0010, t -2.7); G3c +0.0176 (t
-    17.4) passes in every pair (+0.033 / +0.019 / +0.001, the last at t 2.1). G2b
+    passes pooled but (0.3, 0.5) is wrong-signed (-0.0010, t -2.7); G3c +0.0194 (t
+    23.1) passes in every pair (+0.036 / +0.021 / +0.0008, the last at t 3.3; D$
+    G3c +0.0176, t 17.4). G2b
     ordering holds; the g 0.05 and 0.2 robustness checks hold. The (0.3, 0.5) pair
     is near zero on every test (G1' +0.004), so it alone decides G3. P(fail) at
     (0.1, 0.9): none 0.27, stale y20 0.47, y50 0.13, y80 0.11, tracks 0.25 (the
