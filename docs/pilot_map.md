@@ -45,7 +45,7 @@ tie-break, geometric belief, R = 1.
 | r1c (2026-10-22) | `rung1_cara.tsv` | rung 1 and rung-4 S1-S4 under CARA 0.1 | **rung 1 unchanged** (all four pooled tests as F11; G3's (0.3, 0.5) still wrong-signed). P(fail) +0.03 vs r1p, 108 failures added, 6 removed. **S1a, S2b, S3, S4a support; S1b and S4b count against** (F12c) |
 | r4-s1 (2026-10-22) | `rung4_s1.tsv` | S1's sigma 1 control | no gradient (D10 - D1-5 -0.0007, vs -0.046 at sigma 2.5); S3, S4a hold (F12c) |
 | r4-g20 (2026-10-23, post hoc) | `rung4_grid.tsv` | is S1b's failure an artefact of the {¼, ½, ¾} grid? r1c-none at PARTIAL_STEPS 20, paired | **structural, not the grid**: the largest agent still exits all at once (one-shot 1.000, 218 mixed-cell exits; all 428 of its exits fail the bank by liquidity). The finer grid adds partial exits lower down (2,165 vs 1,676 events; D10 one-shot 0.973 vs 0.980, top 1% 0.912 vs 0.930; S1a -0.060 vs -0.046) and leaves failure almost untouched (mixed P(fail) 0.258 vs 0.257, 10 added, 8 removed). S1b still against (+0.007, p 0.996). Per the stated reading: super-individuals (F12d) |
-| r1k (2026-10-23) | `rung1_cap.tsv` | rung 1 and rung 4 on the capped reference bank (cap 1%, F12e) | *not yet run* |
+| r1k (2026-10-23) | `rung1_cap.tsv` | rung 1 and rung 4 on the capped reference bank (cap 1%, F12e) | **rung 1 unchanged** (3 of 4 support: G1' +0.033, G4' -0.031, G2a' +0.093; G3 +0.0034 passes Holm pooled but (0.3, 0.5) is wrong-signed, t -2.7; G3c passes). **Rung 4: the cap removes the size gradient**: one-shot share 0.999-1.000 in every group, so S1a, S1b and S2b are null and count against; S3 and S4a hold, S4b against. P(fail) 0.249 vs 0.297 in r1c-none (263 failures removed, 84 added) (F12f) |
 | Celsius benchmark (2026-10-21) | `bank_runs_celsius/src/analysis/deposit_concentration.py` | what sigma does a real depositor base have? | ~2.55 (F7) |
 
 ## Findings
@@ -412,6 +412,51 @@ large accounts exit gradually; the ABM gets partial withdrawals (2026-10-22).**
   platform's. It is an input calibrated to Ch 2's data, as sigma is, not a fit to
   exit behaviour. Arms: `arms/rung1_cap.tsv` (r1k-*, paired with r1c-*); r1k-none
   is rung 4's primary arm on the new reference.
+
+- **F12f, r1k: rung 1 and rung 4 on the capped reference bank (2026-10-24;
+  arms/rung1_cap.tsv, commit 5e9b663; `outputs/r1k-analysis`).** Seven arms, 3,750
+  runs each, paired run for run with r1c (same draws; deposits above 1% of the total
+  lowered to it).
+  - Rung 1 (`rung1_relational.py`; head-count D, g 0.1, pooled, Holm): G1' +0.0328
+    (t 15.2), G4' -0.0312 (t -24.5), G2a' +0.0931 (t 31.4), G3 +0.0034 (p 0.019);
+    r1c: +0.0365, -0.0250, +0.0819, +0.0033. Same verdicts as F11 and F12c: G3
+    passes pooled but (0.3, 0.5) is wrong-signed (-0.0010, t -2.7); G3c +0.0176 (t
+    17.4) passes in every pair (+0.033 / +0.019 / +0.001, the last at t 2.1). G2b
+    ordering holds; the g 0.05 and 0.2 robustness checks hold. The (0.3, 0.5) pair
+    is near zero on every test (G1' +0.004), so it alone decides G3. P(fail) at
+    (0.1, 0.9): none 0.27, stale y20 0.47, y50 0.13, y80 0.11, tracks 0.25 (the
+    r1c ordering).
+  - Rung 4 (`rung4_stats.py --arm outputs/r1k-none --ref outputs/r1c-none`; mixed
+    cells, 2,250 runs, 25 clusters, one-sided):
+
+    | stat | r1c-none | r1k-none | t | p | verdict |
+    |---|---|---|---|---|---|
+    | S1a one-shot share, D10 - D1-5 (< 0) | -0.046 | -0.0000 | -1.1 | 0.15 | against |
+    | S1b one-shot share, largest - D10 (< 0) | +0.006 | +0.0001 | +1.0 | 0.84 | against |
+    | S2b withdrawal rate, D10 - D1-5 (> 0) | +0.0016 | -0.0002 | -0.3 | 0.62 | against |
+    | S2b r1k - r1c (what the cap removes) | - | -0.0018 | -2.0 | 0.97 | - |
+    | S3a slope in neighbours out (> 0) | +0.52 | +0.38 | 11.4 | <0.001 | supports |
+    | S3b slope C - I (> 0) | +0.93 | +0.58 | 16.7 | <0.001 | supports |
+    | S4a head-count share W (< 0.5) | 0.114 | 0.080 | -56 | <0.001 | supports; W < 0.5 in 99% of runs, 96% of failed runs |
+    | S4b W$ - W (> 0) | -0.005 | -0.0001 | -0.2 | 0.58 | against |
+
+  - S1 curve (pooled one-shot share): 0.999-1.000 in every decile, 1.000 in the top
+    1% (1,721 exits) and top 0.1% (165); partial-exit share at most 0.0006 (D9).
+    r1c: 0.980 D10, 0.930 top 1%; Celsius 0.52, 0.38. Exit rates are flat in size
+    (0.074-0.080) and lower than r1c's (0.11-0.12).
+  - Reading: in r1c the gradient came from the very large agents. CARA's a is
+    gamma / mean deposit, so the curvature over a stake grows with its size; at a
+    1% cap no stake is large enough for an interior fraction to beat all-or-nothing,
+    and the bank is back to r1p's risk-neutral corner. The cap fixes S1b only in
+    form: the last straw is gone, and with it the variation S1 measures.
+  - Failure: P(fail) 0.249 vs 0.297 (all cells; mixed 0.217 vs 0.257); 263 r1c
+    failures removed, 84 added. The mu ordering is unchanged (mu 0: 0.607 -> 0.511;
+    mu 1: 0.105 -> 0.083).
+  - So the capped bank keeps rung 1, S3 and S4a, and is safer, but at N = 1,000
+    and CARA 0.1 neither bank docks S1 to Celsius: uncapped, the gradient is weak
+    and comes from the whale; capped, there is none. Options (user): super-
+    individuals, or a size-dependent risk preference, which would be a post hoc
+    choice made after these results.
 
 ## Implications for the systematic sweep (draft)
 
