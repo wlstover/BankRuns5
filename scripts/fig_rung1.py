@@ -26,6 +26,15 @@ from rung1_relational import PAIR, cmean, load, paired        # noqa: E402
 
 GAP_G = 0.1
 THETA_L, BAND_HI = 0.10, 0.40      # coordination band, pilot_map F10
+SORT_LAB = {
+    "pair": {lam: fr"$\lambda_I={lam[0]},\ \lambda_C={lam[1]}$" for lam in fs.LAMBDA_PAIRS},
+    "end": {lam: fr"{lam[0]} / {lam[1]}" for lam in fs.LAMBDA_PAIRS},
+    "right": "y optimistic: Ch 1 predicts\nindividualists run more (G1')",
+    "left": "y pessimistic: Ch 1 predicts\ncollectivists run more (G4')",
+    "x": r"Public signal's gap at tick 1,  $y_1 - \theta$",
+    "y": "Change in sorting vs. no public signal\n" + r"$D - D_{\mathrm{none}}$  ($D = W_I - W_C$)",
+    "title": r"$\lambda$ pair",
+}
 
 
 def binned(df, x, y, bins):
@@ -39,7 +48,9 @@ def binned(df, x, y, bins):
     return pd.DataFrame(rows)
 
 
-def fig_sorting(base, stale, out):
+def fig_sorting(base, stale, out, lab=None):
+    """lab: optional plain-language labels (fig_deck.py --lay); keys as in SORT_LAB."""
+    lab = {**SORT_LAB, **(lab or {})}
     m = paired(stale, base, ["D"], "_base")
     m["dD"] = m.D - m.D_base
     bins = np.round(np.arange(-0.8, 0.81, 0.1), 2)
@@ -53,18 +64,18 @@ def fig_sorting(base, stale, out):
         c = fs.LAMBDA_INK[lam]
         ax.fill_between(b.mid, b.lo, b.hi, color=c, alpha=0.12, lw=0, zorder=2)
         ax.plot(b.mid, b.est, color=c, marker=fs.LAMBDA_MARK[lam], zorder=3,
-                label=fr"$\lambda_I={lam[0]},\ \lambda_C={lam[1]}$")
-        ax.annotate(fr"{lam[0]} / {lam[1]}", (b.mid.iloc[-1], b.est.iloc[-1]),
+                label=lab["pair"][lam])
+        ax.annotate(lab["end"][lam], (b.mid.iloc[-1], b.est.iloc[-1]),
                     xytext=(6, 0), textcoords="offset points", va="center",
                     fontsize=8.5, color=fs.INK2)
-    ax.text(0.45, 0.97, "y optimistic: Ch 1 predicts\nindividualists run more (G1')",
+    ax.text(0.45, 0.97, lab["right"],
             transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=8.5, color=fs.INK2)
-    ax.text(-0.45, 0.97, "y pessimistic: Ch 1 predicts\ncollectivists run more (G4')",
+    ax.text(-0.45, 0.97, lab["left"],
             transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=8.5, color=fs.INK2)
     ax.set_xlim(-0.8, 0.95)
-    ax.set_xlabel(r"Public signal's gap at tick 1,  $y_1 - \theta$")
-    ax.set_ylabel("Change in sorting vs. no public signal\n" + r"$D - D_{\mathrm{none}}$  ($D = W_I - W_C$)")
-    ax.legend(loc="lower right", fontsize=8.5, title=r"$\lambda$ pair", title_fontsize=8.5)
+    ax.set_xlabel(lab["x"])
+    ax.set_ylabel(lab["y"])
+    ax.legend(loc="lower right", fontsize=8.5, title=lab["title"], title_fontsize=8.5)
     fig.savefig(out / "mock_fig_sorting.png")
     plt.close(fig)
 

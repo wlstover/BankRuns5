@@ -16,8 +16,11 @@ One figure per slide, mapped to the seven-section outline (docs/deck_2026-10-26.
 
 95% CIs are CR1 on the 25 initialisations (t(24)), as in rung1_relational.py.
 
+--lay writes the five seminar exhibits (e01, e05, e07, e08, e10) with plain-language
+labels to figures/deck_lay/ (2026-10-26 seminar, lay audience); same data, same marks.
+
 Usage:
-    python3 scripts/fig_deck.py [--arms outputs] [--out figures/deck]
+    python3 scripts/fig_deck.py [--arms outputs] [--out figures/deck] [--lay]
 """
 
 import argparse
@@ -37,6 +40,44 @@ from rung1_relational import cmean, load                       # noqa: E402
 T24 = 2.064
 MUS = [0.0, 0.25, 0.5, 0.75, 1.0]
 LAM_LABEL = {lam: fr"$\lambda_I={lam[0]},\ \lambda_C={lam[1]}$" for lam in fs.LAMBDA_PAIRS}
+TECH = {
+    "pair": LAM_LABEL, "pair_title": r"$\lambda$ pair",
+    "mu": r"Share of individualists, $\mu$", "pfail": "P(bank fails)",
+    "pfail_pooled": "P(bank fails), λ pairs pooled",
+    "herd_x": "Share of the agent's neighbours who have withdrawn",
+    "herd_y": "P(withdraw | deciding)",
+    "signal": {"r1k-stale-y20": "Stale, y₀ = 0.2", "r1k-none": "None",
+               "r1k-tracks-g0": "Tracks θ", "r1k-stale-y50": "Stale, y₀ = 0.5",
+               "r1k-stale-y80": "Stale, y₀ = 0.8"},
+    "signal_title": "Public signal",
+    "bank": {"r4-s1-s10": "σ 1 (no concentration)", "r1k-none": "σ 2.5, cap 1% (reference)",
+             "r1c-none": "σ 2.5, uncapped"},
+    "bank_title": "Deposit distribution",
+}
+SIZE = {(0.1, 0.9): "Large", (0.2, 0.8): "Medium", (0.3, 0.5): "Small"}
+LAY = {
+    "pair": SIZE, "pair_title": "Difference between types",
+    "mu": "Share of depositors who are individualists", "pfail": "Chance the bank fails",
+    "pfail_pooled": "Chance the bank fails",
+    "herd_x": "Share of a depositor's neighbours who have withdrawn",
+    "herd_y": "Chance of withdrawing",
+    "signal": {"r1k-stale-y20": "Outdated, pessimistic", "r1k-none": "None",
+               "r1k-tracks-g0": "Accurate", "r1k-stale-y50": "Outdated, middling",
+               "r1k-stale-y80": "Outdated, optimistic"},
+    "signal_title": "Public news",
+    "bank": {"r4-s1-s10": "Deposits similar in size",
+             "r1k-none": "A few large deposits, capped at 1%",
+             "r1c-none": "A few large deposits, uncapped"},
+    "bank_title": "Deposit sizes",
+    "sorting": {
+        "pair": SIZE, "end": SIZE, "title": "Difference between types",
+        "right": "News too optimistic: theory predicts\nindividualists run more",
+        "left": "News too pessimistic: theory predicts\ncollectivists run more",
+        "x": "How far public news is from the truth\n(left: too pessimistic, right: too optimistic)",
+        "y": "Individualists' run rate minus\ncollectivists', vs. no news",
+    },
+}
+TXT = TECH        # main() swaps in LAY for --lay
 # Celsius one-shot exit share by size (bank_runs_celsius whale_timing, negative-balance
 # filter, 2026-10-23): D1-D5 0.82-0.90, D10 0.52, top 1% 0.38, top 0.1% 0.35.
 CELSIUS = {"D1–D5": (0.82, 0.90), "D10": 0.52, "Top 1%": 0.38, "Top 0.1%": 0.35}
@@ -70,8 +111,8 @@ def lam_lines(ax, df, x, y, xs):
         e = np.array([ci(sub.loc[sub[x] == v, y], sub.loc[sub[x] == v, "paramSeed"]) for v in xs])
         c = fs.LAMBDA_INK[lam]
         ax.fill_between(xs, e[:, 1], e[:, 2], color=c, alpha=0.12, lw=0)
-        ax.plot(xs, e[:, 0], color=c, marker=fs.LAMBDA_MARK[lam], label=LAM_LABEL[lam])
-    ax.legend(fontsize=8.5, title=r"$\lambda$ pair", title_fontsize=8.5)
+        ax.plot(xs, e[:, 0], color=c, marker=fs.LAMBDA_MARK[lam], label=TXT["pair"][lam])
+    ax.legend(fontsize=8.5, title=TXT["pair_title"], title_fontsize=8.5)
 
 
 def e01_e02(arms, out):
@@ -86,6 +127,16 @@ def e01_e02(arms, out):
                           y0s={"Stale y₀ = 0.2": 0.2, "Stale y₀ = 0.8": 0.8})
     shutil.move(tmp / "mock_fig_sorting.png", out / "e01_sorting.png")
     shutil.move(tmp / "mock_fig_whoruns.png", out / "e02_whoruns.png")
+    tmp.rmdir()
+
+
+def e01_lay(arms, out):
+    tmp = out / "_rung1"
+    tmp.mkdir(exist_ok=True)
+    base = load(arms / "r1k-none")
+    stale = pd.concat([load(arms / f"r1k-stale-y{y}") for y in (20, 50, 80)], ignore_index=True)
+    fig_rung1.fig_sorting(base, stale, tmp, lab=LAY["sorting"])
+    shutil.move(tmp / "mock_fig_sorting.png", out / "e01_sorting.png")
     tmp.rmdir()
 
 
@@ -161,8 +212,8 @@ def e05_pfail_by_mu(arms, out):
     lam_lines(ax, r, "mu", "failed", MUS)
     ax.set_xticks(MUS)
     ax.set_ylim(0, None)
-    ax.set_xlabel(r"Share of individualists, $\mu$")
-    ax.set_ylabel("P(bank fails)")
+    ax.set_xlabel(TXT["mu"])
+    ax.set_ylabel(TXT["pfail"])
     fig.savefig(out / "e05_pfail_by_mu.png")
     plt.close(fig)
 
@@ -199,17 +250,16 @@ def e07_herding(arms, out):
                     va="center", fontsize=8.5, color=fs.INK2)
     ax.set_xlim(-0.02, 0.92)
     ax.set_ylim(0, 1.05)
-    ax.set_xlabel("Share of the agent's neighbours who have withdrawn")
-    ax.set_ylabel("P(withdraw | deciding)")
+    ax.set_xlabel(TXT["herd_x"])
+    ax.set_ylabel(TXT["herd_y"])
     ax.legend(fontsize=8.5, loc="center right")
     fig.savefig(out / "e07_herding.png")
     plt.close(fig)
 
 
 def e08_pfail_by_signal(arms, out):
-    order = [("r1k-stale-y20", "Stale, y₀ = 0.2"), ("r1k-none", "None"),
-             ("r1k-tracks-g0", "Tracks θ"), ("r1k-stale-y50", "Stale, y₀ = 0.5"),
-             ("r1k-stale-y80", "Stale, y₀ = 0.8")]
+    order = [(t, TXT["signal"][t]) for t in
+             ("r1k-stale-y20", "r1k-none", "r1k-tracks-g0", "r1k-stale-y50", "r1k-stale-y80")]
     fig, ax = plt.subplots(figsize=(6.4, 3.4))
     ys = np.arange(len(order))[::-1]
     off = {lam: o for lam, o in zip(fs.LAMBDA_PAIRS, (0.18, 0, -0.18))}
@@ -222,14 +272,14 @@ def e08_pfail_by_signal(arms, out):
         e = np.array(e)
         c = fs.LAMBDA_INK[lam]
         ax.hlines(ys + off[lam], e[:, 1], e[:, 2], color=c, lw=2)
-        ax.plot(e[:, 0], ys + off[lam], fs.LAMBDA_MARK[lam], color=c, ms=6, label=LAM_LABEL[lam])
+        ax.plot(e[:, 0], ys + off[lam], fs.LAMBDA_MARK[lam], color=c, ms=6, label=TXT["pair"][lam])
     ax.set_yticks(ys)
     ax.set_yticklabels([lab for _, lab in order])
     ax.grid(axis="y", visible=False)
     ax.set_xlim(0, None)
-    ax.set_xlabel("P(bank fails)")
-    ax.set_ylabel("Public signal")
-    ax.legend(fontsize=8.5, title=r"$\lambda$ pair", title_fontsize=8.5, loc="lower right")
+    ax.set_xlabel(TXT["pfail"])
+    ax.set_ylabel(TXT["signal_title"])
+    ax.legend(fontsize=8.5, title=TXT["pair_title"], title_fontsize=8.5, loc="lower right")
     fig.savefig(out / "e08_pfail_by_signal.png")
     plt.close(fig)
 
@@ -263,9 +313,8 @@ def e09_channels(arms, out, gap=0.1):
 
 
 def e10_concentration(arms, out):
-    banks = [("r4-s1-s10", "σ 1 (no concentration)", "#a9a8a3", "^"),
-             ("r1k-none", "σ 2.5, cap 1% (reference)", "#6b6a66", "s"),
-             ("r1c-none", "σ 2.5, uncapped", "#1f1f1d", "o")]
+    banks = [(t, TXT["bank"][t], c, m) for t, c, m in
+             (("r4-s1-s10", "#a9a8a3", "^"), ("r1k-none", "#6b6a66", "s"), ("r1c-none", "#1f1f1d", "o"))]
     fig, ax = plt.subplots(figsize=(6.0, 3.8))
     for tag, lab, c, m in banks:
         r = results(arms / tag)
@@ -274,9 +323,9 @@ def e10_concentration(arms, out):
         ax.plot(MUS, e[:, 0], color=c, marker=m, label=lab)
     ax.set_xticks(MUS)
     ax.set_ylim(0, None)
-    ax.set_xlabel(r"Share of individualists, $\mu$")
-    ax.set_ylabel("P(bank fails), λ pairs pooled")
-    ax.legend(fontsize=8.5, title="Deposit distribution", title_fontsize=8.5)
+    ax.set_xlabel(TXT["mu"])
+    ax.set_ylabel(TXT["pfail_pooled"])
+    ax.legend(fontsize=8.5, title=TXT["bank_title"], title_fontsize=8.5)
     fig.savefig(out / "e10_concentration.png")
     plt.close(fig)
 
@@ -284,13 +333,22 @@ def e10_concentration(arms, out):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--arms", type=Path, default=Path("outputs"))
-    ap.add_argument("--out", type=Path, default=Path("figures/deck"))
+    ap.add_argument("--out", type=Path, default=None, help="default figures/deck (figures/deck_lay with --lay)")
+    ap.add_argument("--lay", action="store_true", help="plain-language labels, seminar exhibits only")
     a = ap.parse_args()
+    a.out = a.out or Path("figures/deck_lay" if a.lay else "figures/deck")
     a.out.mkdir(parents=True, exist_ok=True)
     fs.use()
-    e01_e02(a.arms, a.out)
-    for f in (e03_tests_by_bank, e04_oneshot_by_size, e05_pfail_by_mu, e06_withdraw_by_mu,
-              e07_herding, e08_pfail_by_signal, e09_channels, e10_concentration):
+    if a.lay:
+        global TXT
+        TXT = LAY
+        e01_lay(a.arms, a.out)
+        figs = (e05_pfail_by_mu, e07_herding, e08_pfail_by_signal, e10_concentration)
+    else:
+        e01_e02(a.arms, a.out)
+        figs = (e03_tests_by_bank, e04_oneshot_by_size, e05_pfail_by_mu, e06_withdraw_by_mu,
+                e07_herding, e08_pfail_by_signal, e09_channels, e10_concentration)
+    for f in figs:
         f(a.arms, a.out)
     print(f"wrote {len(list(a.out.glob('e*.png')))} figures to {a.out}")
 
