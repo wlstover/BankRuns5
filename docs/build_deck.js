@@ -16,7 +16,7 @@ const REPO = path.resolve(__dirname, "..");
 const OUT = path.join(REPO, "docs", "deck_2026-10-26_seminar.pptx");
 const DIMS = process.env.DIMS ? JSON.parse(fs.readFileSync(process.env.DIMS, "utf8")) : {};
 const FIG = {
-  odd: path.join(REPO, "figures/deck/mock_odd_overview.png"),
+  odd: path.join(REPO, "figures/deck/odd_overview.png"),
   ladder: path.join(REPO, "figures/deck/ladder.png"),
   news: path.join(REPO, "figures/deck/news_fsb_2026-10-12.png"),
   e01: path.join(REPO, "figures/deck_lay/e01_sorting.png"),
@@ -34,7 +34,7 @@ const FIG = {
 };
 // width / height of each figure (fallbacks if DIMS is not supplied)
 const AR = {
-  odd: 0.985, ladder: 2.857, news: 1.293, e01: 1.563, e05: 1.501, e07: 1.569, e08: 2.104, e10: 1.501,
+  odd: 0.993, ladder: 2.857, news: 1.293, e01: 1.563, e05: 1.501, e07: 1.569, e08: 2.104, e10: 1.501,
   e03: 2.181, e04: 1.590, e06: 2.400, e09: 1.788, fig1: 1.521, svb: 1.073, cel: 1.26,
 };
 function ar(key) {
