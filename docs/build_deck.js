@@ -178,13 +178,13 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   }
 
   stepSlide(1, "Two mechanisms the literature has used",
-    "Who runs, and when, has been answered two ways: by luck and by position.",
+    "Who runs, and when, has been answered two ways: by what a depositor drew and by where they sit.",
     [
-      ["Dispersion.", "Goldstein–Pauzner give every depositor a noisy draw of the same signal. The draw breaks common knowledge and selects the equilibrium. Who runs first is whoever drew low."],
-      ["Delivery.", "Networks and media decide who hears what, from whom, when (Kelly–Ó Gráda, Iyer–Puri, Cookson et al.). Who runs first is whoever sits nearest the source."],
+      ["Variation in the signal.", "Goldstein–Pauzner give every depositor a noisy draw of the same signal. The draw breaks common knowledge and selects the equilibrium. Who runs first is whoever drew low."],
+      ["Variation in location.", "Networks and media decide who hears what, from whom, when (Kelly–Ó Gráda, Iyer–Puri, Cookson et al.). Who runs first is whoever sits nearest the source."],
       ["Both are fruitful.", "Neither says anything about the depositor: the same Bayesian, with the same prior, sits at every node."],
     ],
-    "~1 min. The two mechanisms the literature has used to answer who runs and when. Dispersion: Goldstein-Pauzner's noisy private signal, the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so the order is luck. Delivery: the network and media literature; the order is position. Both are consistent with identical processing.");
+    "~1 min. The two mechanisms the literature has used to answer who runs and when. Variation in the signal: Goldstein-Pauzner's noisy private draw (same technology, different draws), the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so the order is luck. Variation in location: the network and media literature; the order is position. Both are consistent with identical processing. The third rung, variation in interpretation, is where this dissertation sits.");
 
   stepSlide(2, "With two signals, a third question appears",
     "Which signal does a depositor act on, and in what proportion?",
@@ -236,22 +236,22 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     "Chapter 1 relaxed one assumption. The agent-based model relaxes the rest at once, and lets the three rungs interact.",
     [
       ["Chapter 1 relaxed one thing.", "The precision ratio became a stable, heterogeneous weight on a stale public signal. Everything else stayed: a continuum of depositors, one simultaneous move, no network."],
-      ["The model relaxes the rest at once.", "Dispersion (a private draw per depositor), delivery (a network, neighbours’ withdrawals arriving tick by tick, public news absent, accurate or stale), interpretation (λ, formed in a cultural warm-up), plus deposit sizes, risk preferences and the contract."],
+      ["The model relaxes the rest at once.", "The signal (a private draw per depositor), location (a network, neighbours’ withdrawals arriving tick by tick, public news absent, accurate or stale), interpretation (λ, formed in a cultural warm-up), plus deposit sizes, risk preferences and the contract."],
       ["An analytical model cannot carry all of that.", "Each addition breaks the threshold-equilibrium machinery; together they are beyond closed form. The simulation is what lets the rungs be varied and measured separately."],
     ],
-    "~1 min. Why Chapter 3 is a simulation. Chapter 1 relaxed the Bayesian precision answer and kept the rest of Goldstein-Pauzner so the threshold equilibrium survives. The ABM relaxes dispersion, delivery and interpretation together, plus the incentive side, which no closed-form model could carry; that is what lets the channel decomposition (lambda on the neighbour blend vs the news blend) be measured at all.");
+    "~1 min. Why Chapter 3 is a simulation. Chapter 1 relaxed the Bayesian precision answer and kept the rest of Goldstein-Pauzner so the threshold equilibrium survives. The ABM varies the signal, location and interpretation together, plus the incentive side, which no closed-form model could carry; that is what lets the channel decomposition (lambda on the neighbour blend vs the news blend) be measured at all.");
 
   // ================= 2b. The ladder =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
-  s.addText("The ladder: dispersed, delivered, interpreted", { placeholder: "title" });
-  d = fig(s, "ladder", 0.5, 1.2, 9.0, 3.0, { align: "center", alt: "Three panels. Dispersed: one bank fundamental sends a noisy private signal to each depositor, who line up from run to stay. Delivered: a network in which the signal has reached some depositors from a first hearer and not others. Interpreted: the same private and public signals reach an individualist, who leans on the private signal, and a collectivist, who leans on the public one; culture sets the weight." });
+  s.addText("The ladder: signal, location, interpretation", { placeholder: "title" });
+  d = fig(s, "ladder", 0.5, 1.2, 9.0, 3.0, { align: "center", alt: "Three panels. Signal: one bank fundamental sends a noisy private signal to each depositor, who line up from run to stay. Location: a network in which the signal has reached some depositors from a first hearer and not others. Interpretation: the same private and public signals reach an individualist, who leans on the private signal, and a collectivist, who leans on the public one; culture sets the weight." });
   card(s, 0.5, 1.2 + d.h + 0.15, 9.0, 0.62, { fill: C.accent4, name: "ladder-note" });
   s.addText([
     { text: "Rungs 1 and 2 are the literature. ", options: { color: C.accent3 } },
     { text: "Rung 3 is this dissertation: ", options: { bold: true, color: C.accent1 } },
     { text: "the only one that orders depositors by a trait, and reverses when the public line is too optimistic or too pessimistic." },
   ], { x: 0.65, y: 1.2 + d.h + 0.18, w: 8.7, h: 0.56, fontSize: 12, color: C.text1, margin: 0, isTextBox: true, valign: "middle", objectName: "ladder-text" });
-  s.addNotes("~1 min. The ladder: dispersion of the signal (Goldstein-Pauzner: same signal technology, different draws, which selects the equilibrium), heterogeneity in delivery (who hears it, from whom, when: Kelly-O Grada, Iyer-Puri, Cookson et al.), heterogeneity in interpretation (the same two signals, different dispositional weights; culture is the stable source). Rung 1 orders depositors by luck, rung 2 by position, rung 3 by who they are, and only rung 3 predicts that the order flips with the sign of the public error. Nearest cousins to acknowledge if asked: Izmalkov-Yildiz 2010 (heterogeneous priors), He-Manela 2016 (information acquisition).");
+  s.addNotes("~1 min. The ladder: variation in the signal (Goldstein-Pauzner: same signal technology, different draws, which selects the equilibrium), variation in location (who hears it, from whom, when: Kelly-O Grada, Iyer-Puri, Cookson et al.), variation in interpretation (the same two signals, different dispositional weights; culture is the stable source). Rung 1 orders depositors by luck, rung 2 by position, rung 3 by who they are, and only rung 3 predicts that the order flips with the sign of the public error. Nearest cousins to acknowledge if asked: Izmalkov-Yildiz 2010 (heterogeneous priors), He-Manela 2016 (information acquisition).");
 
   // ================= 3. The model =================
   pres.addSection({ title: "The model" });

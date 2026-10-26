@@ -1,8 +1,8 @@
 """Deck figure: the ladder of depositor heterogeneity.
 
-Three panels, left to right: the signal is dispersed (Goldstein-Pauzner: one
-fundamental, one noisy draw per depositor), delivered differently (networks and
-media decide who hears it, from whom, when), interpreted differently (the same
+Three panels, left to right: the signal varies (Goldstein-Pauzner: one
+fundamental, one noisy draw per depositor), location varies (networks and
+media decide who hears it, from whom, when), interpretation varies (the same
 two signals, different dispositional weights; this dissertation).
 
 Writes figures/deck/ladder.png. Palette matches docs/build_deck.js.
@@ -38,7 +38,7 @@ def arrow(ax, p, q, color=GREY, lw=1.2, alpha=1.0, style="-|>", shrink=4):
 
 # ---------------- 1. dispersed ----------------
 ax = axes[0]
-head(ax, 1, "Dispersed", "one fundamental, one noisy draw each")
+head(ax, 1, "Signal", "one fundamental, one noisy draw each")
 # the fundamental: a bar at the top
 ax.add_patch(plt.Rectangle((3.0, 6.9), 4.0, 0.75, facecolor=NAVY, edgecolor="none", zorder=3))
 ax.text(5.0, 7.27, "bank fundamental  θ", color="white", ha="center", va="center", fontsize=10, zorder=4)
@@ -57,7 +57,7 @@ ax.text(9.6, 5.4, "same signal technology,\ndifferent draws", color=NAVY, ha="ri
 
 # ---------------- 2. delivered ----------------
 ax = axes[1]
-head(ax, 2, "Delivered", "who hears it, from whom, when")
+head(ax, 2, "Location", "who hears it, from whom, when")
 rng = np.random.default_rng(7)
 pos = {0: (2.0, 6.3), 1: (3.6, 4.2), 2: (3.4, 2.0), 3: (5.2, 5.6), 4: (5.6, 3.2), 5: (7.2, 6.6),
        6: (7.6, 4.3), 7: (8.3, 2.3), 8: (1.6, 3.0), 9: (6.4, 1.6)}
@@ -80,7 +80,7 @@ ax.text(5.0, 0.6, "networks and media: Kelly–Ó Gráda, Iyer–Puri, Cookson e
 
 # ---------------- 3. interpreted ----------------
 ax = axes[2]
-head(ax, 3, "Interpreted", "the same two signals, different weights")
+head(ax, 3, "Interpretation", "the same two signals, different weights")
 # two signal sources at the top
 for x, lab, col in [(2.6, "private signal  x", NAVY), (7.4, "public signal  y", GREY)]:
     ax.add_patch(plt.Rectangle((x - 1.75, 6.9), 3.5, 0.75, facecolor=col, edgecolor="none", zorder=3))
