@@ -85,7 +85,7 @@ ax.text(X3 + PAD, 146, "banked depositors, in random order", fontsize=BS, color=
 IX, IW = X3 + 22, W3 - 100
 box(IX, 200, IW, 130, "a  Observe", [r"neighbours' withdrawals; public $y_t$"])
 box(IX, 350, IW, 170, "b  Form beliefs (λ on others)", [
-    r"$\theta$:  $(1-\lambda)\,x_i + \lambda\,y_t$",
+    r"$\hat{s}_i$, its estimate of $\theta$:  $(1-\lambda)\,x_i + \lambda\,y_t$",
     r"runs:  $(1-\lambda)$ own prior + $\lambda$ neighbours"])
 box(IX, 540, IW, 210, "c  Value by Monte Carlo", [
     "stay: period-2 payoff on the balance left in",
