@@ -146,11 +146,8 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   pres.addSection({ title: "Opening" });
   s = pres.addSlide({ masterName: "DARK", sectionTitle: "Opening" });
   s.addText("Agent-based Diamond–Dybvig with cultural heterogeneity", { placeholder: "title" });
-  s.addText([
-    { text: "Who runs, and how a run spreads: an agent-based test of the theory", options: { breakLine: true } },
-    { text: "Walter Stover  ·  George Mason University  ·  26 October 2026", options: { fontSize: 14, color: C.accent3 } },
-  ], { placeholder: "body" });
-  s.addNotes("Working title is the chapter title; change for the seminar if you like. ~0.5 min.");
+  s.addText("Walter Stover  ·  George Mason University  ·  26 October 2026", { placeholder: "body", fontSize: 14, color: C.accent3 });
+  s.addNotes("~0.5 min.");
 
   // ================= 2. The puzzle =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
