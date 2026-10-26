@@ -29,11 +29,13 @@ const FIG = {
   e06: path.join(REPO, "figures/deck/e06_withdraw_by_mu.png"),
   e09: path.join(REPO, "figures/deck/e09_channels.png"),
   fig1: "/home/simaliang/Papers/bank_run_dissertation/chapters/abm/figures/fig1_p6a_headline.png",
+  svb: path.join(REPO, "figures/deck/svb_techcrunch_2023-03-09.png"),
+  cel: path.join(REPO, "figures/deck/celsius_mashinsky_2022-06-11.png"),
 };
 // width / height of each figure (fallbacks if DIMS is not supplied)
 const AR = {
   odd: 0.985, ladder: 2.857, news: 1.293, e01: 1.563, e05: 1.501, e07: 1.569, e08: 2.104, e10: 1.501,
-  e03: 2.181, e04: 1.590, e06: 2.400, e09: 1.788, fig1: 1.521,
+  e03: 2.181, e04: 1.590, e06: 2.400, e09: 1.788, fig1: 1.521, svb: 1.073, cel: 1.26,
 };
 function ar(key) {
   const p = FIG[key];
@@ -196,24 +198,13 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   });
   s.addNotes("~1 min. The two mechanisms the literature has used to answer who runs. Variation in the signal: Goldstein-Pauzner's noisy private draw (same technology, different draws), the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so who runs is luck. The model is static: for an intermediate fundamental a fraction runs (those below the threshold draw), not everyone or nobody; all-or-nothing is the zero-noise limit. Timing only enters with the network literature. Variation in location: networks and media; the order is position. Both are fruitful and both are consistent with identical processing: the same Bayesian, with the same prior, sits at every node. The third rung, variation in interpretation, is where this dissertation sits.");
 
-  stepSlide(2, "Variation in interpretation",
-    "When there are two signals, which signal does a depositor act on, and in what proportion?",
-    [
-      ["Latent in the canonical models.", "Diamond–Dybvig has no signal; Morris–Shin and Goldstein–Pauzner have one. The question cannot arise."],
-      ["Askable once a public signal is added.", "Morris–Shin (2002), Hellwig (2002), Angeletos–Werning (2006) put a public signal next to the private one."],
-      ["The question a panic poses.", "A depositor in a run holds two things that disagree: what they see and what they are told."],
-    ],
-    "~1 min. The third question is latent in the canonical theory because those models have one signal. It becomes askable once a public signal is added, which the global-games literature did in the early 2000s. It is exactly the question a panic poses.");
-
-  stepSlide(4, "What panics look like",
-    "Panics are open disagreements between the public line and private evidence, and depositors split on which to trust.",
-    [
-      ["Celsius, 2022.", "Official posts insisting the platform was sound, while CEL fell and withdrawals accelerated."],
-      ["Silicon Valley Bank, 2023.", "A call asking clients to stay calm, against a Twitter feed saying the opposite."],
-      ["Northern Rock, 2007.", "A Bank of England support announcement, against queues outside the branches."],
-    ],
-    "~1 min. If asked how the theory answers the third question: the public-signal global games answer it with the Bayesian precision ratio, the weight on y is tau_y over tau_x plus tau_y, the same for everyone and vanishing as private information sharpens; so any sorting between depositors is noise and official communication stops mattering just when depositors pay most attention. (Slide dropped for this audience.) The cases: in each one the public line and private evidence are in open disagreement, the weights do not vanish, and the interesting fact is who moved on which. Chapter 3's stale public signal is the general case.",
-    { foot: "In each case the interesting fact is who moved on which signal." });
+  s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
+  s.addText("Variation in interpretation", { placeholder: "title" });
+  s.addText("When there are two signals, which signal does a depositor act on, and in what proportion?",
+    { x: 0.5, y: 1.15, w: 3.5, h: 2.2, fontSize: 18, bold: true, color: C.text2, margin: 0, isTextBox: true, valign: "top", objectName: "lead" });
+  d = fig(s, "svb", 4.2, 1.15, 5.3, 3.8, { align: "center", alt: "Screenshot of a TechCrunch article of 9 March 2023 headlined Silicon Valley Bank’s shares are tanking as a mess unfolds, with an embedded link Venture firms are advising portfolio companies to move money out of SVB, and a paragraph quoting CEO Greg Becker asking venture clients to stay calm, that’s my ask." });
+  caption(s, "TechCrunch, 9 March 2023. Screenshot, techcrunch.com.", d.x, 1.15 + d.h + 0.05, d.w);
+  s.addNotes("~1.5 min. The question only becomes askable once a public signal sits next to the private one (Morris-Shin 2002, Hellwig 2002, Angeletos-Werning 2006); Diamond-Dybvig has no signal and Goldstein-Pauzner one. The screenshot is the question as a panic poses it: the public line (Becker: stay calm, that's my ask) against private evidence (VCs telling portfolio companies to move money out, the share price). Same shape at Celsius 2022 (Mashinsky on 11 June: do you know even one person who has a problem withdrawing? Why spread FUD and misinformation; withdrawals paused the next day) and Northern Rock 2007 (Bank of England support announced; queues outside the branches; a customer in the queue: we thought we would do what everyone else is doing). In each case depositors split on which to trust, and the interesting fact is who moved on which. If asked how the theory answers it: the Bayesian precision ratio, the weight on y is tau_y over tau_x plus tau_y, the same for everyone and vanishing as private information sharpens; so sorting is noise and official communication stops mattering just when depositors pay most attention.");
 
   stepSlide(5, "Cultural economics: a source of stable weights",
     "Culture supplies a weight that differs across depositors, is set before the run, and does not move with the information environment.",
