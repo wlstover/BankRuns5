@@ -219,7 +219,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
 
   // ================= section: the model =================
   s = pres.addSlide({ masterName: "SECTION", sectionTitle: "The model" });
-  s.addText("An agent-based bank run model with culturally heterogeneous signal interpretation", { placeholder: "title" });
+  s.addText("An agent-based bank run model", { placeholder: "title" });
   s.addNotes("Section card. ~0.2 min.");
 
   // ================= 2b. The aggregator =================
