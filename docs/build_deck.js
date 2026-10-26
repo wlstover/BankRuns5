@@ -217,6 +217,11 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     ],
     "~1 min. Cultural economics gives a source of the weight that satisfies the three things the model needs: heterogeneity, positivity, and stability with respect to the information environment. Individualism is the dimension that maps onto the private-versus-social weighting, and names make it measurable at the individual level.");
 
+  // ================= section: the model =================
+  s = pres.addSlide({ masterName: "SECTION", sectionTitle: "The model" });
+  s.addText("An agent-based bank run model with culturally heterogeneous signal interpretation", { placeholder: "title" });
+  s.addNotes("Section card. ~0.2 min.");
+
   // ================= 2b. The aggregator =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
   s.addText("The model: one weight on two signals", { placeholder: "title" });
@@ -272,6 +277,11 @@ function chip(slide, label, x, y, w, h, opts = {}) {
 
   // ================= 5. Herding =================
   pres.addSection({ title: "Results" });
+  // ================= section: results =================
+  s = pres.addSlide({ masterName: "SECTION", sectionTitle: "Results" });
+  s.addText("Results", { placeholder: "title" });
+  s.addNotes("Section card. ~0.1 min.");
+
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
   s.addText("Collectivists herd", { placeholder: "title" });
   d = fig(s, "e07", 0.5, 1.1, 9.0, 3.95, { align: "center", alt: "Chance of withdrawing by share of neighbours who have withdrawn: collectivists jump to near 1 once 20 to 35 percent of neighbours are out; individualists level off near 0.25 to 0.30." });
