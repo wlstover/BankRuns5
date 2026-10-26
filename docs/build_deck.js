@@ -62,9 +62,9 @@ const pres = new pptxgen();
 pres.layout = "LAYOUT_16x9"; // 10 x 5.625
 pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
 pres.author = "Walter Stover";
-pres.title = "Agent-based Diamond–Dybvig with cultural heterogeneity";
+pres.title = "Agent-based Diamond–Dybvig with Cultural Heterogeneity";
 const C = pres.SchemeColor;
-const FOOT = "Agent-based Diamond–Dybvig with cultural heterogeneity";
+const FOOT = "Agent-based Diamond–Dybvig with Cultural Heterogeneity";
 
 // ---------- layouts ----------
 pres.defineSlideMaster({
@@ -147,10 +147,10 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   // ================= 1. Title =================
   pres.addSection({ title: "Opening" });
   s = pres.addSlide({ masterName: "DARK", sectionTitle: "Opening" });
-  s.addText("Agent-based Diamond–Dybvig with cultural heterogeneity", { placeholder: "title" });
+  s.addText("Agent-based Diamond–Dybvig with Cultural Heterogeneity", { placeholder: "title" });
   s.addText([
     { text: "Markets and Society 2026", options: { fontSize: 18, color: C.accent4, breakLine: true } },
-    { text: "Walter Stover  ·  George Mason University  ·  26 October 2026", options: { fontSize: 14, color: C.accent3 } },
+    { text: "Walter Stover  ·  George Mason University  ·  26 October", options: { fontSize: 18, color: C.accent4 } },
   ], { placeholder: "body" });
   s.addNotes("~0.5 min.");
 
