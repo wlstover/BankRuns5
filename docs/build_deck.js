@@ -60,9 +60,9 @@ const pres = new pptxgen();
 pres.layout = "LAYOUT_16x9"; // 10 x 5.625
 pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
 pres.author = "Walter Stover";
-pres.title = "A bank run model for the twentieth century";
+pres.title = "Agent-based Diamond–Dybvig with cultural heterogeneity";
 const C = pres.SchemeColor;
-const FOOT = "A bank run model for the twentieth century";
+const FOOT = "Agent-based Diamond–Dybvig with cultural heterogeneity";
 
 // ---------- layouts ----------
 pres.defineSlideMaster({
@@ -145,7 +145,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   // ================= 1. Title =================
   pres.addSection({ title: "Opening" });
   s = pres.addSlide({ masterName: "DARK", sectionTitle: "Opening" });
-  s.addText("A bank run model for the twentieth century", { placeholder: "title" });
+  s.addText("Agent-based Diamond–Dybvig with cultural heterogeneity", { placeholder: "title" });
   s.addText([
     { text: "Who runs, and how a run spreads: an agent-based test of the theory", options: { breakLine: true } },
     { text: "Walter Stover  ·  George Mason University  ·  26 October 2026", options: { fontSize: 14, color: C.accent3 } },
