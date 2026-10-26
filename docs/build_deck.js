@@ -310,7 +310,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     ["More individualists, fewer failures", "P(fail) falls from 0.67 to 0.08 as the individualist share goes from 0 to 1."],
     ["Stale news cuts both ways", "A stale optimistic signal halves failure, a stale pessimistic one raises it by half. Accurate news barely moves it."],
     ["Capping the largest deposits", "A 1% cap brings failure down to the no-concentration bank’s level; the culture gradient is unchanged."],
-    ["Not yet matched", "How large depositors exit in real runs: one-shot share about 0.35 there, 0.93 or more in the model."],
+    ["Not yet matched", "How large depositors exit in real runs."],
   ];
   take.forEach(([h, b], i) => {
     const y = 1.15 + i * 0.63, rh = 0.58;
