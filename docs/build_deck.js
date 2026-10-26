@@ -206,9 +206,9 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   s.addNotes("~1.5 min. The question only becomes askable once a public signal sits next to the private one (Morris-Shin 2002, Hellwig 2002, Angeletos-Werning 2006); Diamond-Dybvig has no signal and Goldstein-Pauzner one. The screenshot is the question as a panic poses it: the public line (Becker: stay calm, that's my ask) against private evidence (VCs telling portfolio companies to move money out, the share price). Same shape at Celsius 2022 (Mashinsky on 11 June: do you know even one person who has a problem withdrawing? Why spread FUD and misinformation; withdrawals paused the next day) and Northern Rock 2007 (Bank of England support announced; queues outside the branches; a customer in the queue: we thought we would do what everyone else is doing). In each case depositors split on which to trust, and the interesting fact is who moved on which. If asked how the theory answers it: the Bayesian precision ratio, the weight on y is tau_y over tau_x plus tau_y, the same for everyone and vanishing as private information sharpens; so sorting is noise and official communication stops mattering just when depositors pay most attention.");
 
   stepSlide(5, "Cultural economics: a source of stable weights",
-    "Culture supplies a weight that differs across depositors, is set before the run, and does not move with the information environment.",
+    "",
     [
-      ["Transmitted, not chosen.", "Cultural values pass largely unchanged from parents to children (Guiso, Sapienza, Zingales; Bazzi et al.). The weight is a disposition, not a calculation."],
+      ["Transmitted, not chosen.", "Cultural values pass largely unchanged from parents to children (Guiso, Sapienza, Zingales; Bazzi et al.)."],
       ["Individualism is the right dimension.", "Self-reliance against deference to the group (Hofstede) is the private-against-social weighting the model already contains (Gorodnichenko–Roland)."],
       ["Measurable per depositor.", "Given names carry it (Twenge et al.), so the weight can be observed, not assumed."],
     ],
