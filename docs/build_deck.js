@@ -218,30 +218,14 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   // ================= 2b. The aggregator =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
   s.addText("The model: one weight on two signals", { placeholder: "title" });
-  card(s, 0.5, 1.15, 9.0, 1.25, { fill: C.accent4, name: "eq-card" });
   s.addText([
     { text: "ŝ", options: { italic: true } }, { text: "i", options: { italic: true, subscript: true } },
     { text: "  =  λ", options: {} }, { text: "i", options: { italic: true, subscript: true } },
     { text: " · ", options: {} }, { text: "y", options: { italic: true } },
     { text: "  +  (1 − λ", options: {} }, { text: "i", options: { italic: true, subscript: true } },
     { text: ") · ", options: {} }, { text: "x", options: { italic: true } }, { text: "i", options: { italic: true, subscript: true } },
-  ], { x: 0.7, y: 1.2, w: 8.6, h: 0.75, fontSize: 30, fontFace: "Cambria", color: C.text2, align: "center", valign: "middle", margin: 0, isTextBox: true, objectName: "eq" });
-  s.addText("the depositor’s estimate of the bank, compared with a threshold: run if it falls below", { x: 0.7, y: 1.95, w: 8.6, h: 0.35, fontSize: 12, italic: true, color: C.accent3, align: "center", margin: 0, isTextBox: true, objectName: "eq-sub" });
-  const terms = [
-    ["x", "i", "what the depositor sees", "a private signal of the fundamental, one noisy draw each", C.text2],
-    ["y", "", "what the depositor is told", "a public signal, common to all, which can be stale", C.accent3],
-    ["λ", "i", "weight on the public line", "a disposition set before the run; culture is its source", C.accent1],
-  ];
-  terms.forEach(([sym, sub, head, body, col], i) => {
-    const x = 0.5 + i * 3.05;
-    card(s, x, 2.55, 2.9, 1.3, { name: "term-" + i });
-    s.addText([
-      { text: sym, options: { italic: true, fontSize: 22, color: col, fontFace: "Cambria" } },
-      { text: sub, options: { italic: true, fontSize: 22, color: col, fontFace: "Cambria", subscript: true } },
-      { text: "   " + head, options: { bold: true, fontSize: 12.5, color: C.text1 } },
-    ], { x: x + 0.15, y: 2.6, w: 2.65, h: 0.5, margin: 0, isTextBox: true, valign: "middle", objectName: "term-head" });
-    s.addText(body, { x: x + 0.15, y: 3.1, w: 2.65, h: 0.7, fontSize: 11.5, color: C.accent3, margin: 0, isTextBox: true, valign: "top", objectName: "term-body" });
-  });
+  ], { x: 0.7, y: 1.5, w: 8.6, h: 0.75, fontSize: 30, fontFace: "Cambria", color: C.text2, align: "center", valign: "middle", margin: 0, isTextBox: true, objectName: "eq" });
+  s.addText("the depositor’s estimate of the bank, compared with a threshold: run if it falls below", { x: 0.7, y: 2.3, w: 8.6, h: 0.35, fontSize: 12, italic: true, color: C.accent3, align: "center", margin: 0, isTextBox: true, objectName: "eq-sub" });
   s.addText([
     { text: "Individualists ", options: { bold: true, color: IND } }, { text: "λ", options: {} }, { text: "I", options: { subscript: true } },
     { text: "  <  λ", options: {} }, { text: "C", options: { subscript: true } }, { text: " collectivists", options: { bold: true, color: COL } },
@@ -251,7 +235,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     { text: " = (λ", options: {} }, { text: "C", options: { subscript: true } }, { text: " − λ", options: {} }, { text: "I", options: { subscript: true } },
     { text: ")(", options: {} }, { text: "x", options: { italic: true } }, { text: " − ", options: {} }, { text: "y", options: { italic: true } }, { text: "). ", options: {} },
     { text: "Who runs is sorted by the weight, and the order flips with the sign of the public error.", options: { bold: true, color: C.text2 } },
-  ], { x: 0.5, y: 4.0, w: 9.0, h: 0.85, fontSize: 13, color: C.text1, margin: 0, isTextBox: true, valign: "top", objectName: "wedge" });
+  ], { x: 0.5, y: 3.3, w: 9.0, h: 0.85, fontSize: 14, color: C.text1, margin: 0, isTextBox: true, valign: "top", align: "center", objectName: "wedge" });
   s.addNotes("~1.5 min. The whole model in one line: a depositor blends what they are told with what they see, and the blend weight is a disposition, not a precision calculation (Chapter 1 writes it omega; the simulation writes it lambda). Subtracting the two types' estimates gives the wedge (lambda_C minus lambda_I)(x minus y): with the same pair of signals, the individualist's estimate is lower whenever private evidence is worse than the public line, so individualists run on a wider set of signals when the news is stale-optimistic, and the inclusion reverses when the news is stale-pessimistic. That is the sorting prediction the simulation tests. In the simulation, the public side is what neighbours do and what the news says, and lambda is drawn per agent in a cultural warm-up. Next: the simulation itself.");
 
   // ================= 3. The model =================
