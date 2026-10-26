@@ -227,24 +227,6 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     ],
     "~1 min. Cultural economics gives a source of the weight that satisfies the three things the model needs: heterogeneity, positivity, and stability with respect to the information environment. Individualism is the dimension that maps onto the private-versus-social weighting, and names make it measurable at the individual level.");
 
-  stepSlide(6, "What this dissertation does with it",
-    "The weight is the depositor’s psychological characteristic; culture is the population-level source.",
-    [
-      ["Chapter 1 formalises it.", "A stale public signal and heterogeneous dispositional weights inside Goldstein–Pauzner. Prediction: which type runs reverses with the sign of the public error."],
-      ["Chapter 2 observes it once.", "Celsius: individualism predicts direction and timing within platform and within ancestral origin, and which public signals depositors act on."],
-      ["Chapter 3 varies it.", "The mix of types, the gap between them, the staleness of the news, and the bank’s contract, in a population of interacting depositors."],
-    ],
-    "~1 min. Where the three chapters sit on the through-line. Then the ladder as the recap, then the model.");
-
-  stepSlide(7, "Why the third chapter is a simulation",
-    "Chapter 1 relaxed one assumption. The agent-based model relaxes the rest at once, and lets the three rungs interact.",
-    [
-      ["Chapter 1 relaxed one thing.", "The one-size-fits-all weight on public news became a stable, heterogeneous weight on a stale public signal. Everything else stayed: a continuum of depositors, one simultaneous move, no network."],
-      ["The model relaxes the rest at once.", "The signal (a private draw per depositor), location (a network, neighbours’ withdrawals arriving tick by tick, public news absent, accurate or stale), interpretation (λ, formed in a cultural warm-up), plus deposit sizes, risk preferences and the contract."],
-      ["An analytical model cannot carry all of that.", "Each addition breaks the threshold-equilibrium machinery; together they are beyond closed form. The simulation is what lets the rungs be varied and measured separately."],
-    ],
-    "~1 min. Why Chapter 3 is a simulation. Chapter 1 relaxed the Bayesian precision answer and kept the rest of Goldstein-Pauzner so the threshold equilibrium survives. The ABM varies the signal, location and interpretation together, plus the incentive side, which no closed-form model could carry; that is what lets the channel decomposition (lambda on the neighbour blend vs the news blend) be measured at all.");
-
   // ================= 2b. The ladder =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
   s.addText("The ladder: signal, location, interpretation", { placeholder: "title" });
@@ -252,7 +234,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   card(s, 0.5, 1.2 + d.h + 0.15, 9.0, 0.62, { fill: C.accent4, name: "ladder-note" });
   s.addText([
     { text: "Rungs 1 and 2 are the literature. ", options: { color: C.accent3 } },
-    { text: "Rung 3 is this dissertation: ", options: { bold: true, color: C.accent1 } },
+    { text: "Rung 3 is this paper: ", options: { bold: true, color: C.accent1 } },
     { text: "the only one that orders depositors by a trait, and reverses when the public line is too optimistic or too pessimistic." },
   ], { x: 0.65, y: 1.2 + d.h + 0.18, w: 8.7, h: 0.56, fontSize: 12, color: C.text1, margin: 0, isTextBox: true, valign: "middle", objectName: "ladder-text" });
   s.addNotes("~1 min. The ladder: variation in the signal (Goldstein-Pauzner: same signal technology, different draws, which selects the equilibrium), variation in location (who hears it, from whom, when: Kelly-O Grada, Iyer-Puri, Cookson et al.), variation in interpretation (the same two signals, different dispositional weights; culture is the stable source). Rung 1 orders depositors by luck, rung 2 by position, rung 3 by who they are, and only rung 3 predicts that the order flips with the sign of the public error. Nearest cousins to acknowledge if asked: Izmalkov-Yildiz 2010 (heterogeneous priors), He-Manela 2016 (information acquisition).");
