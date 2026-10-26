@@ -334,7 +334,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Validation" });
   s.addText("Does the model hold up?", { placeholder: "title" });
   d = fig(s, "e01", FX, FY, FW, FH, { alt: "Individualists' run rate minus collectivists', relative to no news, against how far public news is from the truth: rises from negative when news is pessimistic to positive when optimistic, more steeply for the wide lambda gap." });
-  caption(s, "D relative to no news, against how far the public news sits from the truth. Shaded: where Chapter 1 predicts the sign.", FX, FY + d.h + 0.05, FW);
+  caption(s, "D relative to no news, against how far the public news sits from the truth. Shaded: where the theory predicts the sign.", FX, FY + d.h + 0.05, FW);
   card(s, SX, 1.15, SW, 2.3, { name: "tests" });
   s.addText([
     { text: "Pre-registered tests", options: { bold: true, fontSize: 13, color: C.text2, breakLine: true, paraSpaceAfter: 6 } },
@@ -368,7 +368,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   card(s, 7.0, 1.15, 2.5, 3.76, { name: "next" });
   s.addText("Next steps", { x: 7.15, y: 1.25, w: 2.2, h: 0.35, fontSize: 13, bold: true, color: C.text2, margin: 0, isTextBox: true, objectName: "next-head" });
   bullets(s, [
-    "Super-individuals, to match how the largest depositors exit (Chapter 2 docking)",
+    "Super-individuals, to match how the largest depositors exited Celsius",
     "Deposit insurance and the reserve ratio on the fire-sale bank",
     "Network topology and learning",
     "Full sweep: stale public signal plus no-signal baseline, CARA 0.1, σ reported",
@@ -396,7 +396,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     "Share who withdraw by individualist share, three panels by lambda pair: collectivists above individualists at every mixed share for the two wide gaps.",
     "Both types withdraw less as mu rises; collectivists above individualists at every mixed mu for the two wide gaps; nearly identical at (0.3, 0.5). Technical labels.");
   figSlide("The pre-registered tests, three versions of the bank", "e03",
-    "G1′, G4′, G2a′, G3 and G3c (post hoc). Rows: risk-neutral all-or-nothing, CARA partial, capped reference bank. Filled dot: pooled; hollow: each λ pair. Shaded: Chapter 1’s predicted sign.",
+    "G1′, G4′, G2a′, G3 and G3c (post hoc). Rows: risk-neutral all-or-nothing, CARA partial, capped reference bank. Filled dot: pooled; hollow: each λ pair. Shaded: the theory’s predicted sign.",
     "Forest plot of five tests (G1', G4', G2a', G3, G3c) across three bank versions with pooled estimates and per-pair markers.",
     "r1k pooled: G1' +0.033, G4' -0.031, G2a' +0.093, all Holm-significant; G2b ordering holds. G3 +0.0034 pooled but (0.3, 0.5) wrong-signed in every bank -> counts against. G3c (post hoc, channel-isolated) +0.019, right-signed in every pair. 3 of 4 confirmatory tests support, in all three banks.");
   figSlide("Which channel carries culture", "e09",
