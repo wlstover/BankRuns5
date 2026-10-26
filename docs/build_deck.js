@@ -304,7 +304,6 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
   s.addText("More individualists, fewer failures", { placeholder: "title" });
   d = fig(s, "e05", 0.5, 1.1, 9.0, 3.95, { align: "center", alt: "Chance the bank fails by share of individualists: falls from about 0.67 with no individualists to about 0.08 with all individualists for the large difference pair; monotone for every pair." });
-  textCard(s, SX, 3.65, SW, 1.2, "Monotone", "No interior peak at any mix. The lines converge once individualists are 75% or more.", { headColor: C.text2 });
   s.addNotes("~2 min. Large difference (0.1, 0.9): 0.67 at mu 0 -> 0.08 at mu 1; medium (0.2, 0.8) similar; small (0.3, 0.5): 0.25 -> 0.09. Monotone, no interior peak. The difference between types matters most when collectivists dominate; lines converge at mu >= 0.75. Includes pure cells (mu 0 and 1). If asked about Ch 1's non-monotonic prediction (P6): see backup.");
 
   // ================= 7. Public signal =================
