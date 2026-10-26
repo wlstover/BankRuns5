@@ -208,9 +208,9 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   stepSlide(5, "Cultural economics: a source of stable weights",
     "",
     [
-      ["Transmitted, not chosen.", "Cultural values pass largely unchanged from parents to children (Guiso, Sapienza, Zingales; Bazzi et al.)."],
-      ["Individualism is the right dimension.", "Self-reliance against deference to the group (Hofstede) is the private-against-social weighting the model already contains (Gorodnichenko–Roland)."],
-      ["Measurable per depositor.", "Given names carry it (Twenge et al.), so the weight can be observed, not assumed."],
+      ["Transmitted weights.", "Cultural values pass largely unchanged from parents to children (Guiso, Sapienza, Zingales; Bazzi et al.)."],
+      ["Individualism", "as self-reliance against deference to the group (Hofstede) is the private-against-social weighting the model already contains (Gorodnichenko–Roland)."],
+      ["Measurable per depositor.", "Given names carry it (Twenge et al.), so we can observe the weight instead of assuming it."],
     ],
     "~1 min. Cultural economics gives a source of the weight that satisfies the three things the model needs: heterogeneity, positivity, and stability with respect to the information environment. Individualism is the dimension that maps onto the private-versus-social weighting, and names make it measurable at the individual level.");
 
