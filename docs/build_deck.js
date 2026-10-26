@@ -164,21 +164,22 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     const sl = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
     sl.addText(title, { placeholder: "title" });
     chip(sl, n, 0.5, 1.25, 0.42, 0.42, { fontSize: 13 });
-    sl.addText(lead, { x: 1.1, y: 1.15, w: 8.4, h: 0.95, fontSize: 17, bold: true, color: C.text2, margin: 0, isTextBox: true, valign: "middle", objectName: "step-lead" });
+    if (lead) sl.addText(lead, { x: 1.1, y: 1.15, w: 8.4, h: 0.95, fontSize: 17, bold: true, color: C.text2, margin: 0, isTextBox: true, valign: "middle", objectName: "step-lead" });
+    const iy = lead ? 2.3 : 1.3;
     const runs = [];
     items.forEach(([h, b], i) => {
       const last = i === items.length - 1;
       runs.push({ text: h + " ", options: { bold: true, bullet: { indent: 14 }, paraSpaceAfter: 9, breakLine: false } });
       runs.push({ text: b, options: { breakLine: !last, paraSpaceAfter: 9 } });
     });
-    sl.addText(runs, { x: 1.1, y: 2.3, w: 8.4, h: 2.3, fontSize: 14, color: C.text1, valign: "top", margin: 0, isTextBox: true, objectName: "step-items" });
+    sl.addText(runs, { x: 1.1, y: iy, w: 8.4, h: lead ? 2.3 : 3.3, fontSize: 14, color: C.text1, valign: "top", margin: 0, isTextBox: true, objectName: "step-items" });
     if (opts.foot) sl.addText(opts.foot, { x: 1.1, y: 4.65, w: 8.4, h: 0.35, fontSize: 11, italic: true, color: C.accent3, margin: 0, isTextBox: true, objectName: "step-foot" });
     sl.addNotes(notes);
     return sl;
   }
 
-  stepSlide(1, "Two mechanisms the literature has used",
-    "Who runs, and when, has been answered two ways: by what a depositor drew and by where they sit.",
+  stepSlide(1, "Who runs? Luck of the draw, and location",
+    "",
     [
       ["Variation in the signal.", "Goldstein–Pauzner give every depositor a noisy draw of the same signal. The draw breaks common knowledge and selects the equilibrium. Who runs is whoever drew low; everyone decides at once, so there is no first."],
       ["Variation in location.", "Networks and media decide who hears what, from whom, when (Kelly–Ó Gráda, Iyer–Puri, Cookson et al.). Who runs first is whoever sits nearest the source."],
