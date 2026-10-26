@@ -71,7 +71,7 @@ pres.defineSlideMaster({
   title: "DARK",
   background: { color: THEME.colors.dk2 },
   objects: [
-    { placeholder: { options: { name: "title", type: "title", x: 0.6, y: 1.6, w: 8.8, h: 1.6, fontSize: 34, bold: true, color: C.background1, valign: "bottom", align: "left", margin: 0 } } },
+    { placeholder: { options: { name: "title", type: "title", x: 0.6, y: 1.6, w: 8.8, h: 1.6, fontSize: 34, bold: true, color: C.background1, valign: "bottom", align: "center", margin: 0 } } },
     { placeholder: { options: { name: "body", type: "body", x: 0.6, y: 3.3, w: 8.8, h: 1.2, fontSize: 18, color: C.accent4, valign: "top", margin: 0 } } },
   ],
 });
@@ -79,7 +79,7 @@ pres.defineSlideMaster({
   title: "CONTENT",
   background: { color: THEME.colors.lt1 },
   objects: [
-    { placeholder: { options: { name: "title", type: "title", x: 0.5, y: 0.3, w: 9.0, h: 0.75, fontSize: 24, bold: true, color: C.text2, valign: "middle", align: "left", margin: 0 } } },
+    { placeholder: { options: { name: "title", type: "title", x: 0.5, y: 0.3, w: 9.0, h: 0.75, fontSize: 24, bold: true, color: C.text2, valign: "middle", align: "center", margin: 0 } } },
     { text: { text: FOOT, options: { x: 0.5, y: 5.2, w: 6, h: 0.3, fontSize: 9, color: C.accent3, margin: 0 } } },
   ],
   slideNumber: { x: 9.1, y: 5.2, w: 0.5, h: 0.3, fontSize: 9, color: THEME.colors.accent3, align: "right" },
@@ -88,7 +88,7 @@ pres.defineSlideMaster({
   title: "SECTION",
   background: { color: THEME.colors.dk2 },
   objects: [
-    { placeholder: { options: { name: "title", type: "title", x: 0.6, y: 2.0, w: 8.8, h: 1.2, fontSize: 32, bold: true, color: C.background1, valign: "middle", align: "left", margin: 0 } } },
+    { placeholder: { options: { name: "title", type: "title", x: 0.6, y: 2.0, w: 8.8, h: 1.2, fontSize: 32, bold: true, color: C.background1, valign: "middle", align: "center", margin: 0 } } },
     { placeholder: { options: { name: "body", type: "body", x: 0.6, y: 3.25, w: 8.8, h: 0.8, fontSize: 16, color: C.accent4, valign: "top", margin: 0 } } },
   ],
 });
@@ -322,17 +322,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   pres.addSection({ title: "Validation" });
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Validation" });
   s.addText("Does the model hold up?", { placeholder: "title" });
-  d = fig(s, "e01", FX, FY, FW, FH, { alt: "Individualists' run rate minus collectivists', relative to no news, against how far public news is from the truth: rises from negative when news is pessimistic to positive when optimistic, more steeply for the wide lambda gap." });
-  caption(s, "D relative to no news, against how far the public news sits from the truth. Shaded: where the theory predicts the sign.", FX, FY + d.h + 0.05, FW);
-  card(s, SX, 1.15, SW, 2.3, { name: "tests" });
-  s.addText([
-    { text: "Pre-registered tests", options: { bold: true, fontSize: 13, color: C.text2, breakLine: true, paraSpaceAfter: 6 } },
-    { text: "G1′  optimistic news: individualists run more   +0.033", options: { fontSize: 10.5, breakLine: true, paraSpaceAfter: 3 } },
-    { text: "G4′  pessimistic news: collectivists run more   −0.031", options: { fontSize: 10.5, breakLine: true, paraSpaceAfter: 3 } },
-    { text: "G2a′  the effect grows with the λ gap   +0.093", options: { fontSize: 10.5, breakLine: true, paraSpaceAfter: 3 } },
-    { text: "G3  sorting with no news: counts against (one pair wrong-signed)", options: { fontSize: 10.5, color: C.accent2 } },
-  ], { x: SX + 0.15, y: 1.25, w: SW - 0.3, h: 2.1, fontSize: 10.5, color: C.text1, margin: 0, isTextBox: true, valign: "top", objectName: "tests-text" });
-  stat(s, SX, 3.6, SW, "3 of 4", "confirmatory tests support the theory, on all three versions of the bank", { h: 1.25 });
+  d = fig(s, "e01", 0.5, 1.1, 9.0, 3.95, { align: "center", alt: "Individualists' run rate minus collectivists', relative to no news, against how far public news is from the truth: rises from negative when news is pessimistic to positive when optimistic, more steeply for the wide lambda gap." });
   s.addNotes("~1.5 min. Ch 1's theory predicts: optimistic news -> individualists run more than collectivists; pessimistic -> collectivists run more. The lines rise through zero as predicted. Large difference reaches about ±0.1; small stays flat. Pre-registered tests: 3 of 4 support, on all three versions of the bank (r1k pooled: G1' +0.033, G4' -0.031, G2a' +0.093, Holm-significant; G3 counts against). Option: make this one sentence and move the figure to backup.");
 
   // ================= 10. Takeaways =================
