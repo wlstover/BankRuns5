@@ -55,7 +55,7 @@ const THEME = {
   },
 };
 // the figures' own colours, so type labels on slides match the plots
-const IND = "EB6834"; // individualists, orange
+const IND = "D62828"; // individualists, red (orange EB6834 until 2026-10-26)
 const COL = "2A78D6"; // collectivists, blue
 
 const pres = new pptxgen();
