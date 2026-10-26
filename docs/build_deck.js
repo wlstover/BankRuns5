@@ -394,7 +394,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   pres.addSection({ title: "Backup" });
   s = pres.addSlide({ masterName: "SECTION", sectionTitle: "Backup" });
   s.addText("Backup", { placeholder: "title" });
-  s.addText("Technical versions of the exhibits, the pre-registered tests, channels, and the Celsius docking gap.", { placeholder: "body" });
+  s.addText("Technical versions of the exhibits: who withdraws by type and mix, and which channel carries culture.", { placeholder: "body" });
   s.addNotes("");
 
   // ---- backup figure slides ----
@@ -410,22 +410,10 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     "Share who withdraw by individualist share μ, one panel per λ pair; orange individualists, blue collectivists, with CIs.",
     "Share who withdraw by individualist share, three panels by lambda pair: collectivists above individualists at every mixed share for the two wide gaps.",
     "Both types withdraw less as mu rises; collectivists above individualists at every mixed mu for the two wide gaps; nearly identical at (0.3, 0.5). Technical labels.");
-  figSlide("The pre-registered tests, three versions of the bank", "e03",
-    "G1′, G4′, G2a′, G3 and G3c (post hoc). Rows: risk-neutral all-or-nothing, CARA partial, capped reference bank. Filled dot: pooled; hollow: each λ pair. Shaded: the theory’s predicted sign.",
-    "Forest plot of five tests (G1', G4', G2a', G3, G3c) across three bank versions with pooled estimates and per-pair markers.",
-    "r1k pooled: G1' +0.033, G4' -0.031, G2a' +0.093, all Holm-significant; G2b ordering holds. G3 +0.0034 pooled but (0.3, 0.5) wrong-signed in every bank -> counts against. G3c (post hoc, channel-isolated) +0.019, right-signed in every pair. 3 of 4 confirmatory tests support, in all three banks.");
   figSlide("Which channel carries culture", "e09",
     "D in failed runs with optimistic news, when λ weights only the neighbour blend, only the news blend, or both (the model). θ-blend only +0.14; head-count only −0.07; both +0.02.",
     "Who runs in failed runs with optimistic news when lambda applies only to the neighbour blend, only to the news blend, or both: positive, negative, small positive.",
     "Theta-blend only: +0.14 (Ch 1's sign). Head-count only: -0.07 (opposite). Both: +0.02. The two channels pull in opposite directions; Ch 1's sign survives, damped by herding.");
-  figSlide("Matching Celsius: how large depositors exit", "e04",
-    "Share of exits that withdraw everything at once, by depositor size. Black: Celsius (band for D1–D5); greys: the model, uncapped and capped.",
-    "Share of exits that withdraw everything at once by depositor size: Celsius falls from about 0.86 to 0.35 for the largest; the model stays at 0.93 to 1.",
-    "Celsius falls from ~0.86 (D1–D5 band 0.82–0.90) to 0.35 (top 0.1%); the ABM stays at 0.93–1.00. The model does not yet reproduce how large depositors exit. Next: super-individuals.");
-  figSlide("Earlier specification (vault bank): failure by mix", "fig1",
-    "Vault bank, earlier specification (chapter Figure 1): probability of a run by share of individualists, three λ gaps. Also monotone.",
-    "Earlier vault-bank specification: probability of a run falls with the share of individualists for all three signal-weighting gaps.",
-    "Vault bank, earlier specification (chapter Fig 1). For questions about Ch 1's P6. This figure is also monotone decreasing: P6 (non-monotonic fragility) was predicted in Ch 1 and found in neither bank; the P6b placebo hump was null too.");
 
   await pres.writeFile({ fileName: OUT });
   await applyTheme(OUT, THEME);
