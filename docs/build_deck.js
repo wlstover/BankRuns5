@@ -215,17 +215,44 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     ],
     "~1 min. Cultural economics gives a source of the weight that satisfies the three things the model needs: heterogeneity, positivity, and stability with respect to the information environment. Individualism is the dimension that maps onto the private-versus-social weighting, and names make it measurable at the individual level.");
 
-  // ================= 2b. The ladder =================
+  // ================= 2b. The aggregator =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
-  s.addText("The ladder: signal, location, interpretation", { placeholder: "title" });
-  d = fig(s, "ladder", 0.5, 1.2, 9.0, 3.0, { align: "center", alt: "Three panels. Signal: one bank fundamental sends a noisy private signal to each depositor, who line up from run to stay. Location: a network in which the signal has reached some depositors from a first hearer and not others. Interpretation: the same private and public signals reach an individualist, who leans on the private signal, and a collectivist, who leans on the public one; culture sets the weight." });
-  card(s, 0.5, 1.2 + d.h + 0.15, 9.0, 0.62, { fill: C.accent4, name: "ladder-note" });
+  s.addText("The model: one weight on two signals", { placeholder: "title" });
+  card(s, 0.5, 1.15, 9.0, 1.25, { fill: C.accent4, name: "eq-card" });
   s.addText([
-    { text: "Rungs 1 and 2 are the literature. ", options: { color: C.accent3 } },
-    { text: "Rung 3 is this paper: ", options: { bold: true, color: C.accent1 } },
-    { text: "the only one that orders depositors by a trait, and reverses when the public line is too optimistic or too pessimistic." },
-  ], { x: 0.65, y: 1.2 + d.h + 0.18, w: 8.7, h: 0.56, fontSize: 12, color: C.text1, margin: 0, isTextBox: true, valign: "middle", objectName: "ladder-text" });
-  s.addNotes("~1 min. The ladder: variation in the signal (Goldstein-Pauzner: same signal technology, different draws, which selects the equilibrium), variation in location (who hears it, from whom, when: Kelly-O Grada, Iyer-Puri, Cookson et al.), variation in interpretation (the same two signals, different dispositional weights; culture is the stable source). Rung 1 orders depositors by luck, rung 2 by position, rung 3 by who they are, and only rung 3 predicts that the order flips with the sign of the public error. Nearest cousins to acknowledge if asked: Izmalkov-Yildiz 2010 (heterogeneous priors), He-Manela 2016 (information acquisition).");
+    { text: "ŝ", options: { italic: true } }, { text: "i", options: { italic: true, subscript: true } },
+    { text: "  =  λ", options: {} }, { text: "i", options: { italic: true, subscript: true } },
+    { text: " · ", options: {} }, { text: "y", options: { italic: true } },
+    { text: "  +  (1 − λ", options: {} }, { text: "i", options: { italic: true, subscript: true } },
+    { text: ") · ", options: {} }, { text: "x", options: { italic: true } }, { text: "i", options: { italic: true, subscript: true } },
+  ], { x: 0.7, y: 1.2, w: 8.6, h: 0.75, fontSize: 30, fontFace: "Cambria", color: C.text2, align: "center", valign: "middle", margin: 0, isTextBox: true, objectName: "eq" });
+  s.addText("the depositor’s estimate of the bank, compared with a threshold: run if it falls below", { x: 0.7, y: 1.95, w: 8.6, h: 0.35, fontSize: 12, italic: true, color: C.accent3, align: "center", margin: 0, isTextBox: true, objectName: "eq-sub" });
+  const terms = [
+    ["x", "i", "what the depositor sees", "a private signal of the fundamental, one noisy draw each", C.text2],
+    ["y", "", "what the depositor is told", "a public signal, common to all, which can be stale", C.accent3],
+    ["λ", "i", "weight on the public line", "a disposition set before the run; culture is its source", C.accent1],
+  ];
+  terms.forEach(([sym, sub, head, body, col], i) => {
+    const x = 0.5 + i * 3.05;
+    card(s, x, 2.55, 2.9, 1.3, { name: "term-" + i });
+    s.addText([
+      { text: sym, options: { italic: true, fontSize: 22, color: col, fontFace: "Cambria" } },
+      { text: sub, options: { italic: true, fontSize: 22, color: col, fontFace: "Cambria", subscript: true } },
+      { text: "   " + head, options: { bold: true, fontSize: 12.5, color: C.text1 } },
+    ], { x: x + 0.15, y: 2.6, w: 2.65, h: 0.5, margin: 0, isTextBox: true, valign: "middle", objectName: "term-head" });
+    s.addText(body, { x: x + 0.15, y: 3.1, w: 2.65, h: 0.7, fontSize: 11.5, color: C.accent3, margin: 0, isTextBox: true, valign: "top", objectName: "term-body" });
+  });
+  s.addText([
+    { text: "Individualists ", options: { bold: true, color: IND } }, { text: "λ", options: {} }, { text: "I", options: { subscript: true } },
+    { text: "  <  λ", options: {} }, { text: "C", options: { subscript: true } }, { text: " collectivists", options: { bold: true, color: COL } },
+    { text: ".  Same two signals, different estimates: ", options: {} },
+    { text: "ŝ", options: { italic: true } }, { text: "I", options: { subscript: true } }, { text: " − ", options: {} },
+    { text: "ŝ", options: { italic: true } }, { text: "C", options: { subscript: true } },
+    { text: " = (λ", options: {} }, { text: "C", options: { subscript: true } }, { text: " − λ", options: {} }, { text: "I", options: { subscript: true } },
+    { text: ")(", options: {} }, { text: "x", options: { italic: true } }, { text: " − ", options: {} }, { text: "y", options: { italic: true } }, { text: "). ", options: {} },
+    { text: "Who runs is sorted by the weight, and the order flips with the sign of the public error.", options: { bold: true, color: C.text2 } },
+  ], { x: 0.5, y: 4.0, w: 9.0, h: 0.85, fontSize: 13, color: C.text1, margin: 0, isTextBox: true, valign: "top", objectName: "wedge" });
+  s.addNotes("~1.5 min. The whole model in one line: a depositor blends what they are told with what they see, and the blend weight is a disposition, not a precision calculation (Chapter 1 writes it omega; the simulation writes it lambda). Subtracting the two types' estimates gives the wedge (lambda_C minus lambda_I)(x minus y): with the same pair of signals, the individualist's estimate is lower whenever private evidence is worse than the public line, so individualists run on a wider set of signals when the news is stale-optimistic, and the inclusion reverses when the news is stale-pessimistic. That is the sorting prediction the simulation tests. In the simulation, the public side is what neighbours do and what the news says, and lambda is drawn per agent in a cultural warm-up. Next: the simulation itself.");
 
   // ================= 3. The model =================
   pres.addSection({ title: "The model" });
