@@ -297,20 +297,13 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   pres.addSection({ title: "Results" });
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
   s.addText("Collectivists herd", { placeholder: "title" });
-  d = fig(s, "e07", FX, FY, FW, FH, { alt: "Chance of withdrawing by share of neighbours who have withdrawn: collectivists jump to near 1 once 20 to 35 percent of neighbours are out; individualists level off near 0.25 to 0.30." });
-  caption(s, "Chance of withdrawing, given the share of a depositor’s neighbours who have already withdrawn. λ pairs pooled; reference bank.", FX, FY + d.h + 0.05, FW);
-  stat(s, SX, 1.15, SW, "0.15 to 0.93", "collectivists, once 20–35% of their neighbours are out", { color: COL, size: 22 });
-  stat(s, SX, 2.4, SW, "0.25 to 0.30", "where individualists level off, whatever their neighbours do", { color: IND, size: 22 });
-  stat(s, SX, 3.65, SW, "+0.58", "difference in slopes (collectivists 0.80, individualists 0.22), t = 16.7", { h: 1.2 });
+  d = fig(s, "e07", 0.5, 1.1, 9.0, 3.95, { align: "center", alt: "Chance of withdrawing by share of neighbours who have withdrawn: collectivists jump to near 1 once 20 to 35 percent of neighbours are out; individualists level off near 0.25 to 0.30." });
   s.addNotes("~2 min. Collectivists jump from 0.15 to 0.93 once 20–35% of neighbours are out and reach 1.0; individualists plateau at ~0.25–0.30. Slopes: C 0.80, I 0.22 (difference +0.58, t 16.7). Lambda pairs pooled; reference bank.");
 
   // ================= 6. P(fail) by mu =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
   s.addText("More individualists, fewer failures", { placeholder: "title" });
-  d = fig(s, "e05", FX, FY, FW, FH, { alt: "Chance the bank fails by share of individualists: falls from about 0.67 with no individualists to about 0.08 with all individualists for the large difference pair; monotone for every pair." });
-  caption(s, "Chance the bank fails, by share of individualists μ, one line per λ pair. Includes the pure populations (μ 0 and 1).", FX, FY + d.h + 0.05, FW);
-  stat(s, SX, 1.15, SW, "0.67 to 0.08", "P(fail) from no individualists to all, wide λ gap", { size: 22 });
-  stat(s, SX, 2.4, SW, "0.25 to 0.09", "the same, narrow λ gap: it matters most when collectivists dominate", { size: 22 });
+  d = fig(s, "e05", 0.5, 1.1, 9.0, 3.95, { align: "center", alt: "Chance the bank fails by share of individualists: falls from about 0.67 with no individualists to about 0.08 with all individualists for the large difference pair; monotone for every pair." });
   textCard(s, SX, 3.65, SW, 1.2, "Monotone", "No interior peak at any mix. The lines converge once individualists are 75% or more.", { headColor: C.text2 });
   s.addNotes("~2 min. Large difference (0.1, 0.9): 0.67 at mu 0 -> 0.08 at mu 1; medium (0.2, 0.8) similar; small (0.3, 0.5): 0.25 -> 0.09. Monotone, no interior peak. The difference between types matters most when collectivists dominate; lines converge at mu >= 0.75. Includes pure cells (mu 0 and 1). If asked about Ch 1's non-monotonic prediction (P6): see backup.");
 
