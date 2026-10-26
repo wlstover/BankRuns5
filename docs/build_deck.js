@@ -34,7 +34,7 @@ const FIG = {
 };
 // width / height of each figure (fallbacks if DIMS is not supplied)
 const AR = {
-  odd: 0.993, ladder: 2.857, news: 1.293, e01: 1.563, e05: 1.501, e07: 1.569, e08: 2.104, e10: 1.501,
+  odd: 2.087, ladder: 2.857, news: 1.293, e01: 1.563, e05: 1.501, e07: 1.569, e08: 2.104, e10: 1.501,
   e03: 2.181, e04: 1.590, e06: 2.400, e09: 1.788, fig1: 1.521, svb: 1.073, cel: 1.26,
 };
 function ar(key) {
@@ -258,19 +258,8 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   pres.addSection({ title: "The model" });
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "The model" });
   s.addText("The model in one picture", { placeholder: "title" });
-  d = fig(s, "odd", 0.5, 1.15, 3.9, 3.85, { alt: "Model overview: depositors on a social network with a bank; each run draws fundamentals and signals, a shock hits, then depositors observe neighbours and news, form beliefs, and decide whether to withdraw, tick by tick." });
-  const sx = 0.5 + d.w + 0.35, sw = (9.5 - sx - 0.15) / 2;
-  stat(s, sx, 1.15, sw, "1,000", "depositors on a small-world network, one bank", { h: 1.05 });
-  stat(s, sx + sw + 0.15, 1.15, sw, "1%", "cap on any one deposit; sizes log-normal (σ 2.5) below it", { h: 1.05 });
-  stat(s, sx, 2.35, sw, "CARA 0.1", "risk aversion; partial withdrawals allowed", { h: 1.05, size: 22 });
-  stat(s, sx + sw + 0.15, 2.35, sw, "250", "runs per cell: 25 initialisations × 10 draws", { h: 1.05 });
-  bullets(s, [
-    "One bank that sells its long asset at a discount when cash runs short (a fire-sale bank)",
-    "Each tick a depositor sees neighbours’ withdrawals and the public news, blends them with a private signal, and withdraws if that pays",
-    "A public signal can be absent, accurate, or outdated",
-    "Outcomes: D = individualists’ minus collectivists’ withdrawal share (those not hit by the shock); P(fail) = share of runs that fail",
-  ], sx, 3.5, 9.5 - sx, 1.5, { size: 11.5, gap: 4 });
-  s.addNotes("~2 min. N = 1,000 depositors on a small-world network; one bank that sells assets at a discount when cash runs short (fire-sale bank). Each tick a depositor sees neighbours' withdrawals and the public news, blends them with a private signal, and withdraws if that pays. Reference bank: deposits log-normal (sigma 2.5), each capped at 1% of the total; CARA 0.1; partial withdrawals allowed. The diagram is the technical ODD overview: walk the right-hand column (warm-up, world, shock, tick loop) and skip the formulas.");
+  d = fig(s, "odd", 0.5, 1.05, 9.0, 4.0, { align: "center", alt: "Model overview in three columns. Entities: depositors with log-normal deposits capped at 1% of the total, a type and a private signal; a Newman–Watts network; a bank with reserves, a long asset that sells at a discount when cash runs short, and a return that rises with the fundamental; the environment draws the fundamental and a public signal. Schedule: cultural warm-up, draw the run’s world, an exogenous shock, then a tick loop in which each banked depositor observes neighbours and the public signal, forms beliefs with weight λ on the social side, values staying against withdrawing by Monte Carlo, and acts; then period 2 settles the bank and the run is recorded." });
+  s.addNotes("~2 min. Talk through the diagram. Left: N = 1,000 depositors, deposits log-normal (sigma 2.5) capped at 1% of the total (Celsius's largest account); types I and C from the warm-up; a Newman-Watts network; the fire-sale bank (reserves rD in cash, the rest plus equity in a long asset sold at a 60% haircut if cash runs short; it fails at period 2 if cash plus the asset at R(theta) is below its promises); theta uniform per run and a public signal that is absent, accurate or stale. Middle and right: warm-up, draw the world, shock, then the tick loop: observe neighbours and the news, blend each with your own information using lambda, value staying against withdrawing (a fraction, partial withdrawals allowed) by Monte Carlo, act. 25 initialisations x 10 draws per cell. Outcomes: D = individualists' minus collectivists' withdrawal share among those not hit by the shock; P(fail) = share of runs that fail. Risk aversion is in the model (CARA) but not on the slide.");
 
   // ================= 4. Who listens to whom =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "The model" });
