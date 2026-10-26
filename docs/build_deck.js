@@ -180,11 +180,11 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   stepSlide(1, "Two mechanisms the literature has used",
     "Who runs, and when, has been answered two ways: by what a depositor drew and by where they sit.",
     [
-      ["Variation in the signal.", "Goldstein–Pauzner give every depositor a noisy draw of the same signal. The draw breaks common knowledge and selects the equilibrium. Who runs first is whoever drew low."],
+      ["Variation in the signal.", "Goldstein–Pauzner give every depositor a noisy draw of the same signal. The draw breaks common knowledge and selects the equilibrium. Who runs is whoever drew low; everyone decides at once, so there is no first."],
       ["Variation in location.", "Networks and media decide who hears what, from whom, when (Kelly–Ó Gráda, Iyer–Puri, Cookson et al.). Who runs first is whoever sits nearest the source."],
       ["Both are fruitful.", "Neither says anything about the depositor: the same Bayesian, with the same prior, sits at every node."],
     ],
-    "~1 min. The two mechanisms the literature has used to answer who runs and when. Variation in the signal: Goldstein-Pauzner's noisy private draw (same technology, different draws), the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so the order is luck. Variation in location: the network and media literature; the order is position. Both are consistent with identical processing. The third rung, variation in interpretation, is where this dissertation sits.");
+    "~1 min. The two mechanisms the literature has used to answer who runs and when. Variation in the signal: Goldstein-Pauzner's noisy private draw (same technology, different draws), the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so who runs is luck. Note the model is static: for an intermediate fundamental a fraction runs (those below the threshold draw), not everyone or nobody; the all-or-nothing picture is the zero-noise limit. Timing only enters with the network literature. Variation in location: the network and media literature; the order is position. Both are consistent with identical processing. The third rung, variation in interpretation, is where this dissertation sits.");
 
   stepSlide(2, "With two signals, a third question appears",
     "Which signal does a depositor act on, and in what proportion?",
@@ -226,7 +226,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   stepSlide(6, "What this dissertation does with it",
     "The weight is the depositor’s psychological characteristic; culture is the population-level source.",
     [
-      ["Chapter 1 formalises it.", "A stale public signal and heterogeneous dispositional weights inside Goldstein–Pauzner. Prediction: who runs first reverses with the sign of the public error."],
+      ["Chapter 1 formalises it.", "A stale public signal and heterogeneous dispositional weights inside Goldstein–Pauzner. Prediction: which type runs reverses with the sign of the public error."],
       ["Chapter 2 observes it once.", "Celsius: individualism predicts direction and timing within platform and within ancestral origin, and which public signals depositors act on."],
       ["Chapter 3 varies it.", "The mix of types, the gap between them, the staleness of the news, and the bank’s contract, in a population of interacting depositors."],
     ],
