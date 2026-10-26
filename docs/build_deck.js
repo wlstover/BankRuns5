@@ -34,7 +34,7 @@ const FIG = {
 };
 // width / height of each figure (fallbacks if DIMS is not supplied)
 const AR = {
-  odd: 2.087, ladder: 2.857, news: 1.293, e01: 1.563, e05: 1.501, e07: 1.569, e08: 2.104, e10: 1.501,
+  odd: 2.087, ladder: 2.857, news: 1.293, e01: 1.584, e05: 1.523, e07: 1.569, e08: 2.127, e10: 1.501,
   e03: 2.181, e04: 1.590, e06: 2.400, e09: 1.788, fig1: 1.521, svb: 1.073, cel: 1.26,
 };
 function ar(key) {
@@ -317,10 +317,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   // ================= 7. Public signal =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
   s.addText("Outdated news cuts both ways", { placeholder: "title" });
-  d = fig(s, "e08", FX, FY, FW, FH, { alt: "Chance the bank fails by kind of public news: outdated pessimistic news raises it to about 0.48, accurate news barely changes it from no news (0.29 vs 0.31), outdated optimistic news lowers it to 0.16." });
-  caption(s, "Chance the bank fails, by the kind of public news, dot and CI per λ pair. All mixes μ. Numbers at right: wide λ gap.", FX, FY + d.h + 0.05, FW);
-  const sig = [["0.48", "outdated, pessimistic news"], ["0.31", "no public news"], ["0.29", "accurate news"], ["0.16", "outdated, optimistic news"]];
-  sig.forEach(([b, l], i) => stat(s, SX, 1.15 + i * 0.97, SW, b, l, { h: 0.85, bigH: 0.4, size: 22, color: i === 0 ? C.accent2 : i === 3 ? C.accent5 : C.accent1 }));
+  d = fig(s, "e08", 0.5, 1.1, 9.0, 3.95, { align: "center", alt: "Chance the bank fails by kind of public news: outdated pessimistic news raises it to about 0.48, accurate news barely changes it from no news (0.29 vs 0.31), outdated optimistic news lowers it to 0.16." });
   s.addNotes("~2.5 min. Large difference (0.1, 0.9): outdated pessimistic 0.48, none 0.31, accurate 0.29, outdated middling (y0 0.5) 0.18, outdated optimistic 0.16. Accurate news barely changes failure; stale optimistic halves it; stale pessimistic raises it by half. Small difference (0.3, 0.5) barely moves (0.09–0.15). All mu. Policy framing: the information environment (right to reassure), not sorting depositors by type.");
 
   // ================= 8. Concentration =================

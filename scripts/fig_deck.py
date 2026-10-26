@@ -54,7 +54,7 @@ TECH = {
              "r1c-none": "σ 2.5, uncapped"},
     "bank_title": "Deposit distribution",
 }
-SIZE = {(0.1, 0.9): "Large", (0.2, 0.8): "Medium", (0.3, 0.5): "Small"}
+SIZE = {(0.1, 0.9): "Large (λ 0.1, 0.9)", (0.2, 0.8): "Medium (λ 0.2, 0.8)", (0.3, 0.5): "Small (λ 0.3, 0.5)"}
 LAY = {
     "pair": SIZE, "pair_title": "Difference between types",
     "mu": "Share of depositors who are individualists", "pfail": "Chance the bank fails",
