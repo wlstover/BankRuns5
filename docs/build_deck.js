@@ -196,8 +196,8 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   });
   s.addNotes("~1 min. The two mechanisms the literature has used to answer who runs. Variation in the signal: Goldstein-Pauzner's noisy private draw (same technology, different draws), the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so who runs is luck. The model is static: for an intermediate fundamental a fraction runs (those below the threshold draw), not everyone or nobody; all-or-nothing is the zero-noise limit. Timing only enters with the network literature. Variation in location: networks and media; the order is position. Both are fruitful and both are consistent with identical processing: the same Bayesian, with the same prior, sits at every node. The third rung, variation in interpretation, is where this dissertation sits.");
 
-  stepSlide(2, "With two signals, a third question appears",
-    "Which signal does a depositor act on, and in what proportion?",
+  stepSlide(2, "Variation in interpretation",
+    "When there are two signals, which signal does a depositor act on, and in what proportion?",
     [
       ["Latent in the canonical models.", "Diamond–Dybvig has no signal; Morris–Shin and Goldstein–Pauzner have one. The question cannot arise."],
       ["Askable once a public signal is added.", "Morris–Shin (2002), Hellwig (2002), Angeletos–Werning (2006) put a public signal next to the private one."],
