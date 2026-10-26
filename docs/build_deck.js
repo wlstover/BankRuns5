@@ -148,7 +148,10 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   pres.addSection({ title: "Opening" });
   s = pres.addSlide({ masterName: "DARK", sectionTitle: "Opening" });
   s.addText("Agent-based Diamond–Dybvig with cultural heterogeneity", { placeholder: "title" });
-  s.addText("Walter Stover  ·  George Mason University  ·  26 October 2026", { placeholder: "body", fontSize: 14, color: C.accent3 });
+  s.addText([
+    { text: "Markets and Society 2026", options: { fontSize: 18, color: C.accent4, breakLine: true } },
+    { text: "Walter Stover  ·  George Mason University  ·  26 October 2026", options: { fontSize: 14, color: C.accent3 } },
+  ], { placeholder: "body" });
   s.addNotes("~0.5 min.");
 
   // ================= 2. The puzzle =================
