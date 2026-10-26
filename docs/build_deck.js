@@ -208,23 +208,14 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     ],
     "~1 min. The third question is latent in the canonical theory because those models have one signal. It becomes askable once a public signal is added, which the global-games literature did in the early 2000s. It is exactly the question a panic poses.");
 
-  stepSlide(3, "How the theory answers it: the Bayesian precision ratio",
-    "Weight on the public signal = its precision relative to the private one. The same for everyone, and vanishing.",
-    [
-      ["The same for everyone.", "Two depositors with the same signals form the same belief. There is no ‘who’."],
-      ["Vanishing.", "As private information sharpens, the weight on the public line goes to zero. The public signal matters only while depositors know little."],
-      ["What it predicts about a panic.", "Any sorting between depositors is noise, and official communication stops mattering just when depositors are paying most attention."],
-    ],
-    "~1 min. The public-signal papers answer the question with the Bayesian precision ratio: the weight on y is tau_y over tau_x plus tau_y. Two consequences: the weight is uniform across depositors, so there is no who; and it vanishes as the private signal gets precise. Both are at odds with what panics look like.");
-
-  stepSlide(4, "Panics do not look like that",
+  stepSlide(4, "What panics look like",
     "Panics are open disagreements between the public line and private evidence, and depositors split on which to trust.",
     [
       ["Celsius, 2022.", "Official posts insisting the platform was sound, while CEL fell and withdrawals accelerated."],
       ["Silicon Valley Bank, 2023.", "A call asking clients to stay calm, against a Twitter feed saying the opposite."],
       ["Northern Rock, 2007.", "A Bank of England support announcement, against queues outside the branches."],
     ],
-    "~1 min. Counterexamples. In each case the public line and private evidence are in open disagreement, the weights do not vanish, and the interesting fact is who moved on which. Chapter 3's stale public signal is the general case.",
+    "~1 min. If asked how the theory answers the third question: the public-signal global games answer it with the Bayesian precision ratio, the weight on y is tau_y over tau_x plus tau_y, the same for everyone and vanishing as private information sharpens; so any sorting between depositors is noise and official communication stops mattering just when depositors pay most attention. (Slide dropped for this audience.) The cases: in each one the public line and private evidence are in open disagreement, the weights do not vanish, and the interesting fact is who moved on which. Chapter 3's stale public signal is the general case.",
     { foot: "In each case the interesting fact is who moved on which signal." });
 
   stepSlide(5, "Cultural economics: a source of stable weights",
