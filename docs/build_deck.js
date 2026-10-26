@@ -239,7 +239,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   stepSlide(7, "Why the third chapter is a simulation",
     "Chapter 1 relaxed one assumption. The agent-based model relaxes the rest at once, and lets the three rungs interact.",
     [
-      ["Chapter 1 relaxed one thing.", "The precision ratio became a stable, heterogeneous weight on a stale public signal. Everything else stayed: a continuum of depositors, one simultaneous move, no network."],
+      ["Chapter 1 relaxed one thing.", "The one-size-fits-all weight on public news became a stable, heterogeneous weight on a stale public signal. Everything else stayed: a continuum of depositors, one simultaneous move, no network."],
       ["The model relaxes the rest at once.", "The signal (a private draw per depositor), location (a network, neighbours’ withdrawals arriving tick by tick, public news absent, accurate or stale), interpretation (λ, formed in a cultural warm-up), plus deposit sizes, risk preferences and the contract."],
       ["An analytical model cannot carry all of that.", "Each addition breaks the threshold-equilibrium machinery; together they are beyond closed form. The simulation is what lets the rungs be varied and measured separately."],
     ],
