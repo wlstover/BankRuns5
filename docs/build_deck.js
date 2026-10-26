@@ -325,9 +325,8 @@ function chip(slide, label, x, y, w, h, opts = {}) {
 
   // ================= 8. Concentration =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
-  s.addText("Capping the largest deposits", { placeholder: "title" });
-  d = fig(s, "e10", 0.5, 1.1, 9.0, 3.75, { align: "center", alt: "Chance the bank fails by share of individualists for three deposit-size distributions: uncapped large deposits fail most often; capped at 1 percent matches the bank with similar-sized deposits at every share." });
-  caption(s, "Chance the bank fails by share of individualists, for three deposit-size distributions. λ pairs pooled.", d.x, 1.1 + d.h + 0.05, d.w);
+  s.addText("Varying the deposit-size distribution", { placeholder: "title" });
+  d = fig(s, "e10", 0.5, 1.1, 9.0, 3.95, { align: "center", alt: "Chance the bank fails by share of individualists for three deposit-size distributions: uncapped large deposits fail most often; capped at 1 percent matches the bank with similar-sized deposits at every share." });
   s.addNotes("~2 min. Lambda pairs pooled. Uncapped (sigma 2.5) 0.61 -> 0.11; capped at 1% 0.51 -> 0.08; similar sizes (sigma 1) 0.50 -> 0.08. Capping brings failure down to the no-concentration level at every mu. The mu gradient is the same in all three: culture's effect does not depend on concentration. One spoken sentence on what 'capped at 1%' means (no single depositor holds more than 1% of the bank).");
 
   // ================= 9. Validation =================
