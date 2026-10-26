@@ -192,7 +192,6 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     ]],
   ].forEach(([h, items], i) => {
     const x = 0.5 + i * 4.6;
-    card(s, x, 1.15, 4.4, 2.75, { name: "mech-" + i });
     s.addText(h, { x: x + 0.2, y: 1.25, w: 4.0, h: 0.4, fontSize: 18, bold: true, color: C.accent1, margin: 0, isTextBox: true, objectName: "mech-head" });
     bullets(s, items, x + 0.2, 1.75, 4.0, 2.05, { size: 14, gap: 8 });
   });
