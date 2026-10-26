@@ -31,11 +31,12 @@ const FIG = {
   fig1: "/home/simaliang/Papers/bank_run_dissertation/chapters/abm/figures/fig1_p6a_headline.png",
   svb: path.join(REPO, "figures/deck/svb_techcrunch_2023-03-09.png"),
   cel: path.join(REPO, "figures/deck/celsius_mashinsky_2022-06-11.png"),
+  aub: path.join(REPO, "figures/deck/run_american_union_bank_1931.jpg"),
 };
 // width / height of each figure (fallbacks if DIMS is not supplied)
 const AR = {
   odd: 2.087, ladder: 2.857, news: 1.293, e01: 1.584, e05: 1.523, e07: 1.569, e08: 2.127, e10: 1.501,
-  e03: 2.181, e04: 1.590, e06: 2.400, e09: 1.788, fig1: 1.521, svb: 1.073, cel: 1.26,
+  e03: 2.181, e04: 1.590, e06: 2.400, e09: 1.788, fig1: 1.521, svb: 1.073, cel: 1.26, aub: 1.281,
 };
 function ar(key) {
   const p = FIG[key];
@@ -157,9 +158,11 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   // ================= 2. The puzzle =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
   s.addText("The puzzle: who runs?", { placeholder: "title" });
-  d = fig(s, "news", 0.5, 1.15, 9.0, 3.65, { align: "center", alt: "Screenshot of a CryptoSlate news article dated 12 October 2026: Global watchdog warns the $300 billion stablecoin market could face bank runs even with full reserves. The FSB says cross-border liquidity mismatches could trigger redemption crises and threaten dollar pegs as regulators prepare for G20 discussions." });
+  d = fig(s, "aub", 0.5, 1.15, 4.4, 3.4, { align: "center", alt: "Black-and-white photograph from 1931: a dense crowd of depositors in hats and suits packs the sidewalk outside the American Union Bank in New York, at the corner of West 37th Street, during a bank run." });
+  caption(s, "Run on the American Union Bank, New York, 1931. National Archives; public domain.", d.x, 1.15 + d.h + 0.05, d.w);
+  d = fig(s, "news", 5.1, 1.15, 4.4, 3.4, { align: "center", alt: "Screenshot of a CryptoSlate news article dated 12 October 2026: Global watchdog warns the $300 billion stablecoin market could face bank runs even with full reserves. The FSB says cross-border liquidity mismatches could trigger redemption crises and threaten dollar pegs as regulators prepare for G20 discussions." });
   caption(s, "CryptoSlate, 12 October 2026, on the Financial Stability Board’s note to the G20. Screenshot, cryptoslate.com.", d.x, 1.15 + d.h + 0.05, d.w);
-  s.addNotes("~1.5 min. Raise the question only: who runs? Theory (Diamond–Dybvig) says runs can happen; it is silent on who runs first and how a run spreads. The screenshot: the FSB warned the G20 on 12 October 2026 that a fully reserved stablecoin can still face a redemption run. Even a regulator thinking about a modern run asks whether one happens, not who starts it. Alternative screenshot in figures/deck is not provided; the Nano Banc failure (25 September 2026, American Banker) was a capital failure, not a run.");
+  s.addNotes("~1.5 min. Photo: the 1931 run on the American Union Bank, New York (National Archives, public domain). Raise the question only: who runs? Theory (Diamond–Dybvig) says runs can happen; it is silent on who runs first and how a run spreads. The screenshot: the FSB warned the G20 on 12 October 2026 that a fully reserved stablecoin can still face a redemption run. Even a regulator thinking about a modern run asks whether one happens, not who starts it. Alternative screenshot in figures/deck is not provided; the Nano Banc failure (25 September 2026, American Banker) was a capital failure, not a run.");
 
   // ---- bare-bones argument slides (to be condensed later) ----
   function stepSlide(n, title, lead, items, notes, opts = {}) {
