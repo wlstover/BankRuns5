@@ -305,28 +305,19 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Close" });
   s.addText("Takeaways and next steps", { placeholder: "title" });
   const take = [
-    ["Sorting follows the news", "Optimistic public news makes individualists run relatively more; pessimistic news, collectivists. 3 of 4 pre-registered tests pass, in all three bank versions."],
+    ["Sorting follows the news", "Optimistic public news makes individualists run relatively more; pessimistic news, collectivists."],
     ["Collectivists herd", "Their chance of withdrawing jumps from 0.15 to 0.93 once 20–35% of neighbours are out; individualists level off near 0.3."],
-    ["More individualists, fewer failures", "P(fail) falls from 0.67 to 0.08 as the individualist share goes from 0 to 1. Monotone; no interior peak."],
+    ["More individualists, fewer failures", "P(fail) falls from 0.67 to 0.08 as the individualist share goes from 0 to 1."],
     ["Stale news cuts both ways", "A stale optimistic signal halves failure, a stale pessimistic one raises it by half. Accurate news barely moves it."],
     ["Capping the largest deposits", "A 1% cap brings failure down to the no-concentration bank’s level; the culture gradient is unchanged."],
-    ["Not yet matched", "How Celsius’s largest depositors exit: one-shot share 0.35 there, 0.93 or more in the model."],
+    ["Not yet matched", "How large depositors exit in real runs: one-shot share about 0.35 there, 0.93 or more in the model."],
   ];
   take.forEach(([h, b], i) => {
-    const y = 1.15 + i * 0.64, rh = 0.56;
-    card(s, 0.5, y, 6.3, rh, { fill: i === 5 ? C.accent4 : C.background2, name: "take-" + i });
-    chip(s, i + 1, 0.6, y + 0.1, 0.36, 0.36, { fill: i === 5 ? C.accent2 : C.accent1, fontSize: 11 });
-    s.addText(h, { x: 1.08, y: y + 0.04, w: 1.75, h: rh - 0.08, fontSize: 11, bold: true, color: C.text2, margin: 0, isTextBox: true, valign: "middle", objectName: "take-head" });
-    s.addText(b, { x: 2.9, y: y + 0.04, w: 3.8, h: rh - 0.08, fontSize: 10, color: C.text1, margin: 0, isTextBox: true, valign: "middle", objectName: "take-body" });
+    const y = 1.15 + i * 0.63, rh = 0.58;
+    s.addText([{ text: (i + 1) + ":  ", options: { bold: true, color: C.accent1 } }, { text: h, options: { bold: true, color: C.text2 } }],
+      { x: 0.5, y, w: 3.0, h: rh, fontSize: 13, margin: 0, isTextBox: true, valign: "middle", objectName: "take-head" });
+    s.addText(b, { x: 3.6, y, w: 5.9, h: rh, fontSize: 12, color: C.text1, margin: 0, isTextBox: true, valign: "middle", objectName: "take-body" });
   });
-  card(s, 7.0, 1.15, 2.5, 3.76, { name: "next" });
-  s.addText("Next steps", { x: 7.15, y: 1.25, w: 2.2, h: 0.35, fontSize: 13, bold: true, color: C.text2, margin: 0, isTextBox: true, objectName: "next-head" });
-  bullets(s, [
-    "Super-individuals, to match how the largest depositors exited Celsius",
-    "Deposit insurance and the reserve ratio on the fire-sale bank",
-    "Network topology and learning",
-    "Full sweep: stale public signal plus no-signal baseline, CARA 0.1, σ reported",
-  ], 7.15, 1.65, 2.2, 3.2, { size: 11, gap: 7 });
   s.addNotes("~2 min. Next steps from the outline: super-individuals (match how Celsius's largest depositors exit), deposit insurance and the reserve ratio on the fire-sale bank, topology and learning, and the full parameter sweep (stale public signal + no-signal baseline; CARA 0.1; sigma reported).");
 
   await pres.writeFile({ fileName: OUT });
