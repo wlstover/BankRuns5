@@ -18,6 +18,7 @@ const DIMS = process.env.DIMS ? JSON.parse(fs.readFileSync(process.env.DIMS, "ut
 const FIG = {
   odd: path.join(REPO, "figures/deck/mock_odd_overview.png"),
   ladder: path.join(REPO, "figures/deck/ladder.png"),
+  news: path.join(REPO, "figures/deck/news_fsb_2026-10-12.png"),
   e01: path.join(REPO, "figures/deck_lay/e01_sorting.png"),
   e05: path.join(REPO, "figures/deck_lay/e05_pfail_by_mu.png"),
   e07: path.join(REPO, "figures/deck_lay/e07_herding.png"),
@@ -31,7 +32,7 @@ const FIG = {
 };
 // width / height of each figure (fallbacks if DIMS is not supplied)
 const AR = {
-  odd: 0.985, ladder: 2.857, e01: 1.563, e05: 1.501, e07: 1.569, e08: 2.104, e10: 1.501,
+  odd: 0.985, ladder: 2.857, news: 1.293, e01: 1.563, e05: 1.501, e07: 1.569, e08: 2.104, e10: 1.501,
   e03: 2.181, e04: 1.590, e06: 2.400, e09: 1.788, fig1: 1.521,
 };
 function ar(key) {
@@ -153,29 +154,10 @@ function chip(slide, label, x, y, w, h, opts = {}) {
 
   // ================= 2. The puzzle =================
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
-  s.addText("The puzzle: who runs, and how a run spreads", { placeholder: "title" });
-  const ctx = [
-    ["Diamond–Dybvig", "A run is an equilibrium. The theory says runs can happen; it says nothing about who runs first or how a run spreads."],
-    ["Chapter 1: theory", "Depositors differ in how much they weigh their own information against public news and what others do. That difference predicts who moves first, and in which direction, given the news."],
-    ["Chapter 2: Celsius", "Those differences show up in real withdrawals. But one platform and one shock cannot vary the mix of depositors or the information they received."],
-  ];
-  ctx.forEach(([h, b], i) => textCard(s, 0.5 + i * 3.05, 1.15, 2.9, 1.6, h, b, { headColor: C.text2 }));
-  card(s, 0.5, 2.9, 9.0, 0.95, { fill: C.accent4, name: "ch3" });
-  s.addText([
-    { text: "Chapter 3, this talk: ", options: { bold: true, color: C.accent1 } },
-    { text: "a population of interacting depositors in which the mix of types, the public signal, deposit concentration and the bank’s contract can each be varied. Does the theory’s mechanism survive there?" },
-  ], { x: 0.65, y: 2.95, w: 8.7, h: 0.85, fontSize: 12.5, color: C.text1, margin: 0, isTextBox: true, valign: "middle", objectName: "ch3-text" });
-  const defs = [
-    ["D", "share of individualists who withdraw minus share of collectivists, among depositors the shock did not hit"],
-    ["P(fail)", "share of runs that end with the bank failing"],
-  ];
-  defs.forEach(([big, lab], i) => {
-    const x = 0.5 + i * 4.6;
-    card(s, x, 4.0, 4.4, 1.0, { name: "def-" + big });
-    s.addText(big, { x: x + 0.15, y: 4.05, w: 1.3, h: 0.9, fontSize: 24, bold: true, color: C.accent1, fontFace: "Cambria", margin: 0, isTextBox: true, valign: "middle", objectName: "def-big" });
-    s.addText(lab, { x: x + 1.5, y: 4.05, w: 2.8, h: 0.9, fontSize: 11, color: C.accent3, margin: 0, isTextBox: true, valign: "middle", objectName: "def-label" });
-  });
-  s.addNotes("~1.5 min. Theory (Diamond–Dybvig) says runs can happen; it is silent on who runs first and how a run spreads. Optional visual: a historical photo of a bank run.");
+  s.addText("The puzzle: who runs?", { placeholder: "title" });
+  d = fig(s, "news", 0.5, 1.15, 9.0, 3.65, { align: "center", alt: "Screenshot of a CryptoSlate news article dated 12 October 2026: Global watchdog warns the $300 billion stablecoin market could face bank runs even with full reserves. The FSB says cross-border liquidity mismatches could trigger redemption crises and threaten dollar pegs as regulators prepare for G20 discussions." });
+  caption(s, "CryptoSlate, 12 October 2026, on the Financial Stability Board’s note to the G20. Screenshot, cryptoslate.com.", d.x, 1.15 + d.h + 0.05, d.w);
+  s.addNotes("~1.5 min. Raise the question only: who runs? Theory (Diamond–Dybvig) says runs can happen; it is silent on who runs first and how a run spreads. The screenshot: the FSB warned the G20 on 12 October 2026 that a fully reserved stablecoin can still face a redemption run. Even a regulator thinking about a modern run asks whether one happens, not who starts it. Alternative screenshot in figures/deck is not provided; the Nano Banc failure (25 September 2026, American Banker) was a capital failure, not a run.");
 
   // ---- bare-bones argument slides (to be condensed later) ----
   function stepSlide(n, title, lead, items, notes, opts = {}) {
@@ -285,7 +267,8 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     "One bank that sells its long asset at a discount when cash runs short (a fire-sale bank)",
     "Each tick a depositor sees neighbours’ withdrawals and the public news, blends them with a private signal, and withdraws if that pays",
     "A public signal can be absent, accurate, or outdated",
-  ], sx, 3.6, 9.5 - sx, 1.45, { size: 12, gap: 5 });
+    "Outcomes: D = individualists’ minus collectivists’ withdrawal share (those not hit by the shock); P(fail) = share of runs that fail",
+  ], sx, 3.5, 9.5 - sx, 1.5, { size: 11.5, gap: 4 });
   s.addNotes("~2 min. N = 1,000 depositors on a small-world network; one bank that sells assets at a discount when cash runs short (fire-sale bank). Each tick a depositor sees neighbours' withdrawals and the public news, blends them with a private signal, and withdraws if that pays. Reference bank: deposits log-normal (sigma 2.5), each capped at 1% of the total; CARA 0.1; partial withdrawals allowed. The diagram is the technical ODD overview: walk the right-hand column (warm-up, world, shock, tick loop) and skip the formulas.");
 
   // ================= 4. Who listens to whom =================
