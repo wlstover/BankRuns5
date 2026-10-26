@@ -234,8 +234,8 @@ function chip(slide, label, x, y, w, h, opts = {}) {
     { text: "ŝ", options: { italic: true } }, { text: "C", options: { subscript: true } },
     { text: " = (λ", options: {} }, { text: "C", options: { subscript: true } }, { text: " − λ", options: {} }, { text: "I", options: { subscript: true } },
     { text: ")(", options: {} }, { text: "x", options: { italic: true } }, { text: " − ", options: {} }, { text: "y", options: { italic: true } }, { text: "). ", options: {} },
-    { text: "Who runs is sorted by the weight, and the order flips with the sign of the public error.", options: { bold: true, color: C.text2 } },
-  ], { x: 0.5, y: 3.3, w: 9.0, h: 0.85, fontSize: 14, color: C.text1, margin: 0, isTextBox: true, valign: "top", align: "center", objectName: "wedge" });
+    { text: "Which type runs more depends on which way the public line is wrong: too optimistic, individualists; too pessimistic, collectivists.", options: { bold: true, color: C.text2 } },
+  ], { x: 0.5, y: 3.2, w: 9.0, h: 1.1, fontSize: 14, color: C.text1, margin: 0, isTextBox: true, valign: "top", align: "center", objectName: "wedge" });
   s.addNotes("~1.5 min. The whole model in one line: a depositor blends what they are told with what they see, and the blend weight is a disposition, not a precision calculation (Chapter 1 writes it omega; the simulation writes it lambda). Subtracting the two types' estimates gives the wedge (lambda_C minus lambda_I)(x minus y): with the same pair of signals, the individualist's estimate is lower whenever private evidence is worse than the public line, so individualists run on a wider set of signals when the news is stale-optimistic, and the inclusion reverses when the news is stale-pessimistic. That is the sorting prediction the simulation tests. In the simulation, the public side is what neighbours do and what the news says, and lambda is drawn per agent in a cultural warm-up. Next: the simulation itself.");
 
   // ================= 3. The model =================
