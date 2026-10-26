@@ -163,8 +163,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   function stepSlide(n, title, lead, items, notes, opts = {}) {
     const sl = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
     sl.addText(title, { placeholder: "title" });
-    chip(sl, n, 0.5, 1.25, 0.42, 0.42, { fontSize: 13 });
-    if (lead) sl.addText(lead, { x: 1.1, y: 1.15, w: 8.4, h: 0.95, fontSize: 17, bold: true, color: C.text2, margin: 0, isTextBox: true, valign: "middle", objectName: "step-lead" });
+    if (lead) sl.addText(lead, { x: 0.5, y: 1.15, w: 9.0, h: 0.95, fontSize: 17, bold: true, color: C.text2, margin: 0, isTextBox: true, valign: "middle", objectName: "step-lead" });
     const iy = lead ? 2.3 : 1.3;
     const runs = [];
     items.forEach(([h, b], i) => {
@@ -172,20 +171,33 @@ function chip(slide, label, x, y, w, h, opts = {}) {
       runs.push({ text: h + " ", options: { bold: true, bullet: { indent: 14 }, paraSpaceAfter: 9, breakLine: false } });
       runs.push({ text: b, options: { breakLine: !last, paraSpaceAfter: 9 } });
     });
-    sl.addText(runs, { x: 1.1, y: iy, w: 8.4, h: lead ? 2.3 : 3.3, fontSize: 14, color: C.text1, valign: "top", margin: 0, isTextBox: true, objectName: "step-items" });
-    if (opts.foot) sl.addText(opts.foot, { x: 1.1, y: 4.65, w: 8.4, h: 0.35, fontSize: 11, italic: true, color: C.accent3, margin: 0, isTextBox: true, objectName: "step-foot" });
+    sl.addText(runs, { x: 0.5, y: iy, w: 9.0, h: lead ? 2.3 : 3.3, fontSize: 14, color: C.text1, valign: "top", margin: 0, isTextBox: true, objectName: "step-items" });
+    if (opts.foot) sl.addText(opts.foot, { x: 0.5, y: 4.65, w: 9.0, h: 0.35, fontSize: 11, italic: true, color: C.accent3, margin: 0, isTextBox: true, objectName: "step-foot" });
     sl.addNotes(notes);
     return sl;
   }
 
-  stepSlide(1, "Who runs? Luck of the draw, and location",
-    "",
-    [
-      ["Variation in the signal.", "Goldstein–Pauzner give every depositor a noisy draw of the same signal. The draw breaks common knowledge and selects the equilibrium. Who runs is whoever drew low; everyone decides at once, so there is no first."],
-      ["Variation in location.", "Networks and media decide who hears what, from whom, when (Kelly–Ó Gráda, Iyer–Puri, Cookson et al.). Who runs first is whoever sits nearest the source."],
-      ["Both are fruitful.", "Neither says anything about the depositor: the same Bayesian, with the same prior, sits at every node."],
-    ],
-    "~1 min. The two mechanisms the literature has used to answer who runs and when. Variation in the signal: Goldstein-Pauzner's noisy private draw (same technology, different draws), the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so who runs is luck. Note the model is static: for an intermediate fundamental a fraction runs (those below the threshold draw), not everyone or nobody; the all-or-nothing picture is the zero-noise limit. Timing only enters with the network literature. Variation in location: the network and media literature; the order is position. Both are consistent with identical processing. The third rung, variation in interpretation, is where this dissertation sits.");
+  s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
+  s.addText("Who runs? Luck of the draw, and location", { placeholder: "title" });
+  [
+    ["Variation in the signal", [
+      "Goldstein–Pauzner: every depositor gets a noisy draw of the same signal",
+      "The draw breaks common knowledge and selects the equilibrium",
+      "Who runs: whoever drew low",
+      "Everyone decides at once, so there is no first",
+    ]],
+    ["Variation in location", [
+      "Networks and media decide who hears what, from whom, when",
+      "Kelly–Ó Gráda, Iyer–Puri, Cookson et al.",
+      "Who runs first: whoever sits nearest the source",
+    ]],
+  ].forEach(([h, items], i) => {
+    const x = 0.5 + i * 4.6;
+    card(s, x, 1.15, 4.4, 2.75, { name: "mech-" + i });
+    s.addText(h, { x: x + 0.2, y: 1.25, w: 4.0, h: 0.4, fontSize: 18, bold: true, color: C.accent1, margin: 0, isTextBox: true, objectName: "mech-head" });
+    bullets(s, items, x + 0.2, 1.75, 4.0, 2.05, { size: 14, gap: 8 });
+  });
+  s.addNotes("~1 min. The two mechanisms the literature has used to answer who runs. Variation in the signal: Goldstein-Pauzner's noisy private draw (same technology, different draws), the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so who runs is luck. The model is static: for an intermediate fundamental a fraction runs (those below the threshold draw), not everyone or nobody; all-or-nothing is the zero-noise limit. Timing only enters with the network literature. Variation in location: networks and media; the order is position. Both are fruitful and both are consistent with identical processing: the same Bayesian, with the same prior, sits at every node. The third rung, variation in interpretation, is where this dissertation sits.");
 
   stepSlide(2, "With two signals, a third question appears",
     "Which signal does a depositor act on, and in what proportion?",
