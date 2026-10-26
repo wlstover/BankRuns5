@@ -72,7 +72,7 @@ pres.defineSlideMaster({
   background: { color: THEME.colors.dk2 },
   objects: [
     { placeholder: { options: { name: "title", type: "title", x: 0.6, y: 1.6, w: 8.8, h: 1.6, fontSize: 34, bold: true, color: C.background1, valign: "bottom", align: "center", margin: 0 } } },
-    { placeholder: { options: { name: "body", type: "body", x: 0.6, y: 3.3, w: 8.8, h: 1.2, fontSize: 18, color: C.accent4, valign: "top", margin: 0 } } },
+    { placeholder: { options: { name: "body", type: "body", x: 0.6, y: 3.3, w: 8.8, h: 1.2, fontSize: 18, color: C.accent4, valign: "top", align: "center", margin: 0 } } },
   ],
 });
 pres.defineSlideMaster({
@@ -89,7 +89,7 @@ pres.defineSlideMaster({
   background: { color: THEME.colors.dk2 },
   objects: [
     { placeholder: { options: { name: "title", type: "title", x: 0.6, y: 2.0, w: 8.8, h: 1.2, fontSize: 32, bold: true, color: C.background1, valign: "middle", align: "center", margin: 0 } } },
-    { placeholder: { options: { name: "body", type: "body", x: 0.6, y: 3.25, w: 8.8, h: 0.8, fontSize: 16, color: C.accent4, valign: "top", margin: 0 } } },
+    { placeholder: { options: { name: "body", type: "body", x: 0.6, y: 3.25, w: 8.8, h: 0.8, fontSize: 16, color: C.accent4, valign: "top", align: "center", margin: 0 } } },
   ],
 });
 
