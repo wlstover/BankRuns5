@@ -390,31 +390,6 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   ], 7.15, 1.65, 2.2, 3.2, { size: 11, gap: 7 });
   s.addNotes("~2 min. Next steps from the outline: super-individuals (match how Celsius's largest depositors exit), deposit insurance and the reserve ratio on the fire-sale bank, topology and learning, and the full parameter sweep (stale public signal + no-signal baseline; CARA 0.1; sigma reported).");
 
-  // ================= 11. Backup divider =================
-  pres.addSection({ title: "Backup" });
-  s = pres.addSlide({ masterName: "SECTION", sectionTitle: "Backup" });
-  s.addText("Backup", { placeholder: "title" });
-  s.addText("Technical versions of the exhibits: who withdraws by type and mix, and which channel carries culture.", { placeholder: "body" });
-  s.addNotes("");
-
-  // ---- backup figure slides ----
-  function figSlide(title, key, cap, alt, notes, maxH = 3.7) {
-    const sl = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Backup" });
-    sl.addText(title, { placeholder: "title" });
-    const dd = fig(sl, key, 0.5, 1.15, 9.0, maxH, { align: "center", alt });
-    caption(sl, cap, 0.5, 1.15 + dd.h + 0.05, 9.0);
-    sl.addNotes(notes);
-    return sl;
-  }
-  figSlide("Who withdraws, by type and mix", "e06",
-    "Share who withdraw by individualist share μ, one panel per λ pair; orange individualists, blue collectivists, with CIs.",
-    "Share who withdraw by individualist share, three panels by lambda pair: collectivists above individualists at every mixed share for the two wide gaps.",
-    "Both types withdraw less as mu rises; collectivists above individualists at every mixed mu for the two wide gaps; nearly identical at (0.3, 0.5). Technical labels.");
-  figSlide("Which channel carries culture", "e09",
-    "D in failed runs with optimistic news, when λ weights only the neighbour blend, only the news blend, or both (the model). θ-blend only +0.14; head-count only −0.07; both +0.02.",
-    "Who runs in failed runs with optimistic news when lambda applies only to the neighbour blend, only to the news blend, or both: positive, negative, small positive.",
-    "Theta-blend only: +0.14 (Ch 1's sign). Head-count only: -0.07 (opposite). Both: +0.02. The two channels pull in opposite directions; Ch 1's sign survives, damped by herding.");
-
   await pres.writeFile({ fileName: OUT });
   await applyTheme(OUT, THEME);
   console.log("wrote", OUT);
