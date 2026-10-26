@@ -253,24 +253,16 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   ];
   types.forEach(([h, col, items], i) => {
     const x = 0.5 + i * 4.6;
-    card(s, x, 1.15, 4.4, 2.6, { name: "type-" + h });
     s.addText(h, { x: x + 0.2, y: 1.25, w: 4.0, h: 0.4, fontSize: 18, bold: true, color: col, margin: 0, isTextBox: true, objectName: "type-head" });
     bullets(s, items, x + 0.2, 1.75, 4.0, 1.9, { size: 13, gap: 5 });
   });
-  s.addText("Three pairs (λ individualist, λ collectivist) in the figures", { x: 0.5, y: 3.95, w: 5, h: 0.3, fontSize: 11, bold: true, color: C.accent3, margin: 0, isTextBox: true, objectName: "pairs-head" });
+  s.addText("Signal interpretation gap", { x: 1.0, y: 4.1, w: 2.3, h: 0.36, fontSize: 13, bold: true, color: C.text2, margin: 0, isTextBox: true, valign: "middle", objectName: "pairs-head" });
   const pairs = [["(0.1, 0.9)", "wide gap"], ["(0.2, 0.8)", "medium"], ["(0.3, 0.5)", "narrow"]];
   pairs.forEach(([p, lab], i) => {
-    const x = 0.5 + i * 1.75;
-    chip(s, p, x, 4.3, 1.0, 0.36, { fill: i === 0 ? C.text2 : i === 1 ? C.accent3 : C.accent4, color: i === 2 ? C.text1 : C.background1, fontSize: 11 });
-    s.addText(lab, { x: x + 1.05, y: 4.3, w: 0.7, h: 0.36, fontSize: 11, color: C.accent3, margin: 0, isTextBox: true, valign: "middle", objectName: "pair-label" });
+    const x = 3.4 + i * 1.9;
+    chip(s, p, x, 4.1, 1.0, 0.36, { fill: i === 0 ? C.text2 : i === 1 ? C.accent3 : C.accent4, color: i === 2 ? C.text1 : C.background1, fontSize: 11 });
+    s.addText(lab, { x: x + 1.05, y: 4.1, w: 0.85, h: 0.36, fontSize: 12, color: C.accent3, margin: 0, isTextBox: true, valign: "middle", objectName: "pair-label" });
   });
-  s.addText([
-    { text: "The share of individualists μ is set by a cultural warm-up on the network. ", options: {} },
-    { text: "Orange = individualists", options: { color: IND, bold: true } },
-    { text: ", ", options: {} },
-    { text: "blue = collectivists", options: { color: COL, bold: true } },
-    { text: " throughout.", options: {} },
-  ], { x: 5.8, y: 3.95, w: 3.7, h: 0.9, fontSize: 11, color: C.accent3, margin: 0, isTextBox: true, valign: "top", objectName: "mu-note" });
   s.addNotes("~1 min. Individualists put little weight on others (neighbours and public news) and more on their own information; collectivists the reverse. In the model: weight on the social side lambda; pairs shown in the figures (I, C): (0.1, 0.9) = large difference, (0.2, 0.8) = medium, (0.3, 0.5) = small. Type comes from a cultural warm-up on the network: the top mu share become individualists. Colours used throughout: orange = individualists, blue = collectivists.");
 
   // ---- figure + stats layout shared by the four result slides ----
