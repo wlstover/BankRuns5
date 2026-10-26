@@ -199,7 +199,7 @@ function chip(slide, label, x, y, w, h, opts = {}) {
   s.addNotes("~1 min. The two mechanisms the literature has used to answer who runs. Variation in the signal: Goldstein-Pauzner's noisy private draw (same technology, different draws), the device that gives Diamond-Dybvig an equilibrium-selection mechanism; depositors are ex ante identical, so who runs is luck. The model is static: for an intermediate fundamental a fraction runs (those below the threshold draw), not everyone or nobody; all-or-nothing is the zero-noise limit. Timing only enters with the network literature. Variation in location: networks and media; the order is position. Both are fruitful and both are consistent with identical processing: the same Bayesian, with the same prior, sits at every node. The third rung, variation in interpretation, is where this dissertation sits.");
 
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Opening" });
-  s.addText("Variation in interpretation", { placeholder: "title" });
+  s.addText("Who runs? Variation in interpretation", { placeholder: "title" });
   s.addText("When there are two signals, which signal does a depositor act on, and in what proportion?",
     { x: 0.5, y: 1.15, w: 3.5, h: 2.2, fontSize: 18, bold: true, color: C.text2, margin: 0, isTextBox: true, valign: "top", objectName: "lead" });
   d = fig(s, "svb", 4.2, 1.15, 5.3, 3.8, { align: "center", alt: "Screenshot of a TechCrunch article of 9 March 2023 headlined Silicon Valley Bank’s shares are tanking as a mess unfolds, with an embedded link Venture firms are advising portfolio companies to move money out of SVB, and a paragraph quoting CEO Greg Becker asking venture clients to stay calm, that’s my ask." });
