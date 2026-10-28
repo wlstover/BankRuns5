@@ -172,7 +172,10 @@ DOCK_FILES = {
     # while every other file describes its last episode.
     "episodes": ("bankRunEpisodes", True,
                  ["episode", "seed2", "theta", "failed", "n", "nExog", "nEndog", "depTotal",
-                  "depEndog", "lambdaMean", "lambdaSd"]),
+                  "depEndog", "lambdaMean", "lambdaSd",
+                  # L2 (BANKRUN_LEARN): the theta weight used in the episode, and the
+                  # running squared errors entering it (NaN without learning)
+                  "weightMean", "weightSd", "msexMean", "mseyMean"]),
     "partial": ("bankRunPartial", False,
                 ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
                  "largestFracWithdrawn"]),

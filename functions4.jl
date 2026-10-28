@@ -887,7 +887,10 @@ function neighbourSignalPartial(mod::Model, agt::Agent, anyOut::BitVector)
 end
 
 # now the main model function
-function modelRun(mod::Model; record=nothing)
+# thetaWeight (2026-10-28, L2): per-agent weights on y in the θ blend, replacing
+# λthetaOf when given (learned from experience; runRow passes them only under
+# BANKRUN_LEARN). nothing = the cultural weight, the model as before.
+function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
     runState::Bool=false
     # set the seed
     Random.seed!(mod.seed2)
@@ -1060,7 +1063,8 @@ function modelRun(mod::Model; record=nothing)
                   writeheader=false, append=true)
     end
     λcountOf(a) = lambdaScope == "theta" ? lambdaBar : a.individualism
-    λthetaOf(a) = lambdaScope == "count" ? lambdaBar : a.individualism
+    λthetaOf(a) = thetaWeight !== nothing ? thetaWeight[a.idx] :
+                  lambdaScope == "count" ? lambdaBar : a.individualism
 
     # Partial withdrawals (2026-10-22): agt.deposit is the remaining balance
     # during the run (the bank's arithmetic and the stayers' promises use it);
@@ -1624,34 +1628,104 @@ end
 meanOrNaN(x) = isempty(x) ? NaN : mean(x)
 sdOrNaN(x) = length(x) > 1 ? std(x) : NaN
 
+# ---- Learning, L2 Rule A: precision learning of the θ weight (2026-10-28) ------
+# docs/learning_design.md §4. Scores the θ signals only (the user): after each
+# episode θ is revealed, each agent updates its running squared error of its
+# private signal x_i and of the public signal y (y at tick 1, the level announced),
+#     MSE ← (1 − η)·MSE + η·error²,   starting at THETA_NOISE² and THETA_PUBLIC_NOISE²,
+# and weights y in the θ blend by
+#     ω_i = (1 − κ)·λ_i + κ·MSE_x / (MSE_x + MSE_y)
+# (κ = LEARN_GRIP, η = LEARN_MEMORY). The cultural λ_i (agt.individualism) never
+# changes, so the head-count blend keeps it. Episode 1 uses λ_i (no experience yet),
+# so its outcome is the no-learning model's.
+
+"""The learner's state over a run: cultural λ, running squared errors, θ weights."""
+mutable struct LearnState
+    culture::Vector{Float64}
+    msex::Vector{Float64}
+    msey::Vector{Float64}
+    weight::Vector{Float64}
+end
+function LearnState(mod::Model)
+    # the parse-time checks (settings.jl switchComboError), for scripts and tests
+    # that set the switches directly
+    (switchValue(:BALANCE) == "firesale" && switchValue(:FUNDAMENTAL) == "theta" &&
+     switchValue(:PRIVATE_SIGNAL) == "theta" && switchValue(:THETA_PUBLIC) != "none" &&
+     switchValue(:LAMBDA_SCOPE) != "count") ||
+        error("BANKRUN_LEARN=precision needs the fire-sale bank with θ, PRIVATE_SIGNAL=theta, " *
+              "a THETA_PUBLIC signal and LAMBDA_SCOPE theta or both")
+    λ = [a.individualism for a in mod.agtList]
+    n = length(λ)
+    return LearnState(λ, fill(switchValue(:THETA_NOISE)^2, n),
+                      fill(switchValue(:THETA_PUBLIC_NOISE)^2, n), copy(λ))
+end
+
+"""θ and the private signals x as modelRun draws them for this seed2 (fire-sale bank,
+θ fundamental, private signal of θ): the first draws of its θ stream."""
+function episodeThetaDraws(seed2::Int64, n::Integer)
+    rng = MersenneTwister(xor(reinterpret(UInt64, seed2), 0x7f4a7c15f39cc060))
+    θ = rand(rng)
+    s = switchValue(:THETA_NOISE)
+    return θ, [θ + s * randn(rng) for _ in 1:n]
+end
+
+"""The public signal y at tick 1 for this θ (what Rule A scores)."""
+publicAtStart(θ::Float64) =
+    thetaPublicAt(switchValue(:THETA_PUBLIC), θ, 1; level=switchValue(:THETA_PUBLIC_LEVEL),
+                  gap=switchValue(:THETA_PUBLIC_GAP), rho=switchValue(:THETA_PUBLIC_RHO))
+
+"""Rule A after an episode with fundamental θ, private signals x and public signal y."""
+function learnUpdate!(L::LearnState, x::Vector{Float64}, θ::Float64, y::Float64;
+                      grip::Float64, memory::Float64)
+    @. L.msex = (1.0 - memory) * L.msex + memory * (x - θ)^2
+    L.msey .= (1.0 - memory) .* L.msey .+ memory * (y - θ)^2
+    @. L.weight = (1.0 - grip) * L.culture + grip * L.msex / (L.msex + L.msey)
+    return L
+end
+
 """One row per type for episode `e`: θ, whether the bank failed, withdrawals by
-type, and λ by type (constant until learning is built)."""
-function episodeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord, e::Integer, failed::Bool)
+type, cultural λ by type, and the θ weight used and the squared errors entering
+the episode (with learning; else the cultural θ weight and NaN)."""
+function episodeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord, e::Integer, failed::Bool,
+                     learn=nothing)
     ts = typeSummary(mod, isI, rec)
     λ = [a.individualism for a in mod.agtList]
     sel = Dict("I" => isI, "C" => .!isI)
+    nanv = fill(NaN, length(λ))
+    ω = learn !== nothing ? learn.weight :
+        switchValue(:LAMBDA_SCOPE) == "count" ? fill(mean(λ), length(λ)) : λ
+    mx = learn === nothing ? nanv : learn.msex
+    my = learn === nothing ? nanv : learn.msey
     # key, type first: the per-type layout consolidate_results.py reads (DOCK_FILES)
     return DataFrame(key=ts.key, type=ts.type, episode=e, seed2=mod.seed2,
                      theta=episodeTheta(mod.seed2), failed=failed,
                      n=ts.n, nExog=ts.nExog, nEndog=ts.nEndog,
                      depTotal=ts.depTotal, depEndog=ts.depEndog,
                      lambdaMean=[meanOrNaN(λ[sel[t]]) for t in ts.type],
-                     lambdaSd=[sdOrNaN(λ[sel[t]]) for t in ts.type])
+                     lambdaSd=[sdOrNaN(λ[sel[t]]) for t in ts.type],
+                     weightMean=[meanOrNaN(ω[sel[t]]) for t in ts.type],
+                     weightSd=[sdOrNaN(ω[sel[t]]) for t in ts.type],
+                     msexMean=[meanOrNaN(mx[sel[t]]) for t in ts.type],
+                     mseyMean=[meanOrNaN(my[sel[t]]) for t in ts.type])
 end
 
-writeEpisode(mod::Model, isI, rec::RunRecord, e::Integer, failed::Bool) =
+writeEpisode(mod::Model, isI, rec::RunRecord, e::Integer, failed::Bool, learn=nothing) =
     CSV.write(dataDir*"/"*"bankRunEpisodes"*string(workerCore)*".csv",
-              episodeRows(mod, isI, rec, e, failed), writeheader=false, append=true)
+              episodeRows(mod, isI, rec, e, failed, learn), writeheader=false, append=true)
 
 """Episodes 1..E-1 of a run, then the reset for episode E. modelRun's own files
 (and the per-run files runRow writes) are kept for the last episode only: the
 early episodes write them to a scratch directory, which is deleted. Each early
-episode adds its rows to bankRunEpisodes."""
+episode adds its rows to bankRunEpisodes. Under BANKRUN_LEARN = precision, the
+learner updates after each episode; returns its state (the θ weights for the
+last episode), else nothing."""
 function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer)
     global dataDir
     switchValue(:EPISODE_RESET) == "bank" ||
         error("BANKRUN_EPISODE_RESET=$(switchValue(:EPISODE_RESET)) is not built")
     start = BankStart(mod)
+    learn = switchValue(:LEARN) == "precision" ? LearnState(mod) : nothing
+    grip, memory = switchValue(:LEARN_GRIP), switchValue(:LEARN_MEMORY)
     realDir = dataDir
     scratch = mktempdir()
     try
@@ -1659,16 +1733,21 @@ function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer
             resetEpisode!(mod, start, e)
             rec = RunRecord()
             dataDir = scratch
-            failed = modelRun(mod; record=rec)[1]
+            failed = modelRun(mod; record=rec,
+                              thetaWeight=learn === nothing ? nothing : learn.weight)[1]
             dataDir = realDir
-            writeEpisode(mod, isI, rec, e, failed)
+            writeEpisode(mod, isI, rec, e, failed, learn)
+            if learn !== nothing
+                θ, x = episodeThetaDraws(mod.seed2, length(mod.agtList))
+                learnUpdate!(learn, x, θ, publicAtStart(θ); grip=grip, memory=memory)
+            end
         end
     finally
         dataDir = realDir
         rm(scratch; recursive=true, force=true)
     end
     resetEpisode!(mod, start, episodes)
-    return start
+    return learn
 end
 
 # One run of one parameter row, and every file it writes (results, vault,
@@ -1683,11 +1762,12 @@ function runRow(row)
     # BANKRUN_EPISODES > 1: episodes 1..E-1 first, then the last one below, which
     # writes the per-run files exactly as a single-episode run does.
     episodes = switchValue(:EPISODES)
-    episodes > 1 && earlyEpisodes!(mod, isI, episodes)
+    learn = episodes > 1 ? earlyEpisodes!(mod, isI, episodes) : nothing
     vaultInit = mod.theBank.vault      # before the exogenous shock
     rec = RunRecord()
-    rMod, nWithdrawn, depositWithdrawn = modelRun(mod; record=rec)
-    episodes > 1 && writeEpisode(mod, isI, rec, episodes, rMod)
+    rMod, nWithdrawn, depositWithdrawn =
+        modelRun(mod; record=rec, thetaWeight=learn === nothing ? nothing : learn.weight)
+    episodes > 1 && writeEpisode(mod, isI, rec, episodes, rMod, learn)
     # Widened 2026-08-13 from (key, result) to carry |S*|. Readers that take
     # only the first two columns are unaffected.
     resultRow=DataFrame(key=row[:key],result=rMod,

@@ -81,6 +81,15 @@ const SWITCH_DEFAULTS = (
     # bankRunEpisodes has one row per episode and type.
     EPISODES         = 1,
     EPISODE_RESET    = "bank",
+    # Learning across episodes (2026-10-28; L2 Rule A, docs/learning_design.md §4):
+    # none = λ fixed (the model as before); precision = each agent's weight on y in
+    # the θ blend moves toward MSE_x / (MSE_x + MSE_y), its running squared errors
+    # of x_i and y, by LEARN_GRIP (κ; 0 = culture only, 1 = experience only), with
+    # memory LEARN_MEMORY (η; 0.2 ≈ the last five episodes). The cultural λ and
+    # the head-count blend are unchanged (the user: θ only).
+    LEARN            = "none",
+    LEARN_GRIP       = 0.0,
+    LEARN_MEMORY     = 0.2,
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -103,6 +112,7 @@ const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
 const WITHDRAW_CHOICES     = ("all", "partial")
 const EPISODE_RESET_CHOICES = ("bank",)       # "wealth" (losses carried over) is planned
+const LEARN_CHOICES = ("none", "precision")      # "payoff" (Rule B) is a later comparison arm
 
 """The combinations of switches the model refuses, as an error message (or
 nothing). Checked when the switches are parsed, so a sweep fails at startup, and
@@ -143,6 +153,16 @@ function switchComboError(sw)
         return "BANKRUN_CARA > 0 needs BANKRUN_BALANCE=firesale"
     sw.RETURN_HI < sw.RETURN_LO &&
         return "BANKRUN_RETURN_HI must be at least BANKRUN_RETURN_LO"
+    # Rule A scores x_i and y against θ, and moves the weight on y in the θ blend.
+    if hasproperty(sw, :LEARN) && sw.LEARN == "precision"
+        (sw.PRIVATE_SIGNAL != "theta" || sw.THETA_PUBLIC == "none") &&
+            return "BANKRUN_LEARN=precision needs BANKRUN_PRIVATE_SIGNAL=theta and a BANKRUN_THETA_PUBLIC signal"
+        sw.LAMBDA_SCOPE == "count" &&
+            return "BANKRUN_LEARN=precision needs BANKRUN_LAMBDA_SCOPE=theta or both (with count the θ blend carries no individual weight)"
+    end
+    hasproperty(sw, :LEARN) && sw.LEARN == "none" &&
+        (sw.LEARN_GRIP != 0.0 || sw.LEARN_MEMORY != 0.2) &&
+        return "BANKRUN_LEARN_GRIP / BANKRUN_LEARN_MEMORY need BANKRUN_LEARN=precision"
     return nothing
 end
 
@@ -225,6 +245,9 @@ function parseSwitchesFromEnv()
           CARA             = envFloat("BANKRUN_CARA", D.CARA, 0.0, 1.0e6),
           EPISODES         = envInt("BANKRUN_EPISODES", D.EPISODES, 1, 10^4),
           EPISODE_RESET    = envChoice("BANKRUN_EPISODE_RESET", D.EPISODE_RESET, EPISODE_RESET_CHOICES),
+          LEARN            = envChoice("BANKRUN_LEARN", D.LEARN, LEARN_CHOICES),
+          LEARN_GRIP       = envFloat("BANKRUN_LEARN_GRIP", D.LEARN_GRIP, 0.0, 1.0),
+          LEARN_MEMORY     = envFloat("BANKRUN_LEARN_MEMORY", D.LEARN_MEMORY, 0.0, 1.0; loOpen=true),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)

@@ -218,5 +218,36 @@ Pilots go on Hopper.
   - no visible trend in P(fail) or the I − C withdrawal gap;
   - about 0.8 s per episode.
 
-**Next:** submit `lrn-null` on Hopper, then L2 Rule A
-(`BANKRUN_LEARN=precision`, `LEARN_GRIP`, `LEARN_MEMORY`).
+**L2 Rule A built 2026-10-28** (same branch):
+- `settings.jl`: `BANKRUN_LEARN` (`none` | `precision`), `LEARN_GRIP` (κ, default 0) and
+  `LEARN_MEMORY` (η, default 0.2).
+- Refused combinations:
+  - precision needs `PRIVATE_SIGNAL=theta`, a `THETA_PUBLIC` signal and `LAMBDA_SCOPE`
+    theta or both;
+  - grip and memory need precision.
+- **How "θ only" is implemented:** each agent carries a learned θ weight (`LearnState`)
+  that replaces λ in the θ blend only (`modelRun(...; thetaWeight)`).
+  - The cultural λ (`agt.individualism`) never changes.
+  - The head-count blend keeps it.
+  - λ̄ is the mean of the cultural λ.
+- **Timing:** episode 1 uses the cultural λ (no experience yet), so it equals the
+  no-learning model. The update follows each episode; y is scored at tick 1.
+- `bankRunEpisodes` gains `weightMean`, `weightSd`, `msexMean`, `mseyMean` (the θ weight
+  used in the episode and the squared errors entering it; NaN without learning).
+- `tests/test_learning.jl` (98 checks):
+  - κ = 0 equals no learning;
+  - episode 1 equals no learning for any κ;
+  - the learner replayed by hand matches the reported weights in every episode;
+  - the update arithmetic;
+  - the refused combinations.
+  test_episodes, test_theta_public, test_switch_identity, test_replay, test_partial,
+  test_balance_sheet and test_cara pass unchanged.
+- `arms/learning_l2.tsv`: five one-cell arms on r1k-stale-y50, E = 20 — lrn-y50-none
+  (control), k25, k50, k100, and k50-ins (q 0.99). The design note's `nopub` arm is
+  dropped: Rule A needs y. Reader: `scripts/learning_pilot.py` (paired with the control).
+- **Local smoke** (6 runs × 20, κ 0.5, η 0.2, depth 10): C's θ weight falls 0.90 → ~0.51
+  by episode 5, which is ½·0.9 + ½·λ*, with λ* ≈ 0.11 because the stale y0 = 0.5 has
+  MSE ≈ 1/12 against x's 0.01. I stays ~0.10–0.13. P(fail) and gap differences at this
+  size are noise.
+
+**Next:** submit `lrn-null` and the L2 pilots on Hopper.
