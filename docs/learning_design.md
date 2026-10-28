@@ -1,6 +1,6 @@
 # Learning across episodes: design note (DRAFT, 2026-10-28)
 
-Branch `individual-learning`, off `master` at dfb5afe. Status: draft, partly decided. The
+Branch `individual-learning`, off `master` at dfb5afe. Status: design decided 10-28; ready to code L1. The
 user's decisions of 2026-10-28 (voice note) are marked **[decided 10-28]** and collected in
 §11; items still marked **[decide]** are the user's; items marked *(proposal)* are Claude's
 suggestions.
@@ -115,7 +115,7 @@ byte, with a test.
 | `BANKRUN_EPISODE_RESET` | `bank` (A) / `wealth` (B) | `bank` |
 | `BANKRUN_LEARN` | `none` / `precision` / `payoff` | `none` |
 | `BANKRUN_LEARN_GRIP` | κ ∈ [0, 1] | 0 |
-| `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 *(proposal)* |
+| `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 (decided 10-28; a later sweep axis) |
 
 The manifest records the resolved values, and untagged runs with any switch set are refused
 (as now).
@@ -180,8 +180,9 @@ Pilots go on Hopper.
 1. **Bank across episodes:** a fresh bank each episode (A) for now.
 2. **Rule A scores θ only.** Not the neighbour-count blend: neighbourhoods change over time
    and people move, so learning to trust one's neighbours is the weaker case. Ignore it for now.
-3. **η and E:** explained to the user 10-28. Proposed defaults η = 0.2 (a source's track
-   record is roughly the last 5 episodes), E = 20 episodes per run. **[decide]** confirm.
+3. **η and E:** η = 0.2 (a source's track record is roughly the last 5 episodes) and E = 20
+   episodes per run (confirmed 10-28). η is a candidate sweep axis later, to see whether the
+   memory length changes the results.
 4. **Outputs:** old per-run files from the last episode only; new per-episode files.
 5. **No pre-registration** for now.
 6. **Rule B** not needed; one quick comparison arm after the rest is done.
