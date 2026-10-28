@@ -1,8 +1,9 @@
 # Learning across episodes: design note (DRAFT, 2026-10-28)
 
-Branch `individual-learning`, off `master` at dfb5afe. Status: a draft for the user to mark
-up. Nothing here is decided unless it says so. Items marked **[decide]** are the user's;
-items marked *(proposal)* are Claude's suggestions.
+Branch `individual-learning`, off `master` at dfb5afe. Status: draft, partly decided. The
+user's decisions of 2026-10-28 (voice note) are marked **[decided 10-28]** and collected in
+§11; items still marked **[decide]** are the user's; items marked *(proposal)* are Claude's
+suggestions.
 
 Scope: **L1** (repeated episodes) and **L2** (individual learning of λ). **L3** (group
 learning, re-running the warm-up between episodes) is described only so L1 leaves room for
@@ -46,8 +47,8 @@ learning adds (none pre-registered yet):
 Each episode gets its own RNG stream, seeded from (run seed, episode), so episode e matches
 across arms (common seeding, as in the rung-1 arms).
 
-**The bank and deposits [decide]:**
-- **(A) Fresh bank, same people** *(proposal for the first version)*: each episode resets
+**The bank and deposits [decided 10-28: A for now]:**
+- **(A) Fresh bank, same people**: each episode resets
   the vault, the long asset and deposits to the run's initial draw. Learning is the only
   thing carried over, so any change across episodes is learning.
 - **(B) Carried wealth:** losses persist, so a depositor burned in episode 1 is smaller in
@@ -81,18 +82,21 @@ with culture as the prior:
 - It connects directly to Ch 1, where λ is a precision ratio. Learning pulls λ toward the
   optimal precision weight; culture is the persistent deviation from it.
 - It is cheap: no extra sub-simulations, only two numbers per agent.
-- **[decide]** Under `LAMBDA_SCOPE=both`, one λ is used for both the θ-blend and the
-  withdrawal-count blend. Should Rule A also score the count blend (anticipated against
-  realised neighbour withdrawals)? Or score θ only, which is simpler and closer to Ch 1?
+- **[decided 10-28: θ only.]** Under `LAMBDA_SCOPE=both`, one λ is used for both the
+  θ-blend and the withdrawal-count blend. Rule A scores only the θ signals. The user's
+  reason: a depositor's neighbourhood changes over time (people move), so the case for
+  learning how far to trust one's neighbours' withdrawals is weaker than for the public
+  signal of θ. Revisit if the network is ever made dynamic.
 - **[check against code]** Which variables are x_i and y in `thetaBelief` /
   `thetaPublicAt` under the reference settings, and whether every agent observes y.
 
-### Rule B: payoff learning *(later, optional)*
+### Rule B: payoff learning *[decided 10-28: not needed; one quick comparison arm after the rest]*
 
 λ moves toward whichever extreme (λ = 0 or λ = 1) would have produced the ex-post right
 action (withdraw if the bank failed, stay otherwise). This is closer to Arifovic-style
 reinforcement learning. It needs each agent's counterfactual decision at λ = 0 and λ = 1,
-so roughly 3× the decision cost. Hold until Rule A has a result.
+so roughly 3× the decision cost. Not needed for §7. Once Rule A, the outputs and the pilots
+are done, run one quick Rule B arm to see whether it differs meaningfully from Rule A.
 
 ## 5. L3 (not in this branch's first version)
 
@@ -111,7 +115,7 @@ byte, with a test.
 | `BANKRUN_EPISODE_RESET` | `bank` (A) / `wealth` (B) | `bank` |
 | `BANKRUN_LEARN` | `none` / `precision` / `payoff` | `none` |
 | `BANKRUN_LEARN_GRIP` | κ ∈ [0, 1] | 0 |
-| `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 **[decide]** |
+| `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 *(proposal)* |
 
 The manifest records the resolved values, and untagged runs with any switch set are refused
 (as now).
@@ -122,9 +126,9 @@ The manifest records the resolved values, and untagged runs with any switch set 
   withdrawal share, mean and s.d. of λ, mean MSE_x and MSE_y.
 - **`bankRunLambda*.csv`** (`BANKRUN_LOG=full` only): λ trajectories for a fixed sample of
   agents.
-- The existing per-run files are written for the last episode only, so the current checkers
-  keep working. **[decide]** Alternatively, write them for every episode with an episode
-  column.
+- The existing per-run files (results, vault, types, timing, ...) are written for the last
+  episode only, so the current checkers and analysis scripts keep working unchanged
+  *(proposal; the user saw no problem, 10-28)*. Per-episode detail goes in the new files.
 
 ## 8. Pilot arms *(proposal; pilot before sweep)*
 
@@ -144,8 +148,7 @@ What to look at first:
 - P(fail) by episode;
 - the I − C gap in withdrawal shares by episode.
 
-**[decide]** Which of these, if any, become pre-registered tests (as in rung 1 and rung 4)
-before the arms run?
+**[decided 10-28]** No pre-registration for now: the pilots are exploratory.
 
 ## 9. Cost
 
@@ -172,11 +175,13 @@ Pilots go on Hopper.
   a calibrated network (the current frontier; verified 2026-07-14).
 - Iyer and Puri (2012), *AER*: network transmission, moderated by insurance.
 
-## 11. Open decisions, collected
+## 11. Decisions (user, 2026-10-28, voice note)
 
-1. Bank and deposits across episodes: A (fresh bank) first, B later?
-2. Rule A on θ only, or on both blends?
-3. η default, and E (20?).
-4. Per-run outputs: last episode only, or every episode?
-5. Which pilot results become pre-registered tests?
-6. Is Rule B worth building at all, or does A suffice for §7?
+1. **Bank across episodes:** a fresh bank each episode (A) for now.
+2. **Rule A scores θ only.** Not the neighbour-count blend: neighbourhoods change over time
+   and people move, so learning to trust one's neighbours is the weaker case. Ignore it for now.
+3. **η and E:** explained to the user 10-28. Proposed defaults η = 0.2 (a source's track
+   record is roughly the last 5 episodes), E = 20 episodes per run. **[decide]** confirm.
+4. **Outputs:** old per-run files from the last episode only; new per-episode files.
+5. **No pre-registration** for now.
+6. **Rule B** not needed; one quick comparison arm after the rest is done.
