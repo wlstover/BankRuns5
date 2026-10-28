@@ -186,3 +186,37 @@ Pilots go on Hopper.
 4. **Outputs:** old per-run files from the last episode only; new per-episode files.
 5. **No pre-registration** for now.
 6. **Rule B** not needed; one quick comparison arm after the rest is done.
+
+## 12. Implementation status
+
+**L1 built 2026-10-28** (branch `individual-learning`):
+- `settings.jl`: `BANKRUN_EPISODES` (default 1) and `BANKRUN_EPISODE_RESET` (`bank` only;
+  `wealth` is refused until built).
+- `functions4.jl`:
+  - `runRow` runs episodes 1..E−1 (`earlyEpisodes!`), then the last episode through the
+    unchanged single-episode path.
+  - `resetEpisode!` restores the bank, deposits and banked flags.
+  - `episodeSeed` gives episode 1 the run's own seed2, and later episodes a derived,
+    non-negative seed.
+  - The early episodes' modelRun files go to a scratch directory that is deleted, so every
+    per-run file describes the last episode.
+  - `bankRunEpisodes<core>.csv` holds one row per run × type × episode: key, type, episode,
+    seed2, θ, failed, n, nExog, nEndog, depTotal, depEndog, λ mean and s.d.
+- `consolidate_results.py`: gathers `bankRunEpisodes` into `consolidated_episodes.csv`.
+- `tests/test_episodes.jl` (80 checks, in `run_tests.sh`):
+  - E = 1 reproduces dfb5afe byte for byte (default and reference bank);
+  - at E = 3 the per-run files equal a single-episode run on episode 3's seed;
+  - each episode row matches a single-episode run on that episode's seed;
+  - seeds are distinct and non-negative.
+  test_replay, test_dock_outputs, test_partial, test_switch_identity,
+  test_neighbour_output and test_deposit_cap pass unchanged.
+- `scripts/episodes_null.py`: the null-check reader.
+- `arms/learning_l1.tsv`: the `lrn-null` arm (r1k-none + E = 20, one cell, μ 0.5,
+  λ 0.1/0.9). Not yet submitted.
+- **Local smoke** (6 runs × 20 episodes, reference bank, depth 10, one initialisation):
+  - λ constant;
+  - no visible trend in P(fail) or the I − C withdrawal gap;
+  - about 0.8 s per episode.
+
+**Next:** submit `lrn-null` on Hopper, then L2 Rule A
+(`BANKRUN_LEARN=precision`, `LEARN_GRIP`, `LEARN_MEMORY`).

@@ -1576,6 +1576,101 @@ function wealthRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     return df
 end
 
+# ---- Repeated episodes (2026-10-28; docs/learning_design.md, L1) -------------
+# A run of E episodes plays the bank-run phase E times on one population: the
+# network, agents, types and λ persist; θ, the shock and the private signals are
+# redrawn. Everything modelRun draws comes from mod.seed2 (the main stream, and
+# the θ and belief streams derived from it), so an episode is reseeded through
+# seed2: episode 1 keeps the run's own seed (E = 1 is the single-episode model,
+# byte for byte), episode e > 1 uses episodeSeed(seed2, e), the same in every arm.
+
+"""The seed2 of episode `e` of a run whose own seed2 is `seed2` (non-negative)."""
+episodeSeed(seed2::Int64, e::Integer) = e == 1 ? seed2 :
+    reinterpret(Int64, (reinterpret(UInt64, seed2) ⊻ (UInt64(e - 1) * 0x9e3779b97f4a7c15)) &
+                       0x7fffffffffffffff)
+
+"""θ as modelRun draws it for a model with this seed2 (1 unless the fire-sale bank
+draws a fundamental): the first draw of its θ stream."""
+episodeTheta(seed2::Int64) =
+    switchValue(:BALANCE) == "firesale" && switchValue(:FUNDAMENTAL) == "theta" ?
+        rand(MersenneTwister(xor(reinterpret(UInt64, seed2), 0x7f4a7c15f39cc060))) : 1.0
+
+"""The bank and deposits as modelGenTyped left them, to restore between episodes
+(EPISODE_RESET = bank: a fresh bank, the same people)."""
+struct BankStart
+    deposits::Vector{Float64}
+    vault::Float64
+    illiquid::Float64
+    seed2::Int64
+end
+BankStart(mod::Model) = BankStart([a.deposit for a in mod.agtList], mod.theBank.vault,
+                                  mod.theBank.illiquid, mod.seed2)
+
+"""Give `mod` a fresh bank for episode `e`: initial deposits, everyone banked, the
+initial vault and long asset, an empty withdrawal history, and the episode's seed."""
+function resetEpisode!(mod::Model, start::BankStart, e::Integer)
+    for a in mod.agtList
+        a.deposit = start.deposits[a.idx]
+        a.banked = true
+    end
+    mod.theBank.vault = start.vault
+    mod.theBank.illiquid = start.illiquid
+    mod.theBank.bankingList = copy(mod.agtList)      # modelGenTyped's order
+    mod.theBank.withdrawHistory = Agent[]
+    mod.seed2 = episodeSeed(start.seed2, e)
+    return mod
+end
+
+meanOrNaN(x) = isempty(x) ? NaN : mean(x)
+sdOrNaN(x) = length(x) > 1 ? std(x) : NaN
+
+"""One row per type for episode `e`: θ, whether the bank failed, withdrawals by
+type, and λ by type (constant until learning is built)."""
+function episodeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord, e::Integer, failed::Bool)
+    ts = typeSummary(mod, isI, rec)
+    λ = [a.individualism for a in mod.agtList]
+    sel = Dict("I" => isI, "C" => .!isI)
+    # key, type first: the per-type layout consolidate_results.py reads (DOCK_FILES)
+    return DataFrame(key=ts.key, type=ts.type, episode=e, seed2=mod.seed2,
+                     theta=episodeTheta(mod.seed2), failed=failed,
+                     n=ts.n, nExog=ts.nExog, nEndog=ts.nEndog,
+                     depTotal=ts.depTotal, depEndog=ts.depEndog,
+                     lambdaMean=[meanOrNaN(λ[sel[t]]) for t in ts.type],
+                     lambdaSd=[sdOrNaN(λ[sel[t]]) for t in ts.type])
+end
+
+writeEpisode(mod::Model, isI, rec::RunRecord, e::Integer, failed::Bool) =
+    CSV.write(dataDir*"/"*"bankRunEpisodes"*string(workerCore)*".csv",
+              episodeRows(mod, isI, rec, e, failed), writeheader=false, append=true)
+
+"""Episodes 1..E-1 of a run, then the reset for episode E. modelRun's own files
+(and the per-run files runRow writes) are kept for the last episode only: the
+early episodes write them to a scratch directory, which is deleted. Each early
+episode adds its rows to bankRunEpisodes."""
+function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer)
+    global dataDir
+    switchValue(:EPISODE_RESET) == "bank" ||
+        error("BANKRUN_EPISODE_RESET=$(switchValue(:EPISODE_RESET)) is not built")
+    start = BankStart(mod)
+    realDir = dataDir
+    scratch = mktempdir()
+    try
+        for e in 1:(episodes - 1)
+            resetEpisode!(mod, start, e)
+            rec = RunRecord()
+            dataDir = scratch
+            failed = modelRun(mod; record=rec)[1]
+            dataDir = realDir
+            writeEpisode(mod, isI, rec, e, failed)
+        end
+    finally
+        dataDir = realDir
+        rm(scratch; recursive=true, force=true)
+    end
+    resetEpisode!(mod, start, episodes)
+    return start
+end
+
 # One run of one parameter row, and every file it writes (results, vault,
 # who-runs summary, plus the full logs when BANKRUN_LOG = full). Used by
 # modelCall, scripts/replay_run.jl and the tests.
@@ -1585,9 +1680,14 @@ function runRow(row)
                              .1, row[:network], row[:depositDist], row[:reserveRatio],
                              row[:depositInsuranceQuantile], row[:withdrawRV], row[:warmupAlpha],
                              row[:fracIndividualists], row[:lambdaI], row[:lambdaC])
+    # BANKRUN_EPISODES > 1: episodes 1..E-1 first, then the last one below, which
+    # writes the per-run files exactly as a single-episode run does.
+    episodes = switchValue(:EPISODES)
+    episodes > 1 && earlyEpisodes!(mod, isI, episodes)
     vaultInit = mod.theBank.vault      # before the exogenous shock
     rec = RunRecord()
     rMod, nWithdrawn, depositWithdrawn = modelRun(mod; record=rec)
+    episodes > 1 && writeEpisode(mod, isI, rec, episodes, rMod)
     # Widened 2026-08-13 from (key, result) to carry |S*|. Readers that take
     # only the first two columns are unaffected.
     resultRow=DataFrame(key=row[:key],result=rMod,

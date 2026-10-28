@@ -1,0 +1,17 @@
+# L1 null check: repeated episodes, no learning (2026-10-28; docs/learning_design.md §3).
+# r1k-none (arms/rung1_cap.tsv: the capped fire-sale reference bank) with
+# BANKRUN_EPISODES=20, at one mixed cell (mu 0.5, lambda 0.1 / 0.9). Common seeding,
+# so each run's population and episode-1 seeds are those of r1k-none's runs at that
+# cell: episode 1 must equal r1k-none run for run.
+# Reading, stated before the run (a gate, not a hypothesis test):
+#   - lambda constant within every run (no learning is built yet);
+#   - episode 1 = r1k-none for every run;
+#   - P(fail) and the I - C withdrawal gap flat in the episode number (slopes ~0),
+#     and P(fail) pooled over episodes 2-20 within sampling error of r1k-none's.
+# A trend here would be a reset bug (state carried between episodes), not learning.
+# Cost: 20x a single-episode cell (250 runs x 20 episodes); walltime is a guess,
+# r1k-none's per-cell time was not recorded locally.
+# Reader: python3 scripts/episodes_null.py --arm outputs/lrn-null --ref outputs/r1k-none
+#
+# tag	switches	run_all.sh flags
+lrn-null	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_LAMBDA_SCOPE=both BANKRUN_WITHDRAW=partial BANKRUN_CARA=0.1 BANKRUN_DEPOSIT_CAP=0.01 BANKRUN_EPISODES=20	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --concurrency 1 --mem 20G --time 3-00:00:00

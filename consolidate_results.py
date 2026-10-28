@@ -167,6 +167,12 @@ DOCK_FILES = {
     # withdrawals made, decisions that valued the interior fractions by
     # re-simulating (large depositors), the share of deposits withdrawn, and the
     # share the largest depositor withdrew.
+    # Repeated episodes (2026-10-28, BANKRUN_EPISODES > 1; functions4.jl
+    # episodeRows): one row per run x type x episode, so a run has 2E rows here
+    # while every other file describes its last episode.
+    "episodes": ("bankRunEpisodes", True,
+                 ["episode", "seed2", "theta", "failed", "n", "nExog", "nEndog", "depTotal",
+                  "depEndog", "lambdaMean", "lambdaSd"]),
     "partial": ("bankRunPartial", False,
                 ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
                  "largestFracWithdrawn"]),

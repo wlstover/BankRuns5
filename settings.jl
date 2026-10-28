@@ -73,6 +73,14 @@ const SWITCH_DEFAULTS = (
     # holding the mean deposit has a·b = CARA (functions4.jl ceValue). Fire-sale
     # bank only; with WITHDRAW = partial every agent values the fractions.
     CARA             = 0.0,
+    # Repeated episodes (2026-10-28; the user, docs/learning_design.md, L1): a run
+    # is EPISODES bank runs in a row on one population (network, agents, types, λ).
+    # Each episode redraws θ, the shock and the private signals from its own seed;
+    # EPISODE_RESET = bank gives every episode a fresh bank and the initial deposits.
+    # 1 = today's model. The per-run files describe the last episode;
+    # bankRunEpisodes has one row per episode and type.
+    EPISODES         = 1,
+    EPISODE_RESET    = "bank",
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -94,6 +102,7 @@ const LAMBDA_SCOPE_CHOICES = ("count", "theta", "both")
 const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
 const WITHDRAW_CHOICES     = ("all", "partial")
+const EPISODE_RESET_CHOICES = ("bank",)       # "wealth" (losses carried over) is planned
 
 """The combinations of switches the model refuses, as an error message (or
 nothing). Checked when the switches are parsed, so a sweep fails at startup, and
@@ -214,6 +223,8 @@ function parseSwitchesFromEnv()
           PARTIAL_STEPS    = envInt("BANKRUN_PARTIAL_STEPS", D.PARTIAL_STEPS, 2, 1000),
           DEPOSIT_CAP      = envFloat("BANKRUN_DEPOSIT_CAP", D.DEPOSIT_CAP, 0.0, 1.0),
           CARA             = envFloat("BANKRUN_CARA", D.CARA, 0.0, 1.0e6),
+          EPISODES         = envInt("BANKRUN_EPISODES", D.EPISODES, 1, 10^4),
+          EPISODE_RESET    = envChoice("BANKRUN_EPISODE_RESET", D.EPISODE_RESET, EPISODE_RESET_CHOICES),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)
