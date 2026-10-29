@@ -104,7 +104,7 @@ def main() -> int:
 
     if a.ref:
         ref = pd.read_csv(a.ref / "consolidated_results.csv")
-        ref = ref[ref["completed"].astype(str) == "true"]
+        ref = ref[ref["completed"].astype(str).str.lower() == "true"]
         ref = ref.join(seeds_of(ref["key"]))
         ref["failed"] = ref["bankRun"].astype(str).str.lower() == "true"
         cells = runs[CELL].drop_duplicates()

@@ -1259,6 +1259,8 @@ function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
         assetsT = max(mod.theBank.vault, 0.0) + mod.theBank.illiquid * returnOf(theta)
         solvent = !liquidityFail && assetsT >= promises
         runState = !solvent
+        record === nothing ||
+            (record.endRho = liquidityFail ? 0.0 : promises > 0.0 ? assetsT / promises : Inf)
         deps = partial ? dep0 : [a.deposit for a in mod.agtList]
         big = argmax(deps)
         CSV.write(dataDir*"/"*"bankRunBalance"*string(workerCore)*".csv",
@@ -1372,8 +1374,11 @@ mutable struct RunRecord
     nbAgent::Vector{Int}
     nbShare::Vector{Float64}
     nbWithdrew::Vector{Bool}
+    # Fire-sale bank, end of the run (2026-10-29, Rule B): assets over the stayers'
+    # promises (0 after a liquidity failure, Inf if nobody stayed; NaN otherwise).
+    endRho::Float64
 end
-RunRecord() = RunRecord(Int[], Float64[], 0, Int[], 0, NaN, 0.0, 0, Float64[], Int[], Float64[], Bool[])
+RunRecord() = RunRecord(Int[], Float64[], 0, Int[], 0, NaN, 0.0, 0, Float64[], Int[], Float64[], Bool[], NaN)
 record!(r::RunRecord, idx::Int, paid::Float64, tick::Int=0, amount::Float64=NaN) =
     (push!(r.order, idx); push!(r.paid, paid); push!(r.tick, tick); push!(r.amount, amount); r)
 function notePublic!(r::RunRecord, t::Int, err::Real)
@@ -1645,14 +1650,16 @@ mutable struct LearnState
     msex::Vector{Float64}
     msey::Vector{Float64}
     weight::Vector{Float64}
+    learned::Vector{Float64}   # Rule B's ω*, starting at the cultural λ (unused by Rule A)
 end
+LearnState(culture, msex, msey, weight) = LearnState(culture, msex, msey, weight, copy(culture))
 function LearnState(mod::Model)
     # the parse-time checks (settings.jl switchComboError), for scripts and tests
     # that set the switches directly
     (switchValue(:BALANCE) == "firesale" && switchValue(:FUNDAMENTAL) == "theta" &&
      switchValue(:PRIVATE_SIGNAL) == "theta" && switchValue(:THETA_PUBLIC) != "none" &&
      switchValue(:LAMBDA_SCOPE) != "count") ||
-        error("BANKRUN_LEARN=precision needs the fire-sale bank with θ, PRIVATE_SIGNAL=theta, " *
+        error("BANKRUN_LEARN=$(switchValue(:LEARN)) needs the fire-sale bank with θ, PRIVATE_SIGNAL=theta, " *
               "a THETA_PUBLIC signal and LAMBDA_SCOPE theta or both")
     λ = [a.individualism for a in mod.agtList]
     n = length(λ)
@@ -1683,6 +1690,35 @@ function learnUpdate!(L::LearnState, x::Vector{Float64}, θ::Float64, y::Float64
     return L
 end
 
+# ---- Learning, L2 Rule B: payoff learning, the signal-direction rule (2026-10-29) ---
+# docs/learning_design.md §4. The feedback comes from outcomes, so insurance enters
+# it. After each episode, for each agent: did staying to the end pay more per unit of
+# deposit than withdrawing at par at the start? Staying pays R if the bank is solvent,
+# else max(ρR, the insured share) (stayerPayoff's rule). The signal that pointed
+# toward the better action (the higher of x_i and y if staying paid more, the lower
+# if withdrawing did) is the one to trust, so the learned weight moves toward 1 (y)
+# or 0 (x):
+#     ω* ← (1 − η)·ω* + η·target,   ω = (1 − κ)·λ + κ·ω*
+# No move on a tie in payoff (e.g. a fully insured stayer in a failed bank) or in
+# the signals. Uses only what happened: no counterfactual decisions.
+
+"""Per unit of deposit, what staying to the end paid each agent, given the end-of-run
+ratio ρ of assets to promises, the deposits, the insurance cap and R."""
+stayValue(rho::Float64, deps::Vector{Float64}, cap::Float64, R::Float64) =
+    [rho >= 1.0 ? R : max(rho * R, min(d, cap) / d) for d in deps]
+
+"""Rule B after an episode with private signals x, public signal y and stay values."""
+function payoffUpdate!(L::LearnState, x::Vector{Float64}, y::Float64, stay::Vector{Float64};
+                       grip::Float64, memory::Float64)
+    for i in eachindex(x)
+        s = sign(stay[i] - 1.0) * sign(y - x[i])    # +1: y pointed the right way; −1: x did
+        s == 0 && continue
+        L.learned[i] = (1.0 - memory) * L.learned[i] + memory * (s > 0 ? 1.0 : 0.0)
+    end
+    @. L.weight = (1.0 - grip) * L.culture + grip * L.learned
+    return L
+end
+
 """One row per type for episode `e`: θ, whether the bank failed, withdrawals by
 type, cultural λ by type, and the θ weight used and the squared errors entering
 the episode (with learning; else the cultural θ weight and NaN)."""
@@ -1694,8 +1730,9 @@ function episodeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord, e::I
     nanv = fill(NaN, length(λ))
     ω = learn !== nothing ? learn.weight :
         switchValue(:LAMBDA_SCOPE) == "count" ? fill(mean(λ), length(λ)) : λ
-    mx = learn === nothing ? nanv : learn.msex
-    my = learn === nothing ? nanv : learn.msey
+    rmse = learn !== nothing && switchValue(:LEARN) == "precision"
+    mx = rmse ? learn.msex : nanv
+    my = rmse ? learn.msey : nanv
     # key, type first: the per-type layout consolidate_results.py reads (DOCK_FILES)
     return DataFrame(key=ts.key, type=ts.type, episode=e, seed2=mod.seed2,
                      theta=episodeTheta(mod.seed2), failed=failed,
@@ -1724,7 +1761,8 @@ function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer
     switchValue(:EPISODE_RESET) == "bank" ||
         error("BANKRUN_EPISODE_RESET=$(switchValue(:EPISODE_RESET)) is not built")
     start = BankStart(mod)
-    learn = switchValue(:LEARN) == "precision" ? LearnState(mod) : nothing
+    rule = switchValue(:LEARN)
+    learn = rule in ("precision", "payoff") ? LearnState(mod) : nothing
     grip, memory = switchValue(:LEARN_GRIP), switchValue(:LEARN_MEMORY)
     realDir = dataDir
     scratch = mktempdir()
@@ -1739,7 +1777,13 @@ function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer
             writeEpisode(mod, isI, rec, e, failed, learn)
             if learn !== nothing
                 θ, x = episodeThetaDraws(mod.seed2, length(mod.agtList))
-                learnUpdate!(learn, x, θ, publicAtStart(θ); grip=grip, memory=memory)
+                if rule == "precision"
+                    learnUpdate!(learn, x, θ, publicAtStart(θ); grip=grip, memory=memory)
+                else
+                    stay = stayValue(rec.endRho, [a.deposit for a in mod.agtList], currentCap(mod),
+                                     switchValue(:STAY_RETURN))
+                    payoffUpdate!(learn, x, publicAtStart(θ), stay; grip=grip, memory=memory)
+                end
             end
         end
     finally

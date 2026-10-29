@@ -87,6 +87,9 @@ const SWITCH_DEFAULTS = (
     # of x_i and y, by LEARN_GRIP (κ; 0 = culture only, 1 = experience only), with
     # memory LEARN_MEMORY (η; 0.2 ≈ the last five episodes). The cultural λ and
     # the head-count blend are unchanged (the user: θ only).
+    # payoff (2026-10-29, Rule B, §4): the weight moves toward whichever of x_i and y
+    # pointed toward the action that paid more (staying to the end vs withdrawing at
+    # the start, insurance included), same κ and η.
     LEARN            = "none",
     LEARN_GRIP       = 0.0,
     LEARN_MEMORY     = 0.2,
@@ -112,7 +115,7 @@ const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
 const WITHDRAW_CHOICES     = ("all", "partial")
 const EPISODE_RESET_CHOICES = ("bank",)       # "wealth" (losses carried over) is planned
-const LEARN_CHOICES = ("none", "precision")      # "payoff" (Rule B) is a later comparison arm
+const LEARN_CHOICES = ("none", "precision", "payoff")   # payoff: Rule B (2026-10-29)
 
 """The combinations of switches the model refuses, as an error message (or
 nothing). Checked when the switches are parsed, so a sweep fails at startup, and
@@ -153,16 +156,17 @@ function switchComboError(sw)
         return "BANKRUN_CARA > 0 needs BANKRUN_BALANCE=firesale"
     sw.RETURN_HI < sw.RETURN_LO &&
         return "BANKRUN_RETURN_HI must be at least BANKRUN_RETURN_LO"
-    # Rule A scores x_i and y against θ, and moves the weight on y in the θ blend.
-    if hasproperty(sw, :LEARN) && sw.LEARN == "precision"
+    # Rule A scores x_i and y against θ; Rule B asks which of them pointed toward the
+    # action that paid. Both move the weight on y in the θ blend.
+    if hasproperty(sw, :LEARN) && sw.LEARN in ("precision", "payoff")
         (sw.PRIVATE_SIGNAL != "theta" || sw.THETA_PUBLIC == "none") &&
-            return "BANKRUN_LEARN=precision needs BANKRUN_PRIVATE_SIGNAL=theta and a BANKRUN_THETA_PUBLIC signal"
+            return "BANKRUN_LEARN=$(sw.LEARN) needs BANKRUN_PRIVATE_SIGNAL=theta and a BANKRUN_THETA_PUBLIC signal"
         sw.LAMBDA_SCOPE == "count" &&
-            return "BANKRUN_LEARN=precision needs BANKRUN_LAMBDA_SCOPE=theta or both (with count the θ blend carries no individual weight)"
+            return "BANKRUN_LEARN=$(sw.LEARN) needs BANKRUN_LAMBDA_SCOPE=theta or both (with count the θ blend carries no individual weight)"
     end
     hasproperty(sw, :LEARN) && sw.LEARN == "none" &&
         (sw.LEARN_GRIP != 0.0 || sw.LEARN_MEMORY != 0.2) &&
-        return "BANKRUN_LEARN_GRIP / BANKRUN_LEARN_MEMORY need BANKRUN_LEARN=precision"
+        return "BANKRUN_LEARN_GRIP / BANKRUN_LEARN_MEMORY need BANKRUN_LEARN=precision or payoff"
     return nothing
 end
 

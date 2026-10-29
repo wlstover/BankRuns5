@@ -1,0 +1,18 @@
+# L2 Rule B pilots: payoff learning by the signal-direction rule (2026-10-29;
+# docs/learning_design.md §4, §8). kappa 0.5, eta 0.2, 20 episodes, one mixed cell
+# (mu 0.5, lambda 0.1 / 0.9), common seeding with arms/learning_l2.tsv and
+# arms/learning_cov.tsv, so each arm pairs run for run with its no-learning control:
+#   lrn-y50-pay      q 0    control lrn-y50-none     (learning_l2.tsv)
+#   lrn-y50-pay-q50  q 0.5  control lrn-y50-none-q50 (learning_cov.tsv)
+#   lrn-y50-pay-q90  q 0.9  control lrn-y50-none-q90 (learning_cov.tsv)
+# What to read (Q2, individual): by episode, the theta weight of I and C, P(fail),
+# P(fail | theta) and the I - C gap against the control, and against Rule A at the same
+# kappa (lrn-y50-k50, -k50-q50, -k50-q90). Under insurance, insured depositors should
+# drift toward whichever signal said stay.
+# Reader: python3 scripts/learning_pilot.py --control outputs/lrn-y50-none outputs/lrn-y50-pay
+#         (and the q50 / q90 pairs)
+#
+# tag	switches	run_all.sh flags
+lrn-y50-pay	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.5 BANKRUN_LAMBDA_SCOPE=both BANKRUN_WITHDRAW=partial BANKRUN_CARA=0.1 BANKRUN_DEPOSIT_CAP=0.01 BANKRUN_EPISODES=20 BANKRUN_LEARN=payoff BANKRUN_LEARN_GRIP=0.5 BANKRUN_LEARN_MEMORY=0.2	--grid reference --sigma 2.5 --reserve 0.05 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --concurrency 1 --mem 20G --time 3-00:00:00
+lrn-y50-pay-q50	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.5 BANKRUN_LAMBDA_SCOPE=both BANKRUN_WITHDRAW=partial BANKRUN_CARA=0.1 BANKRUN_DEPOSIT_CAP=0.01 BANKRUN_EPISODES=20 BANKRUN_LEARN=payoff BANKRUN_LEARN_GRIP=0.5 BANKRUN_LEARN_MEMORY=0.2	--grid reference --sigma 2.5 --reserve 0.05 --depq 0.5 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --concurrency 1 --mem 20G --time 3-00:00:00
+lrn-y50-pay-q90	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.5 BANKRUN_LAMBDA_SCOPE=both BANKRUN_WITHDRAW=partial BANKRUN_CARA=0.1 BANKRUN_DEPOSIT_CAP=0.01 BANKRUN_EPISODES=20 BANKRUN_LEARN=payoff BANKRUN_LEARN_GRIP=0.5 BANKRUN_LEARN_MEMORY=0.2	--grid reference --sigma 2.5 --reserve 0.05 --depq 0.9 --mu 0.5 --lambda-i 0.1 --lambda-c 0.9 --concurrency 1 --mem 20G --time 3-00:00:00

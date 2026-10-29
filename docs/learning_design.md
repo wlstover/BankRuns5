@@ -1,6 +1,6 @@
 # Learning across episodes: design note (DRAFT, 2026-10-28)
 
-Branch `individual-learning`, off `master` at dfb5afe. Status: design decided 10-28; ready to code L1. The
+Branch `individual-learning`, off `master` at dfb5afe. Status: L1 and Rule A built and piloted (10-28/29); Rule B decided and built 10-29 (pilots not run); L3a decided 10-29, not built. The
 user's decisions of 2026-10-28 (voice note) are marked **[decided 10-28]** and collected in
 §11; items still marked **[decide]** are the user's; items marked *(proposal)* are Claude's
 suggestions.
@@ -90,35 +90,78 @@ with culture as the prior:
 - **[check against code]** Which variables are x_i and y in `thetaBelief` /
   `thetaPublicAt` under the reference settings, and whether every agent observes y.
 
-### Rule B: payoff learning *[decided 10-28: not needed; one quick comparison arm after the rest]*
+### Rule B: payoff learning, the signal-direction rule *[decided 10-29; built 10-29]*
 
-λ moves toward whichever extreme (λ = 0 or λ = 1) would have produced the ex-post right
-action (withdraw if the bank failed, stay otherwise). This is closer to Arifovic-style
-reinforcement learning. It needs each agent's counterfactual decision at λ = 0 and λ = 1,
-so roughly 3× the decision cost. Not needed for §7. Once Rule A, the outputs and the pilots
-are done, run one quick Rule B arm to see whether it differs meaningfully from Rule A.
+Rule A scores signal accuracy, so a backstop cannot change what it learns: the 10-29 pilot
+`lrn-y50-k50-ins` had θ weights bit-identical to `lrn-y50-k50` (§12). A backstop changes
+what running *pays*. Rule B takes its feedback from outcomes, so insurance enters it. It is
+the individual half of Q2, and its payoff is what L3a's imitation compares (§5).
 
-## 5. L3 (not in this branch's first version)
+After each episode, for each agent, from what actually happened (no counterfactual
+decisions):
 
-Between episodes, re-run the warm-up for some ticks, with the episode's outcome feeding a
-trait. For example, agents who ran and were right gain influence. Types (and μ) are then
-re-derived. L1 should keep the warm-up state, not discard it, so L3 can resume from it.
+    π_stay = R if the bank is solvent at the end, else max(ρR, insured share)
+             (per unit of deposit; ρ = end-of-run assets / promises, 0 after a liquidity failure)
+    π_wd   = 1 (withdrawing at par at the start)
+    trust y if y pointed toward the better action: y > x_i and π_stay > π_wd,
+                                                or y < x_i and π_stay < π_wd;  else trust x
+    ω*_i ← (1 − η)·ω*_i + η·(1 if trust y, 0 if trust x)     (ω*_i starts at the cultural λ_i)
+    ω_i  = (1 − κ)·λ_i^culture + κ·ω*_i
+    no update on a tie in payoff (a fully insured stayer in a failed bank) or in the signals
 
-## 6. Switches *(proposal)*
+- **[decided 10-29] Move toward the end that paid better, at speed η.** κ and η mean what
+  they mean under Rule A, so the two rules' arms compare directly.
+- **[decided 10-29] The signal-direction rule, from realised outcomes.** The weight end that
+  "paid better" is the one that leans on the signal that pointed toward the action that
+  paid. Considered and dropped: shadow agents with weights 0 and 1 replayed against the
+  realised run (about 3× the decision cost), and tick-1 counterfactual decisions.
+- **What it ignores:** it moves the weight even when both signals would have led to the same
+  action, and it does not score the head-count blend (decision 2).
+- **Insurance enters through π_stay.** An insured depositor's π_stay is at least 1, so it
+  learns to trust whichever signal said "stay" (complacency). With partial coverage, insured
+  and uninsured depositors in the same bank learn in opposite directions after a failure.
+- Rule B needs agents who still run: at q 0.99 nobody withdraws endogenously (§12), so the
+  backstop arms use partial coverage (§8).
 
-These follow `settings.jl`'s pattern. The defaults must reproduce today's outputs byte for
-byte, with a test.
+## 5. L3: social learning
+
+### L3a: imitation *[decided 10-29: build]*
+
+The social half of Q1/Q2: agents learn from what worked for their neighbours, not only from
+their own experience (the individual vs social distinction of Arifovic and Maschek 2006).
+After each episode:
+
+    pick one network neighbour j at random
+    if π_j > π_i:  ω*_i ← (1 − η)·ω*_i + η·ω*_j          (move toward j's learned weight)
+    ω_i = (1 − κ)·λ_i^culture + κ·ω*_i
+
+- π is Rule B's realised payoff per unit of deposit (no counterfactual needed: each agent's
+  own realised π).
+- It moves the learned weight ω*, not the cultural λ, and only the θ weight (as Rule A/B).
+- The backstop enters through π: under insurance, stayers are paid R and runners 1, so
+  stayers' weights spread. That is Q2 at the group level.
+- **[decide]** *(proposals)* one random neighbour (not the best neighbour); η shared with
+  Rule B; L3a runnable alone (`LEARN=imitate`) and with Rule B (`LEARN=payoff+imitate`), so
+  individual, social and both compare on common seeds.
+
+### L3b: re-running the warm-up *[decided 10-29: not built; later work]*
+
+Re-running Flache–Macy between episodes, with influence going to agents who were right, so
+types and μ are re-derived. Later work, together with **vertical transmission** of the
+weights (the user, 10-29). L1 keeps the warm-up state, so it stays possible.
+
+## 6. Switches
 
 | switch | values | default |
 |---|---|---|
 | `BANKRUN_EPISODES` | E ≥ 1 | 1 (today's model) |
-| `BANKRUN_EPISODE_RESET` | `bank` (A) / `wealth` (B) | `bank` |
-| `BANKRUN_LEARN` | `none` / `precision` / `payoff` | `none` |
+| `BANKRUN_EPISODE_RESET` | `bank` (A) / `wealth` (B, not built) | `bank` |
+| `BANKRUN_LEARN` | `none` / `precision` / `payoff` / `imitate` / `payoff+imitate` | `none` |
 | `BANKRUN_LEARN_GRIP` | κ ∈ [0, 1] | 0 |
-| `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 (decided 10-28; a later sweep axis) |
+| `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 (a later sweep axis) |
 
-The manifest records the resolved values, and untagged runs with any switch set are refused
-(as now).
+`precision`, `none` and E built 10-28; `payoff` built 10-29; `imitate`, `payoff+imitate` to build.
+The manifest records the resolved values, and untagged runs with any switch set are refused.
 
 ## 7. Outputs
 
@@ -130,25 +173,30 @@ The manifest records the resolved values, and untagged runs with any switch set 
   episode only, so the current checkers and analysis scripts keep working unchanged
   *(proposal; the user saw no problem, 10-28)*. Per-episode detail goes in the new files.
 
-## 8. Pilot arms *(proposal; pilot before sweep)*
+## 8. Pilot arms
 
-All on the reference bank: the r1k-none settings (fire-sale, θ fundamental, CARA 0.1,
-σ 2.5 with the 1% cap). E = 20 to start.
+All on the reference bank (r1k settings), E = 20, one mixed cell (μ 0.5, λ 0.1/0.9), common
+seeding. Arms with the same coverage pair run for run with their no-learning control.
 
-| arm | switches | purpose |
+**Run 10-28 (read 10-29, §12):** lrn-null; lrn-y50-none, k25, k50, k100; k50-ins (q 0.99).
+
+**Coverage, Rule A (no new code; `arms/learning_cov.tsv`, 10-29):** lrn-y50-none and k50 at
+q 0.5 and 0.9. Checks that partial coverage keeps endogenous runners (q 0.99 kept none), and
+is the Rule A baseline for the Rule B and L3a coverage arms.
+
+**Rule B (`arms/learning_payoff.tsv`, 10-29):** lrn-y50-pay, -pay-q50, -pay-q90 (κ 0.5, η 0.2),
+paired with lrn-y50-none and the coverage controls.
+
+**After L3a is built** *(proposal)*: at q 0 / 0.5 / 0.9, κ 0.5, η 0.2:
+
+| arm | learning | question |
 |---|---|---|
-| lrn-null | LEARN none | null check (§3) |
-| lrn-k25, lrn-k50, lrn-k100 | precision, κ 0.25/0.5/1 | Q1: speed and extent of convergence of the type gap |
-| lrn-k50-nopub | as k50, public signal none | learning with only the neighbour signal |
-| lrn-k50-ins | as k50, insurance q 0.99 | Q2 |
-| lrn-k50-wealth | as k50, RESET wealth | Q3, once A works |
+| lrn-y50-pay-q* | Rule B | Q2, individual |
+| lrn-y50-imi-q* | L3a | Q2, social |
+| lrn-y50-payimi-q* | Rule B + L3a | both |
 
-What to look at first:
-- the gap in mean λ between I and C by episode;
-- P(fail) by episode;
-- the I − C gap in withdrawal shares by episode.
-
-**[decided 10-28]** No pre-registration for now: the pilots are exploratory.
+What to read: by episode and by type, the θ weight, P(fail) and P(fail | θ), the withdrawal
+gap; and by insured vs uninsured depositor within the bank (Iyer–Puri).
 
 ## 9. Cost
 
@@ -175,7 +223,7 @@ Pilots go on Hopper.
   a calibrated network (the current frontier; verified 2026-07-14).
 - Iyer and Puri (2012), *AER*: network transmission, moderated by insurance.
 
-## 11. Decisions (user, 2026-10-28, voice note)
+## 11. Decisions (user, 2026-10-28, voice note; 2026-10-29)
 
 1. **Bank across episodes:** a fresh bank each episode (A) for now.
 2. **Rule A scores θ only.** Not the neighbour-count blend: neighbourhoods change over time
@@ -186,6 +234,10 @@ Pilots go on Hopper.
 4. **Outputs:** old per-run files from the last episode only; new per-episode files.
 5. **No pre-registration** for now.
 6. **Rule B** not needed; one quick comparison arm after the rest is done.
+
+7. **[10-29] Q2 stays**, at the individual and the group level: Rule B (payoff learning)
+   with partial-coverage arms, and L3a (imitation). Rule B moves toward the end that paid
+   better at speed η. L3b is later work, with vertical transmission of the weights.
 
 ## 12. Implementation status
 
@@ -251,3 +303,33 @@ Pilots go on Hopper.
   size are noise.
 
 **Next:** submit `lrn-null` and the L2 pilots on Hopper.
+
+**Pilots read 2026-10-29** (Daily Notes/2026-10-29.md):
+- **lrn-null passes:** λ constant; episode 1 = r1k-none in 250/250 runs; P(fail), episodes
+  2–20, 0.244 against 0.256 (z −0.50); no trend in P(fail) or the I − C gap.
+- **Rule A:** C's θ weight 0.90 → 0.70 / 0.51 / 0.12 at κ 0.25 / 0.5 / 1; I and C converge at
+  κ = 1 (~0.116). Episodes 2–5 overshoot (I 0.34 at κ = 1, episode 2): the MSE prior is the
+  signal variance, which treats the stale y as a noisy θ signal.
+- **Learning undoes the stale signal's reassurance**, monotone in κ. P(fail) at θ ∈ [0.1, 0.2):
+  no public signal 0.70; y50 0.08; κ 0.25 0.19; 0.5 0.35; 1 0.63. The stale signal's
+  failures at θ ≥ 0.8 (~0.02) go to 0.
+- **The withdrawal gap persists at κ = 1** (C 0.107, I 0.065), through the head-count blend,
+  which keeps the cultural λ by design (decision 2).
+- **lrn-y50-k50-ins is degenerate:** no endogenous withdrawals at q 0.99, and θ weights
+  identical to k50 (Rule A is outcome-blind). Hence Rule B and partial coverage (decision 7).
+
+**L2 Rule B built 2026-10-29** (same branch):
+- `settings.jl`: `BANKRUN_LEARN=payoff`, under the same refused combinations as precision.
+- `functions4.jl`:
+  - `RunRecord.endRho`: assets over the stayers' promises at the end of a fire-sale run
+    (0 after a liquidity failure, Inf if nobody stayed);
+  - `stayValue`, `payoffUpdate!`; `LearnState.learned` (ω*, from the cultural λ);
+  - `earlyEpisodes!` applies Rule A or Rule B after each episode; the episode rows' squared
+    error columns are NaN under Rule B.
+- `tests/test_payoff_learning.jl` (111 checks, in `run_tests.sh`):
+  - κ = 0 equals no learning; episode 1 equals no learning;
+  - the learner replayed by hand from θ, x, y and each episode's end-of-run balance;
+  - the update and stay-value arithmetic, insurance included;
+  - insurance moves the learned weights (Rule A could not);
+  - the refused combinations.
+- `arms/learning_payoff.tsv`: three one-cell arms at q 0, 0.5, 0.9.
