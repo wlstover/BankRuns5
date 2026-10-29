@@ -1719,6 +1719,47 @@ function payoffUpdate!(L::LearnState, x::Vector{Float64}, y::Float64, stay::Vect
     return L
 end
 
+# ---- Learning, L3a: imitation (2026-10-29) ----------------------------------------
+# docs/learning_design.md §5. After each episode each agent looks at one network
+# neighbour j, drawn at random, and if j's realised payoff per unit of deposit beat
+# its own, moves its learned weight toward j's:
+#     ω*_i ← (1 − η)·ω*_i + η·ω*_j   (if π_j > π_i),   ω = (1 − κ)·λ + κ·ω*
+# π is what the agent was actually paid: its withdrawals, plus the stay value on
+# what it left in (stayValue's rule, so insurance enters). The update is
+# synchronous (every j's ω* from before the round). Under payoff+imitate, Rule B
+# moves ω* first and imitation reads the result. The neighbour draws use their own
+# stream from the episode's seed, so the model's other draws are untouched.
+
+"""Per unit of its deposit at the start of the episode, what each agent was paid:
+its withdrawals plus, on what it left in, the stay value per unit (`stay`)."""
+function realisedPayoff(mod::Model, rec::RunRecord, deps0::Vector{Float64}, stay::Vector{Float64})
+    π = zeros(length(mod.agtList))
+    for (k, i) in enumerate(rec.order)
+        π[i] += rec.paid[k]
+    end
+    for a in mod.agtList
+        a.banked && a.deposit > 0.0 && (π[a.idx] += stay[a.idx] * a.deposit)
+    end
+    return π ./ deps0
+end
+
+"""The neighbour draws for an episode run under seed `seed2` (mod.seed2 after resetEpisode!)."""
+imitationRng(seed2::Int64) = MersenneTwister(xor(reinterpret(UInt64, seed2), 0x2545f4914f6cdd1d))
+
+"""L3a after an episode with realised payoffs π: one random neighbour each."""
+function imitateUpdate!(L::LearnState, network, π::Vector{Float64}, rng::AbstractRNG;
+                        grip::Float64, memory::Float64)
+    before = copy(L.learned)
+    for i in eachindex(π)
+        nb = all_neighbors(network, i)
+        isempty(nb) && continue
+        j = nb[rand(rng, 1:length(nb))]
+        π[j] > π[i] && (L.learned[i] = (1.0 - memory) * before[i] + memory * before[j])
+    end
+    @. L.weight = (1.0 - grip) * L.culture + grip * L.learned
+    return L
+end
+
 """One row per type for episode `e`: θ, whether the bank failed, withdrawals by
 type, cultural λ by type, and the θ weight used and the squared errors entering
 the episode (with learning; else the cultural θ weight and NaN)."""
@@ -1753,7 +1794,7 @@ writeEpisode(mod::Model, isI, rec::RunRecord, e::Integer, failed::Bool, learn=no
 """Episodes 1..E-1 of a run, then the reset for episode E. modelRun's own files
 (and the per-run files runRow writes) are kept for the last episode only: the
 early episodes write them to a scratch directory, which is deleted. Each early
-episode adds its rows to bankRunEpisodes. Under BANKRUN_LEARN = precision, the
+episode adds its rows to bankRunEpisodes. Under BANKRUN_LEARN other than none, the
 learner updates after each episode; returns its state (the θ weights for the
 last episode), else nothing."""
 function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer)
@@ -1762,7 +1803,7 @@ function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer
         error("BANKRUN_EPISODE_RESET=$(switchValue(:EPISODE_RESET)) is not built")
     start = BankStart(mod)
     rule = switchValue(:LEARN)
-    learn = rule in ("precision", "payoff") ? LearnState(mod) : nothing
+    learn = rule == "none" ? nothing : LearnState(mod)
     grip, memory = switchValue(:LEARN_GRIP), switchValue(:LEARN_MEMORY)
     realDir = dataDir
     scratch = mktempdir()
@@ -1782,7 +1823,11 @@ function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer
                 else
                     stay = stayValue(rec.endRho, [a.deposit for a in mod.agtList], currentCap(mod),
                                      switchValue(:STAY_RETURN))
-                    payoffUpdate!(learn, x, publicAtStart(θ), stay; grip=grip, memory=memory)
+                    rule in ("payoff", "payoff+imitate") &&
+                        payoffUpdate!(learn, x, publicAtStart(θ), stay; grip=grip, memory=memory)
+                    rule in ("imitate", "payoff+imitate") &&
+                        imitateUpdate!(learn, mod.network, realisedPayoff(mod, rec, start.deposits, stay),
+                                       imitationRng(mod.seed2); grip=grip, memory=memory)
                 end
             end
         end

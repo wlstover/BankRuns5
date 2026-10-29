@@ -1,6 +1,6 @@
 # Learning across episodes: design note (DRAFT, 2026-10-28)
 
-Branch `individual-learning`, off `master` at dfb5afe. Status: L1 and Rule A built and piloted (10-28/29); Rule B decided and built 10-29 (pilots not run); L3a decided 10-29, not built. The
+Branch `individual-learning`, off `master` at dfb5afe. Status: L1 and Rule A built and piloted (10-28/29); Rule B decided and built 10-29 (pilots submitted 10-29); L3a built 10-29 (pilots not run). The
 user's decisions of 2026-10-28 (voice note) are marked **[decided 10-28]** and collected in
 §11; items still marked **[decide]** are the user's; items marked *(proposal)* are Claude's
 suggestions.
@@ -125,7 +125,7 @@ decisions):
 
 ## 5. L3: social learning
 
-### L3a: imitation *[decided 10-29: build]*
+### L3a: imitation *[decided 10-29; built 10-29]*
 
 The social half of Q1/Q2: agents learn from what worked for their neighbours, not only from
 their own experience (the individual vs social distinction of Arifovic and Maschek 2006).
@@ -140,9 +140,16 @@ After each episode:
 - It moves the learned weight ω*, not the cultural λ, and only the θ weight (as Rule A/B).
 - The backstop enters through π: under insurance, stayers are paid R and runners 1, so
   stayers' weights spread. That is Q2 at the group level.
-- **[decide]** *(proposals)* one random neighbour (not the best neighbour); η shared with
-  Rule B; L3a runnable alone (`LEARN=imitate`) and with Rule B (`LEARN=payoff+imitate`), so
-  individual, social and both compare on common seeds.
+- **[decided 10-29]** one random neighbour (not the best neighbour); η shared with Rule B;
+  synchronous update; a tie in π is no move; L3a runnable alone (`LEARN=imitate`) and with
+  Rule B (`LEARN=payoff+imitate`), so individual, social and both compare on common seeds.
+- As built: π_i = (what i was paid on its withdrawals + stay value × what it left in) / its
+  deposit at the start of the episode; the update is synchronous (j's ω* from before the
+  round); a tie in π is no move; under `payoff+imitate`, Rule B moves ω* first and imitation
+  reads the result. The neighbour draws have their own stream from the episode seed, so the
+  model's other draws are untouched (κ = 0 reproduces no learning file for file).
+- Imitation alone can only mix the cultural weights: every ω*_i stays in [min λ, max λ].
+  It moves weight between types (and within a type), it does not discover a new one.
 
 ### L3b: re-running the warm-up *[decided 10-29: not built; later work]*
 
@@ -160,7 +167,7 @@ weights (the user, 10-29). L1 keeps the warm-up state, so it stays possible.
 | `BANKRUN_LEARN_GRIP` | κ ∈ [0, 1] | 0 |
 | `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 (a later sweep axis) |
 
-`precision`, `none` and E built 10-28; `payoff` built 10-29; `imitate`, `payoff+imitate` to build.
+`precision`, `none` and E built 10-28; `payoff`, `imitate` and `payoff+imitate` built 10-29.
 The manifest records the resolved values, and untagged runs with any switch set are refused.
 
 ## 7. Outputs
@@ -187,7 +194,7 @@ is the Rule A baseline for the Rule B and L3a coverage arms.
 **Rule B (`arms/learning_payoff.tsv`, 10-29):** lrn-y50-pay, -pay-q50, -pay-q90 (κ 0.5, η 0.2),
 paired with lrn-y50-none and the coverage controls.
 
-**After L3a is built** *(proposal)*: at q 0 / 0.5 / 0.9, κ 0.5, η 0.2:
+**L3a (`arms/learning_imitate.tsv`, 10-29):** at q 0 / 0.5 / 0.9, κ 0.5, η 0.2:
 
 | arm | learning | question |
 |---|---|---|
@@ -333,3 +340,16 @@ Pilots go on Hopper.
   - insurance moves the learned weights (Rule A could not);
   - the refused combinations.
 - `arms/learning_payoff.tsv`: three one-cell arms at q 0, 0.5, 0.9.
+
+**L3a imitation built 2026-10-29** (same branch):
+- `settings.jl`: `BANKRUN_LEARN=imitate` and `payoff+imitate`, under the same refused
+  combinations.
+- `functions4.jl`: `realisedPayoff`, `imitationRng`, `imitateUpdate!`; `earlyEpisodes!`
+  applies Rule B and/or imitation after each episode.
+- `tests/test_imitation_learning.jl` (137 checks, in `run_tests.sh`):
+  - κ = 0 equals no learning, for both rules; episode 1 equals no learning;
+  - the learner replayed by hand episode by episode (realised payoffs, the neighbour
+    draws, Rule B first under payoff+imitate), and imitation alone staying in the λ range;
+  - the update arithmetic (synchronous, only toward a better-paid neighbour, no move on ties);
+  - payoff+imitate differs from payoff; the refused combinations.
+- `arms/learning_imitate.tsv`: six one-cell arms, imitate and payoff+imitate at q 0, 0.5, 0.9.
