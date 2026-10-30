@@ -11,6 +11,7 @@ By episode (and pooled over episodes 2+, row "2+"), for each arm:
            the cultural lambda without learning), and their paired differences from the
            control (10-30). Any two arms pair, so --control lrn-y50-pay against pay-q90
            gives the effect of coverage on what Rule B learns.
+  mu       the share of type I (10-30; fixed unless BANKRUN_LEARN=type / payoff+type)
   fail     P(fail), and its paired difference from the control
   gap      the I - C endogenous withdrawal share of deposits, and its paired difference
 
@@ -43,9 +44,10 @@ def load(arm: Path) -> pd.DataFrame:
     ep["failed"] = ep["failed"].astype(str).str.lower() == "true"
     ep["wd"] = ep["depEndog"] / ep["depTotal"]
     w = ep.pivot_table(index=PAIR + ["failed"], columns="type",
-                       values=["weightMean", "wd"]).reset_index()
+                       values=["weightMean", "wd", "n"]).reset_index()
     w.columns = [a if not b else f"{a}_{b}" for a, b in w.columns]
     w["gap"] = w["wd_I"] - w["wd_C"]
+    w["mu"] = w["n_I"] / (w["n_I"] + w["n_C"])       # share of type I (moves under L3b)
     return w.rename(columns={"weightMean_I": "wI", "weightMean_C": "wC"})
 
 
@@ -63,7 +65,7 @@ def main() -> int:
     ap.add_argument("arms", nargs="+", type=Path)
     a = ap.parse_args()
 
-    cols = ["failed", "gap", "wI", "wC"]
+    cols = ["failed", "gap", "wI", "wC", "mu"]
     ctrl = load(a.control)
     for arm in [a.control] + a.arms:
         d = load(arm)
@@ -71,16 +73,18 @@ def main() -> int:
         print(f"\n{arm.name}: {d['runSeed2'].nunique()} runs, paired with {a.control.name} "
               f"on {len(m)} of {len(d)} run-episodes")
         print(f"  {'ep':>3}  {'wI':>6} {'wC':>6}  {'d wI (se)':>15} {'d wC (se)':>15}  "
-              f"{'fail':>6} {'d fail (se)':>15}  {'gap I-C':>8} {'d gap (se)':>16}")
+              f"{'fail':>6} {'d fail (se)':>15}  {'gap I-C':>8} {'d gap (se)':>16}  {'mu':>5} {'d mu (se)':>15}")
         rows = list(m.groupby("episode")) + [("2+", m[m["episode"] >= 2])]
         for e, g in rows:
             dI, dIse = paired(g, "wI")
             dC, dCse = paired(g, "wC")
             df, dse = paired(g, "failed")
             dg, gse = paired(g, "gap")
+            dm, mse = paired(g, "mu")
             print(f"  {e:>3}  {g['wI'].mean():6.3f} {g['wC'].mean():6.3f}  "
                   f"{dI:+7.3f} ({dIse:.3f}) {dC:+7.3f} ({dCse:.3f})  {g['failed'].mean():6.3f} "
-                  f"{df:+7.3f} ({dse:.3f})  {g['gap'].mean():+8.3f} {dg:+8.3f} ({gse:.3f})")
+                  f"{df:+7.3f} ({dse:.3f})  {g['gap'].mean():+8.3f} {dg:+8.3f} ({gse:.3f})  "
+                  f"{g['mu'].mean():5.3f} {dm:+7.3f} ({mse:.3f})")
     return 0
 
 

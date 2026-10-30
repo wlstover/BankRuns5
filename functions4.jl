@@ -6,6 +6,11 @@
 # while keeping the distribution tightly peaked near λ_I or λ_C.
 const LAMBDA_CONC = 20.0
 
+"""The Beta distribution a type's agents draw λ from: mean `m` (clamped away from 0
+and 1), concentration LAMBDA_CONC. Shared by modelGenTyped and the L3b type switch."""
+typeLambdaDist(m::Float64) = Beta(clamp(m, 0.01, 0.99) * LAMBDA_CONC,
+                                  clamp(1.0 - m, 0.01, 0.99) * LAMBDA_CONC)
+
 
 function modelGenTyped(key::String,
                   seed1::Int64,
@@ -80,10 +85,8 @@ function modelGenTyped(key::String,
     # Clamp means away from {0,1} to keep Beta parameters valid.
     # seed1+1 gives a reproducible stream independent of both warm-up and deposits.
     Random.seed!(seed1 + 1)
-    distI = Beta(clamp(lambdaI, 0.01, 0.99) * LAMBDA_CONC,
-                 clamp(1.0 - lambdaI, 0.01, 0.99) * LAMBDA_CONC)
-    distC = Beta(clamp(lambdaC, 0.01, 0.99) * LAMBDA_CONC,
-                 clamp(1.0 - lambdaC, 0.01, 0.99) * LAMBDA_CONC)
+    distI = typeLambdaDist(lambdaI)
+    distC = typeLambdaDist(lambdaC)
     agentLambdas = [isI[i] ? rand(distI) : rand(distC) for i in 1:agtCnt]
     agentTypes   = [isI[i] ? "I" : "C"                 for i in 1:agtCnt]
 
@@ -1651,7 +1654,10 @@ mutable struct LearnState
     msey::Vector{Float64}
     weight::Vector{Float64}
     learned::Vector{Float64}   # Rule B's ω*, starting at the cultural λ (unused by Rule A)
+    switched::BitVector        # L3b: agents whose type changed after the previous episode
 end
+LearnState(culture, msex, msey, weight, learned) =
+    LearnState(culture, msex, msey, weight, learned, falses(length(culture)))
 LearnState(culture, msex, msey, weight) = LearnState(culture, msex, msey, weight, copy(culture))
 function LearnState(mod::Model)
     # the parse-time checks (settings.jl switchComboError), for scripts and tests
@@ -1760,6 +1766,48 @@ function imitateUpdate!(L::LearnState, network, π::Vector{Float64}, rng::Abstra
     return L
 end
 
+# ---- Learning, L3b: group learning by success-biased type switching (2026-10-30) ----
+# docs/learning_design.md §5. After each episode each agent, with probability ν
+# (LEARN_TYPE_RATE), looks at one network neighbour j drawn at random; if j is the
+# other type and j's realised payoff per unit of deposit (realisedPayoff) beat its
+# own, it adopts j's type. Its λ moves to the same quantile of the new type's Beta
+# (u = F_old(λ), λ' = F_new⁻¹(u)), so the cultural λ, the head-count blend and the
+# type label all change; its learned ω* is kept. Synchronous (types and payoffs from
+# before the round); a payoff tie is no switch. Every agent makes the same two draws
+# whatever happens, from their own stream off the episode seed, so the model's other
+# draws are untouched and ν = 0 is the no-learning model. μ (the share of type I) is
+# now an outcome.
+
+"""The type-switch draws for an episode run under seed `seed2`."""
+typeRng(seed2::Int64) = MersenneTwister(xor(reinterpret(UInt64, seed2), 0x6a09e667f3bcc909))
+
+"""L3b after an episode with realised payoffs π: switch type, at rate `rate`, to a
+better-paid neighbour's. Updates isI, each switcher's λ (agent and learner), the θ
+weights and L.switched; returns the number of switches (I→C, C→I)."""
+function typeUpdate!(L::LearnState, agents::Vector{Agent}, isI::AbstractVector{Bool}, network,
+                     π::Vector{Float64}, rng::AbstractRNG; rate::Float64,
+                     distI::Distribution, distC::Distribution, grip::Float64)
+    before = copy(isI)
+    fill!(L.switched, false)
+    toC = toI = 0
+    for i in eachindex(π)
+        go = rand(rng) < rate
+        nb = all_neighbors(network, i)
+        isempty(nb) && continue
+        j = nb[rand(rng, 1:length(nb))]
+        (go && before[j] != before[i] && π[j] > π[i]) || continue
+        from, to = before[i] ? (distI, distC) : (distC, distI)
+        λ = quantile(to, cdf(from, agents[i].individualism))
+        agents[i].individualism = λ
+        L.culture[i] = λ
+        isI[i] = !before[i]
+        L.switched[i] = true
+        before[i] ? (toC += 1) : (toI += 1)
+    end
+    @. L.weight = (1.0 - grip) * L.culture + grip * L.learned
+    return toC, toI
+end
+
 """One row per type for episode `e`: θ, whether the bank failed, withdrawals by
 type, cultural λ by type, and the θ weight used and the squared errors entering
 the episode (with learning; else the cultural θ weight and NaN)."""
@@ -1784,7 +1832,9 @@ function episodeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord, e::I
                      weightMean=[meanOrNaN(ω[sel[t]]) for t in ts.type],
                      weightSd=[sdOrNaN(ω[sel[t]]) for t in ts.type],
                      msexMean=[meanOrNaN(mx[sel[t]]) for t in ts.type],
-                     mseyMean=[meanOrNaN(my[sel[t]]) for t in ts.type])
+                     mseyMean=[meanOrNaN(my[sel[t]]) for t in ts.type],
+                     # L3b: agents of this type that switched into it after episode e − 1
+                     nJoined=[learn === nothing ? 0 : count(learn.switched[sel[t]]) for t in ts.type])
 end
 
 writeEpisode(mod::Model, isI, rec::RunRecord, e::Integer, failed::Bool, learn=nothing) =
@@ -1797,7 +1847,8 @@ early episodes write them to a scratch directory, which is deleted. Each early
 episode adds its rows to bankRunEpisodes. Under BANKRUN_LEARN other than none, the
 learner updates after each episode; returns its state (the θ weights for the
 last episode), else nothing."""
-function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer)
+function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer;
+                        lambdaI::Float64=NaN, lambdaC::Float64=NaN)
     global dataDir
     switchValue(:EPISODE_RESET) == "bank" ||
         error("BANKRUN_EPISODE_RESET=$(switchValue(:EPISODE_RESET)) is not built")
@@ -1805,6 +1856,10 @@ function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer
     rule = switchValue(:LEARN)
     learn = rule == "none" ? nothing : LearnState(mod)
     grip, memory = switchValue(:LEARN_GRIP), switchValue(:LEARN_MEMORY)
+    if endswith(rule, "type")
+        (isnan(lambdaI) || isnan(lambdaC)) && error("BANKRUN_LEARN=$rule needs the type means λ_I, λ_C")
+        distI, distC = typeLambdaDist(lambdaI), typeLambdaDist(lambdaC)
+    end
     realDir = dataDir
     scratch = mktempdir()
     try
@@ -1823,11 +1878,15 @@ function earlyEpisodes!(mod::Model, isI::AbstractVector{Bool}, episodes::Integer
                 else
                     stay = stayValue(rec.endRho, [a.deposit for a in mod.agtList], currentCap(mod),
                                      switchValue(:STAY_RETURN))
-                    rule in ("payoff", "payoff+imitate") &&
+                    rule in ("payoff", "payoff+imitate", "payoff+type") &&
                         payoffUpdate!(learn, x, publicAtStart(θ), stay; grip=grip, memory=memory)
                     rule in ("imitate", "payoff+imitate") &&
                         imitateUpdate!(learn, mod.network, realisedPayoff(mod, rec, start.deposits, stay),
                                        imitationRng(mod.seed2); grip=grip, memory=memory)
+                    rule in ("type", "payoff+type") &&
+                        typeUpdate!(learn, mod.agtList, isI, mod.network,
+                                    realisedPayoff(mod, rec, start.deposits, stay), typeRng(mod.seed2);
+                                    rate=switchValue(:LEARN_TYPE_RATE), distI=distI, distC=distC, grip=grip)
                 end
             end
         end
@@ -1851,7 +1910,8 @@ function runRow(row)
     # BANKRUN_EPISODES > 1: episodes 1..E-1 first, then the last one below, which
     # writes the per-run files exactly as a single-episode run does.
     episodes = switchValue(:EPISODES)
-    learn = episodes > 1 ? earlyEpisodes!(mod, isI, episodes) : nothing
+    learn = episodes > 1 ? earlyEpisodes!(mod, isI, episodes;
+                                          lambdaI=row[:lambdaI], lambdaC=row[:lambdaC]) : nothing
     vaultInit = mod.theBank.vault      # before the exogenous shock
     rec = RunRecord()
     rMod, nWithdrawn, depositWithdrawn =

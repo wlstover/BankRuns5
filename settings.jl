@@ -93,9 +93,15 @@ const SWITCH_DEFAULTS = (
     # imitate (2026-10-29, L3a, §5): each agent moves its weight toward a random
     # neighbour's if that neighbour was paid more, same κ and η; payoff+imitate does
     # Rule B, then imitation, after each episode.
+    # type (2026-10-30, L3b group learning, §5): after each episode each agent, with
+    # probability LEARN_TYPE_RATE (ν), looks at a random neighbour and adopts its type
+    # if the neighbour is the other type and was paid more (λ redrawn at the agent's
+    # own quantile of the new type's Beta); μ becomes an outcome. type alone keeps the
+    # θ weight at the cultural λ (LEARN_GRIP 0); payoff+type does Rule B, then type.
     LEARN            = "none",
     LEARN_GRIP       = 0.0,
     LEARN_MEMORY     = 0.2,
+    LEARN_TYPE_RATE  = 0.05,
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -118,7 +124,8 @@ const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
 const WITHDRAW_CHOICES     = ("all", "partial")
 const EPISODE_RESET_CHOICES = ("bank",)       # "wealth" (losses carried over) is planned
-const LEARN_CHOICES = ("none", "precision", "payoff", "imitate", "payoff+imitate")   # 2026-10-29: Rule B, L3a
+const LEARN_CHOICES = ("none", "precision", "payoff", "imitate", "payoff+imitate",    # 2026-10-29: Rule B, L3a
+                       "type", "payoff+type")                                         # 2026-10-30: L3b
 
 """The combinations of switches the model refuses, as an error message (or
 nothing). Checked when the switches are parsed, so a sweep fails at startup, and
@@ -171,6 +178,10 @@ function switchComboError(sw)
     hasproperty(sw, :LEARN) && sw.LEARN == "none" &&
         (sw.LEARN_GRIP != 0.0 || sw.LEARN_MEMORY != 0.2) &&
         return "BANKRUN_LEARN_GRIP / BANKRUN_LEARN_MEMORY need a BANKRUN_LEARN rule (not none)"
+    hasproperty(sw, :LEARN_TYPE_RATE) && !endswith(sw.LEARN, "type") && sw.LEARN_TYPE_RATE != 0.05 &&
+        return "BANKRUN_LEARN_TYPE_RATE needs BANKRUN_LEARN=type or payoff+type"
+    hasproperty(sw, :LEARN) && sw.LEARN == "type" && sw.LEARN_GRIP != 0.0 &&
+        return "BANKRUN_LEARN=type keeps the θ weight at the cultural λ: BANKRUN_LEARN_GRIP must be 0 (payoff+type for both)"
     return nothing
 end
 
@@ -256,6 +267,7 @@ function parseSwitchesFromEnv()
           LEARN            = envChoice("BANKRUN_LEARN", D.LEARN, LEARN_CHOICES),
           LEARN_GRIP       = envFloat("BANKRUN_LEARN_GRIP", D.LEARN_GRIP, 0.0, 1.0),
           LEARN_MEMORY     = envFloat("BANKRUN_LEARN_MEMORY", D.LEARN_MEMORY, 0.0, 1.0; loOpen=true),
+          LEARN_TYPE_RATE  = envFloat("BANKRUN_LEARN_TYPE_RATE", D.LEARN_TYPE_RATE, 0.0, 1.0),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)

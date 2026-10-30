@@ -175,7 +175,11 @@ DOCK_FILES = {
                   "depEndog", "lambdaMean", "lambdaSd",
                   # L2 (BANKRUN_LEARN): the theta weight used in the episode, and the
                   # running squared errors entering it (NaN without learning)
-                  "weightMean", "weightSd", "msexMean", "mseyMean"]),
+                  "weightMean", "weightSd", "msexMean", "mseyMean",
+                  # L3b (BANKRUN_LEARN=type, 2026-10-30): agents of the type that switched
+                  # into it after the previous episode (0 otherwise; files written before
+                  # 2026-10-30 lack the column and are read with 0)
+                  "nJoined"]),
     "partial": ("bankRunPartial", False,
                 ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
                  "largestFracWithdrawn"]),
@@ -548,6 +552,8 @@ def consolidate(arm_dir, manifest_path, out_path):
                         for row in csv.reader(fh):
                             if not row:
                                 continue
+                            if n == "episodes" and len(row) == width - 1:
+                                row = row + ["0"]                 # before nJoined (2026-10-30)
                             if len(row) != width:
                                 dock_dropped[n]["width"] += 1
                                 continue

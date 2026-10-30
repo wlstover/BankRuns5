@@ -154,11 +154,38 @@ After each episode:
 - Imitation alone can only mix the cultural weights: every ω*_i stays in [min λ, max λ].
   It moves weight between types (and within a type), it does not discover a new one.
 
-### L3b: group learning *[decided 10-29: not built; later work; the mechanism is reopened 10-30 (does μ move)]*
+### L3b: group learning, success-biased type switching *[decided 10-30; built 10-30]*
 
-Re-running Flache–Macy between episodes, with influence going to agents who were right, so
-types and μ are re-derived. Later work, together with **vertical transmission** of the
-weights (the user, 10-29). L1 keeps the warm-up state, so it stays possible.
+Q4: does μ move? μ is fixed by construction in L1–L3a: modelGenTyped makes the top μN by
+warm-up score type I, and learning moves only ω, never the cultural λ. Re-running the warm-up
+(the 10-29 sketch) would not free it either: the warm-up score is network position (the share
+of an agent's interactions with culturally opposed neighbours), so payoffs have nothing to act
+on, and the rank cut keeps n_I = μN. **[decided 10-30]** Instead, culture re-forms around
+payoffs. After each episode:
+
+    with probability ν (LEARN_TYPE_RATE):
+        pick one network neighbour j at random
+        if j is the other type and π_j > π_i:  i adopts j's type
+            λ_i ← F_new⁻¹(F_old(λ_i))     (same quantile of the new type's Beta)
+            ω*_i kept;  ω_i = (1 − κ)·λ_i + κ·ω*_i
+
+- π is L3a's realised payoff per unit of deposit (insurance enters through the stay value).
+- ν = 0.05 per episode, slower than η = 0.2: culture moves more slowly than learned weights.
+- One random neighbour (as L3a); synchronous (types and payoffs from before the round); a
+  payoff tie is no switch. Every agent makes the same two draws whatever happens, from its
+  own stream off the episode seed, so ν = 0 is the no-learning model file for file.
+- The switch changes the type label, the cultural λ (agent and learner) and so the
+  head-count blend; μ_t = n_I / N is an outcome.
+- Two configurations, each at q 0 / 0.5 / 0.9: **group alone** (`LEARN=type`, κ = 0: the θ
+  weight is the cultural λ, so a switch changes it) isolates whether culture re-forms; **Rule
+  B + group** (`LEARN=payoff+type`, κ 0.5, Rule B first) asks whether it survives individual
+  learning. Rule B pulls both types' ω* toward a common value, so the payoff gap between types
+  shrinks to the cultural half of the weight; slower drift in μ there would itself be a result.
+- Expected direction (unclear, which is why it runs): in solvent episodes runners are paid
+  less and C runs more endogenously, which pulls toward I; in failures runners do better,
+  pulling toward C. Insurance turns failure comparisons into ties, so μ may drift up faster
+  under a backstop.
+- Vertical (generational) transmission is the same dynamics with replacement; later work.
 
 ## 6. Switches
 
@@ -166,17 +193,20 @@ weights (the user, 10-29). L1 keeps the warm-up state, so it stays possible.
 |---|---|---|
 | `BANKRUN_EPISODES` | E ≥ 1 | 1 (today's model) |
 | `BANKRUN_EPISODE_RESET` | `bank` (A) / `wealth` (B, not built) | `bank` |
-| `BANKRUN_LEARN` | `none` / `precision` / `payoff` / `imitate` / `payoff+imitate` | `none` |
+| `BANKRUN_LEARN` | `none` / `precision` / `payoff` / `imitate` / `payoff+imitate` / `type` / `payoff+type` | `none` |
 | `BANKRUN_LEARN_GRIP` | κ ∈ [0, 1] | 0 |
 | `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 (a later sweep axis) |
+| `BANKRUN_LEARN_TYPE_RATE` | ν ∈ [0, 1] (`type`, `payoff+type` only) | 0.05 |
 
-`precision`, `none` and E built 10-28; `payoff`, `imitate` and `payoff+imitate` built 10-29.
+`precision`, `none` and E built 10-28; `payoff`, `imitate` and `payoff+imitate` built 10-29;
+`type` and `payoff+type` built 10-30 (`type` refuses κ ≠ 0).
 The manifest records the resolved values, and untagged runs with any switch set are refused.
 
 ## 7. Outputs
 
 - **`bankRunEpisodes*.csv`:** one row per run × episode × type: P(fail) indicator, θ,
-  withdrawal share, mean and s.d. of λ, mean MSE_x and MSE_y.
+  withdrawal share, mean and s.d. of λ, mean MSE_x and MSE_y; n per type (μ_t under L3b)
+  and nJoined, the agents that switched into the type after the previous episode (10-30).
 - **`bankRunLambda*.csv`** (`BANKRUN_LOG=full` only): λ trajectories for a fixed sample of
   agents.
 - The existing per-run files (results, vault, types, timing, ...) are written for the last
@@ -204,6 +234,13 @@ paired with lrn-y50-none and the coverage controls.
 | lrn-y50-pay-q* | Rule B | Q2, individual |
 | lrn-y50-imi-q* | L3a | Q2, social |
 | lrn-y50-payimi-q* | Rule B + L3a | both |
+
+**Rule B horizon (`arms/learning_horizon.tsv`, 10-30):** none and pay at q 0 / 0.5 / 0.9,
+E = 60 (tag `-e60`): where ω* settles, and whether the coverage gap in ω* grows.
+
+**L3b (`arms/learning_type.tsv`, 10-30):** type and paytype at q 0 / 0.5 / 0.9, ν 0.05, E = 60,
+controls lrn-y50-none*-e60 (μ, P(fail)) and lrn-y50-pay*-e60 (does group learning change
+what Rule B does).
 
 What to read: by episode and by type, the θ weight, P(fail) and P(fail | θ), the withdrawal
 gap; and by insured vs uninsured depositor within the bank (Iyer–Puri).
@@ -248,6 +285,15 @@ Pilots go on Hopper.
 7. **[10-29] Q2 stays**, at the individual and the social level: Rule B (payoff learning)
    with partial-coverage arms, and L3a (imitation). Rule B moves toward the end that paid
    better at speed η. L3b is later work, with vertical transmission of the weights.
+
+8. **[10-30] Terms:** individual / social / group learning as in §2.
+9. **[10-30] Q4 (does μ move) in the dissertation:** L3b as success-biased type switching
+   (§5), ν = 0.05, one random neighbour, synchronous, λ to the same quantile, ω* kept; run
+   alone and with Rule B, at q 0 / 0.5 / 0.9. Vertical transmission stays later work.
+10. **[10-30] ω* starts at λ** (default); a random start (ω* ~ U(0, 1)) only as a robustness
+    arm (Rule B path independence; imitation with variation to copy), not a crossed axis.
+11. **[10-30] Rule B horizon:** E = 60 for the Rule B arms and their controls.
+12. **[10-30]** The differentiable ABM stays future work (stated direction in Ch 3).
 
 ## 12. Implementation status
 
