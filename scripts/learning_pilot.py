@@ -6,9 +6,11 @@ control see the same populations and the same episode draws (theta, shock, signa
 Rows pair on (seed1, the run's seed2, episode); differences are clustered on the
 initialisation (seed1), as in episodes_null.py.
 
-By episode, for each arm:
+By episode (and pooled over episodes 2+, row "2+"), for each arm:
   wI, wC   the mean theta weight of each type (the weight on y in the theta blend;
-           the cultural lambda without learning)
+           the cultural lambda without learning), and their paired differences from the
+           control (10-30). Any two arms pair, so --control lrn-y50-pay against pay-q90
+           gives the effect of coverage on what Rule B learns.
   fail     P(fail), and its paired difference from the control
   gap      the I - C endogenous withdrawal share of deposits, and its paired difference
 
@@ -47,27 +49,38 @@ def load(arm: Path) -> pd.DataFrame:
     return w.rename(columns={"weightMean_I": "wI", "weightMean_C": "wC"})
 
 
+def paired(g: pd.DataFrame, col: str) -> tuple[float, float]:
+    """Mean paired difference arm - control in `col`, CR1 SE clustered on seed1."""
+    d = (g[col].astype(float) - g[f"{col}_ctrl"].astype(float)).dropna()
+    if not len(d):
+        return (np.nan,) * 2
+    return cmean(d.to_numpy(), g.loc[d.index, "seed1"].to_numpy())
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--control", required=True, type=Path)
     ap.add_argument("arms", nargs="+", type=Path)
     a = ap.parse_args()
 
+    cols = ["failed", "gap", "wI", "wC"]
     ctrl = load(a.control)
     for arm in [a.control] + a.arms:
         d = load(arm)
-        m = d.merge(ctrl[PAIR + ["failed", "gap"]], on=PAIR, suffixes=("", "_ctrl"))
+        m = d.merge(ctrl[PAIR + cols], on=PAIR, suffixes=("", "_ctrl"))
         print(f"\n{arm.name}: {d['runSeed2'].nunique()} runs, paired with {a.control.name} "
               f"on {len(m)} of {len(d)} run-episodes")
-        print(f"  {'ep':>3}  {'wI':>6} {'wC':>6}  {'fail':>6} {'d fail (se)':>15}  "
-              f"{'gap I-C':>8} {'d gap (se)':>16}")
-        for e, g in m.groupby("episode"):
-            df, dse = cmean((g["failed"].astype(float) - g["failed_ctrl"].astype(float)).to_numpy(),
-                            g["seed1"].to_numpy())
-            dg = (g["gap"] - g["gap_ctrl"]).dropna()
-            gg, gse = cmean(dg.to_numpy(), g.loc[dg.index, "seed1"].to_numpy()) if len(dg) else (np.nan,) * 2
-            print(f"  {e:>3}  {g['wI'].mean():6.3f} {g['wC'].mean():6.3f}  {g['failed'].mean():6.3f} "
-                  f"{df:+7.3f} ({dse:.3f})  {g['gap'].mean():+8.3f} {gg:+8.3f} ({gse:.3f})")
+        print(f"  {'ep':>3}  {'wI':>6} {'wC':>6}  {'d wI (se)':>15} {'d wC (se)':>15}  "
+              f"{'fail':>6} {'d fail (se)':>15}  {'gap I-C':>8} {'d gap (se)':>16}")
+        rows = list(m.groupby("episode")) + [("2+", m[m["episode"] >= 2])]
+        for e, g in rows:
+            dI, dIse = paired(g, "wI")
+            dC, dCse = paired(g, "wC")
+            df, dse = paired(g, "failed")
+            dg, gse = paired(g, "gap")
+            print(f"  {e:>3}  {g['wI'].mean():6.3f} {g['wC'].mean():6.3f}  "
+                  f"{dI:+7.3f} ({dIse:.3f}) {dC:+7.3f} ({dCse:.3f})  {g['failed'].mean():6.3f} "
+                  f"{df:+7.3f} ({dse:.3f})  {g['gap'].mean():+8.3f} {dg:+8.3f} ({gse:.3f})")
     return 0
 
 

@@ -1,12 +1,11 @@
 # Learning across episodes: design note (DRAFT, 2026-10-28)
 
-Branch `individual-learning`, off `master` at dfb5afe. Status: L1 and Rule A built and piloted (10-28/29); Rule B decided and built 10-29 (pilots submitted 10-29); L3a built 10-29 (pilots not run). The
+Branch `individual-learning`, off `master` at dfb5afe. Status: L1 and Rule A built and piloted (10-28/29); Rule B decided and built 10-29 (pilots submitted 10-29); L3a built 10-29, piloted 10-30. The
 user's decisions of 2026-10-28 (voice note) are marked **[decided 10-28]** and collected in
 §11; items still marked **[decide]** are the user's; items marked *(proposal)* are Claude's
 suggestions.
 
-Scope: **L1** (repeated episodes) and **L2** (individual learning of λ). **L3** (group
-learning, re-running the warm-up between episodes) is described only so L1 leaves room for
+Scope: **L1** (repeated episodes) and **L2** (individual learning of λ). **L3** (social learning, L3a; group learning, L3b) is described so L1 leaves room for
 it. Fills the 10-20 outline's §7, "Learning: social vs group"; until this exists, §7 claims
 only the warm-up α and the insurance contrast.
 
@@ -24,7 +23,7 @@ learning adds (none pre-registered yet):
   pays, so the feedback differs (Rob's question about an FDIC-style backstop, as mechanism
   rather than a static contrast).
 - **Q3. Scarring.** Does one failure leave a population more run-prone in the next episode?
-- (L3 only) **Q4. Does the mix μ itself move?** That would make P6's "mixed population" an
+- (L3b only) **Q4. Does the mix μ itself move?** That would make P6's "mixed population" an
   outcome rather than an input.
 
 ## 2. Terms
@@ -32,6 +31,10 @@ learning adds (none pre-registered yet):
 - **Episode:** one bank-run phase (exogenous shock, endogenous withdrawals, resolution).
 - **Run:** a sequence of E episodes on one population (one network, one set of agents).
 - **Cell, arm:** as now. A cell is 250 runs; an arm is a set of cells under one switch set.
+- **Individual, social, group learning [decided 10-30]:** individual = from the agent's own
+  experience (Rule A, Rule B); social = from neighbours' outcomes (L3a imitation); group = the
+  population re-deriving its culture: types, λ and μ (L3b). Neighbour withdrawals within an
+  episode are the model's herding channel, not learning.
 
 ## 3. L1: the episode loop
 
@@ -123,7 +126,7 @@ decisions):
 - Rule B needs agents who still run: at q 0.99 nobody withdraws endogenously (§12), so the
   backstop arms use partial coverage (§8).
 
-## 5. L3: social learning
+## 5. L3: social (L3a) and group (L3b) learning
 
 ### L3a: imitation *[decided 10-29; built 10-29]*
 
@@ -139,7 +142,7 @@ After each episode:
   own realised π).
 - It moves the learned weight ω*, not the cultural λ, and only the θ weight (as Rule A/B).
 - The backstop enters through π: under insurance, stayers are paid R and runners 1, so
-  stayers' weights spread. That is Q2 at the group level.
+  stayers' weights spread. That is the social half of Q2.
 - **[decided 10-29]** one random neighbour (not the best neighbour); η shared with Rule B;
   synchronous update; a tie in π is no move; L3a runnable alone (`LEARN=imitate`) and with
   Rule B (`LEARN=payoff+imitate`), so individual, social and both compare on common seeds.
@@ -151,7 +154,7 @@ After each episode:
 - Imitation alone can only mix the cultural weights: every ω*_i stays in [min λ, max λ].
   It moves weight between types (and within a type), it does not discover a new one.
 
-### L3b: re-running the warm-up *[decided 10-29: not built; later work]*
+### L3b: group learning *[decided 10-29: not built; later work; the mechanism is reopened 10-30 (does μ move)]*
 
 Re-running Flache–Macy between episodes, with influence going to agents who were right, so
 types and μ are re-derived. Later work, together with **vertical transmission** of the
@@ -242,7 +245,7 @@ Pilots go on Hopper.
 5. **No pre-registration** for now.
 6. **Rule B** not needed; one quick comparison arm after the rest is done.
 
-7. **[10-29] Q2 stays**, at the individual and the group level: Rule B (payoff learning)
+7. **[10-29] Q2 stays**, at the individual and the social level: Rule B (payoff learning)
    with partial-coverage arms, and L3a (imitation). Rule B moves toward the end that paid
    better at speed η. L3b is later work, with vertical transmission of the weights.
 
