@@ -197,6 +197,7 @@ payoffs. After each episode:
 | `BANKRUN_LEARN_GRIP` | κ ∈ [0, 1] | 0 |
 | `BANKRUN_LEARN_MEMORY` | η ∈ (0, 1] | 0.2 (a later sweep axis) |
 | `BANKRUN_LEARN_TYPE_RATE` | ν ∈ [0, 1] (`type`, `payoff+type` only) | 0.05 |
+| `BANKRUN_LEARN_INIT` | `culture` (ω* = λ) / `uniform` (ω* ~ U(0, 1), robustness; rules that move ω*) | `culture` |
 
 `precision`, `none` and E built 10-28; `payoff`, `imitate` and `payoff+imitate` built 10-29;
 `type` and `payoff+type` built 10-30 (`type` refuses κ ≠ 0).
@@ -241,6 +242,11 @@ E = 60 (tag `-e60`): where ω* settles, and whether the coverage gap in ω* grow
 **L3b (`arms/learning_type.tsv`, 10-30):** type and paytype at q 0 / 0.5 / 0.9, ν 0.05, E = 60,
 controls lrn-y50-none*-e60 (μ, P(fail)) and lrn-y50-pay*-e60 (does group learning change
 what Rule B does).
+
+**Unified sweep for the chapter (`arms/learning_unified.tsv`, 10-30), 23 one-cell arms, E = 60,
+common seeding:** none, k50 (Rule A), pay (Rule B), imi (L3a), payimi, type (L3b alone), paytype,
+each at q 0 / 0.5 / 0.9; plus pay-uni and imi-uni (ω* ~ U(0, 1), q 0). Contains every arm of
+learning_horizon.tsv and learning_type.tsv under the same tags; fire this file instead of those.
 
 What to read: by episode and by type, the θ weight, P(fail) and P(fail | θ), the withdrawal
 gap; and by insured vs uninsured depositor within the bank (Iyer–Puri).

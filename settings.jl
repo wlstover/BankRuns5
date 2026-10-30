@@ -102,6 +102,10 @@ const SWITCH_DEFAULTS = (
     LEARN_GRIP       = 0.0,
     LEARN_MEMORY     = 0.2,
     LEARN_TYPE_RATE  = 0.05,
+    # Where the learned weight ω* starts (2026-10-30, robustness only): culture = the
+    # cultural λ (the model); uniform = an independent U(0, 1) draw per agent, fixed for
+    # the population (stream off seed1), so episode 1 already differs from no learning.
+    LEARN_INIT       = "culture",
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -126,6 +130,7 @@ const WITHDRAW_CHOICES     = ("all", "partial")
 const EPISODE_RESET_CHOICES = ("bank",)       # "wealth" (losses carried over) is planned
 const LEARN_CHOICES = ("none", "precision", "payoff", "imitate", "payoff+imitate",    # 2026-10-29: Rule B, L3a
                        "type", "payoff+type")                                         # 2026-10-30: L3b
+const LEARN_INIT_CHOICES = ("culture", "uniform")
 
 """The combinations of switches the model refuses, as an error message (or
 nothing). Checked when the switches are parsed, so a sweep fails at startup, and
@@ -182,6 +187,9 @@ function switchComboError(sw)
         return "BANKRUN_LEARN_TYPE_RATE needs BANKRUN_LEARN=type or payoff+type"
     hasproperty(sw, :LEARN) && sw.LEARN == "type" && sw.LEARN_GRIP != 0.0 &&
         return "BANKRUN_LEARN=type keeps the θ weight at the cultural λ: BANKRUN_LEARN_GRIP must be 0 (payoff+type for both)"
+    hasproperty(sw, :LEARN_INIT) && sw.LEARN_INIT != "culture" &&
+        !(sw.LEARN in ("payoff", "imitate", "payoff+imitate", "payoff+type")) &&
+        return "BANKRUN_LEARN_INIT=$(sw.LEARN_INIT) needs a rule that moves ω* (payoff, imitate, payoff+imitate, payoff+type)"
     return nothing
 end
 
@@ -268,6 +276,7 @@ function parseSwitchesFromEnv()
           LEARN_GRIP       = envFloat("BANKRUN_LEARN_GRIP", D.LEARN_GRIP, 0.0, 1.0),
           LEARN_MEMORY     = envFloat("BANKRUN_LEARN_MEMORY", D.LEARN_MEMORY, 0.0, 1.0; loOpen=true),
           LEARN_TYPE_RATE  = envFloat("BANKRUN_LEARN_TYPE_RATE", D.LEARN_TYPE_RATE, 0.0, 1.0),
+          LEARN_INIT       = envChoice("BANKRUN_LEARN_INIT", D.LEARN_INIT, LEARN_INIT_CHOICES),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)

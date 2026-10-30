@@ -1669,9 +1669,17 @@ function LearnState(mod::Model)
               "a THETA_PUBLIC signal and LAMBDA_SCOPE theta or both")
     λ = [a.individualism for a in mod.agtList]
     n = length(λ)
-    return LearnState(λ, fill(switchValue(:THETA_NOISE)^2, n),
-                      fill(switchValue(:THETA_PUBLIC_NOISE)^2, n), copy(λ))
+    msex, msey = fill(switchValue(:THETA_NOISE)^2, n), fill(switchValue(:THETA_PUBLIC_NOISE)^2, n)
+    switchValue(:LEARN_INIT) == "culture" && return LearnState(λ, msex, msey, copy(λ))
+    # LEARN_INIT = uniform (robustness, 2026-10-30): ω* ~ U(0, 1), the same draws for
+    # every arm on this population; the θ weight mixes it in from episode 1.
+    learned = rand(learnInitRng(mod.seed1), n)
+    κ = switchValue(:LEARN_GRIP)
+    return LearnState(λ, msex, msey, @.((1.0 - κ) * λ + κ * learned), learned)
 end
+
+"""The LEARN_INIT = uniform draws for the population built from `seed1`."""
+learnInitRng(seed1::Int64) = MersenneTwister(xor(reinterpret(UInt64, seed1), 0xbb67ae8584caa73b))
 
 """θ and the private signals x as modelRun draws them for this seed2 (fire-sale bank,
 θ fundamental, private signal of θ): the first draws of its θ stream."""
