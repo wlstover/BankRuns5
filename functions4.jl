@@ -623,10 +623,22 @@ privateDraws(pp::PrivatePosterior, agt::Agent, depth::Integer) =
 # ω is the agent's λ (LAMBDA_SCOPE theta / both) or the population mean λ̄
 # (count). Chapter 1's uniform window is a normal here, truncated to θ's support
 # [0, 1]. With y = nothing it is the private posterior of 2026-10-21 exactly.
-function thetaBelief(x::Float64, sx::Float64, y, ω::Float64, sy::Float64)
-    y === nothing && return truncated(Normal(x, sx), 0.0, 1.0)
-    return truncated(Normal((1.0 - ω) * x + ω * y, (1.0 - ω) * sx + ω * sy), 0.0, 1.0)
+# THETA_NOISE_DIST = uniform (2026-10-31, rung 2): Chapter 1's window exactly,
+# θ | est ~ U[est ± w] truncated to [0, 1], with sx, sy the half-widths ε_x, ε_y.
+# Never empty: est lies within (1 − ω)·ε_x of [0, 1], inside the window w.
+function thetaBelief(x::Float64, sx::Float64, y, ω::Float64, sy::Float64;
+                     uniform::Bool=switchValue(:THETA_NOISE_DIST) == "uniform")
+    est, w = y === nothing ? (x, sx) : ((1.0 - ω) * x + ω * y, (1.0 - ω) * sx + ω * sy)
+    return uniform ? truncated(Uniform(est - w, est + w), 0.0, 1.0) : truncated(Normal(est, w), 0.0, 1.0)
 end
+
+"""One draw of the private θ signal's noise with scale s (THETA_NOISE_DIST): s·Z, or
+U[−s, s]. One draw from `rng` either way, so the stream stays aligned."""
+thetaNoiseDraw(rng::AbstractRNG, s::Float64) =
+    switchValue(:THETA_NOISE_DIST) == "uniform" ? s * (2.0 * rand(rng) - 1.0) : s * randn(rng)
+
+"""The variance of a θ signal with scale s under THETA_NOISE_DIST (Rule A's prior MSE)."""
+thetaNoiseVar(s::Float64) = switchValue(:THETA_NOISE_DIST) == "uniform" ? s^2 / 3.0 : s^2
 
 # The public signal of θ at tick t: θ plus a gap that decays as gap₀·ρ^(t-1).
 #   stale:  gap₀ = y₀ − θ, so with ρ = 1 y stays at y₀ whatever θ is (Chapter 1's
@@ -977,7 +989,7 @@ function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
         beliefRng = MersenneTwister(xor(reinterpret(UInt64, mod.seed2), 0x2545f4914f6cdd1d))
         thetaOn && (theta = rand(thetaRng))
         privateSignal == "theta" &&
-            (thetaSignal = [theta + thetaNoise * randn(thetaRng) for _ in 1:length(mod.agtList)])
+            (thetaSignal = [theta + thetaNoiseDraw(thetaRng, thetaNoise) for _ in 1:length(mod.agtList)])
     end
     # The vault bank fails when its vault is exhausted; the fire-sale bank fails
     # in period 1 only when it has sold everything and still cannot pay (vault < 0).
@@ -1398,6 +1410,8 @@ end
 # most the quantile insurance cap (insuranceCap below). Under the adaptive scheme
 # the cap moves during the run, insuranceCap is NaN and every agent counts as
 # uninsured, so these five columns are not meaningful there.
+# lossStayers (2026-10-31): the stayers' exact shortfall at par on the fire-sale
+# bank (NaN on the vault bank); see the comment in the body.
 insuranceCap(mod::Model) = 0.0 <= mod.depositInsurance < 1.0 ?
     quantile(mod.depositDistribution, mod.depositInsurance) : NaN
 
@@ -1428,12 +1442,22 @@ function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
     for (r, i) in enumerate(endogOrder)
         pos[i] = nEndog > 1 ? (r - 1) / (nEndog - 1) : 0.5
     end
+    # Stayers' shortfall at par after period 2 (2026-10-31, fire-sale bank): each
+    # balance left in recovers stayValue's share per unit (R if the bank is solvent,
+    # else max(ρR, the insured share)), the payoff Rule B scores. NaN on the vault
+    # bank, whose run record has no ρ (who_runs_production.py keeps its bounds there).
+    bal = [how[i] == 1 ? 0.0 : partial ? mod.agtList[i].deposit - wd[i] :
+           how[i] == 0 ? mod.agtList[i].deposit : 0.0 for i in 1:n]
+    capNow, R = currentCap(mod), switchValue(:STAY_RETURN)
+    short = isnan(rec.endRho) ? fill(NaN, n) :
+        [b > 0.0 ? max(b * (1.0 - stayValue(rec.endRho, [b], capNow, R)[1]), 0.0) : 0.0 for b in bal]
     rows = DataFrame(key=String[], type=String[], n=Int[], nExog=Int[], nEndog=Int[],
                      depTotal=Float64[], depExog=Float64[], depEndog=Float64[],
                      paidExog=Float64[], paidEndog=Float64[], depStayers=Float64[],
                      posSumEndog=Float64[], nFirstQuarter=Int[],
                      nInsured=Int[], nEndogInsured=Int[], depUninsured=Float64[],
-                     depStayersUninsured=Float64[], nStayersUninsured=Int[])
+                     depStayersUninsured=Float64[], nStayersUninsured=Int[],
+                     lossStayers=Float64[])
     for (lab, sel) in (("I", isI), ("C", .!isI))
         idx = findall(sel)
         d = [mod.agtList[i].deposit for i in idx]
@@ -1448,7 +1472,8 @@ function typeSummary(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord)
                      sum(pos[idx][h .== 2]; init=0.0), count(<=(0.25), pos[idx][h .== 2]),
                      count(d .<= cap), count((d .<= cap) .& (h .== 2)),
                      sum(d[.!(d .<= cap)]; init=0.0), sum(d[.!(d .<= cap) .& (h .== 0)]; init=0.0),
-                     count(.!(d .<= cap) .& (h .== 0))))
+                     count(.!(d .<= cap) .& (h .== 0)),
+                     sum(short[idx]; init=0.0)))
     end
     return rows
 end
@@ -1669,7 +1694,7 @@ function LearnState(mod::Model)
               "a THETA_PUBLIC signal and LAMBDA_SCOPE theta or both")
     λ = [a.individualism for a in mod.agtList]
     n = length(λ)
-    msex, msey = fill(switchValue(:THETA_NOISE)^2, n), fill(switchValue(:THETA_PUBLIC_NOISE)^2, n)
+    msex, msey = fill(thetaNoiseVar(switchValue(:THETA_NOISE)), n), fill(thetaNoiseVar(switchValue(:THETA_PUBLIC_NOISE)), n)
     switchValue(:LEARN_INIT) == "culture" && return LearnState(λ, msex, msey, copy(λ))
     # LEARN_INIT = uniform (robustness, 2026-10-30): ω* ~ U(0, 1), the same draws for
     # every arm on this population; the θ weight mixes it in from episode 1.
@@ -1687,7 +1712,7 @@ function episodeThetaDraws(seed2::Int64, n::Integer)
     rng = MersenneTwister(xor(reinterpret(UInt64, seed2), 0x7f4a7c15f39cc060))
     θ = rand(rng)
     s = switchValue(:THETA_NOISE)
-    return θ, [θ + s * randn(rng) for _ in 1:n]
+    return θ, [θ + thetaNoiseDraw(rng, s) for _ in 1:n]
 end
 
 """The public signal y at tick 1 for this θ (what Rule A scores)."""

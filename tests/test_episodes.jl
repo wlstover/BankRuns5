@@ -42,6 +42,19 @@ outputs(dir) = Dict(f => replace(read(joinpath(dir, f), String), STAMP => "T")
                     for f in readdir(dir) if occursin(r"^bankRun[A-Za-z]+\d+\.csv$", f))
 lines(dir, pat) = vcat([readlines(joinpath(dir, f)) for f in readdir(dir) if occursin(pat, f)]...)
 
+# Output columns appended after $REFERENCE, by file stem: dropped from the current
+# run's rows before the byte comparison, so A still pins every column the
+# reference wrote. Each entry is a deliberate addition at the end of the row.
+#   bankRunTypes: lossStayers (2026-10-31, stayers' exact shortfall, fire-sale bank)
+const APPENDED = Dict("bankRunTypes" => 1)
+function dropAppended(o::Dict)
+    Dict(f => begin
+             stem = match(r"^(bankRun[A-Za-z]+)\d+\.csv$", f)[1]
+             k = get(APPENDED, stem, 0)
+             k == 0 ? txt : join((join(split(l, ",")[1:end-k], ",") * "\n" for l in split(chomp(txt), "\n")), "")
+         end for (f, txt) in o)
+end
+
 """loadCell from the files at the reference commit (git show), not the working tree."""
 function loadReference(out, cliArgs; switches, depth)
     src = mktempdir()
@@ -84,7 +97,7 @@ for (label, c, sw) in (("default bank", CELL_DEFAULT, SW_DEFAULT), ("reference b
         ref = loadReference(dr, [dr, string(GEN_SEED), c...]; switches=sw, depth=DEPTH)
         cur = cell(dc, c, sw; episodes=1)
         runRows(ref); runRows(cur)
-        o_ref, o_cur = outputs(dr), outputs(dc)
+        o_ref, o_cur = outputs(dr), dropAppended(outputs(dc))
         @test sort(collect(keys(o_ref))) == sort(collect(keys(o_cur)))
         @test o_ref == o_cur
     end

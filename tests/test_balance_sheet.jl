@@ -20,6 +20,11 @@
 #   E. The θ posterior: truncated normal around the signal.
 #   F. Refused switch combinations, in modelRun and at parse time.
 #   G. Smoke property: failures concentrate at low θ.
+#   I. THETA_NOISE_DIST = uniform (2026-10-31, rung 2): the draws are θ + U[−ε, ε] on
+#      the same θ stream, the θ window is Chapter 1's U[est ± w] truncated to [0, 1],
+#      and the switch parses; normal stays the default.
+#   H. typeSummary's lossStayers (2026-10-31): the stayers' exact shortfall at par,
+#      against a hand computation from the bankRunBalance row; NaN on the vault bank.
 ################################################################################
 
 using Test
@@ -240,4 +245,75 @@ end
     lo, hi = failed[bal.theta .< 0.5], failed[bal.theta .>= 0.5]
     @test mean(lo) > mean(hi)
     @test any(failed) && !all(failed)
+end
+
+# ---------------------------------------------------------------- H
+@testset "H. stayers' exact loss (lossStayers)" begin
+    m = load_model(:H)
+    setsw!(m; FIRE..., FUNDAMENTAL="theta")
+    R, nFailedWithLoss = 1.1, 0
+    for s in 1:30
+        mod = build(m, s; reserve=0.05)
+        isI = [a.individualism < 0.5 for a in mod.agtList]
+        rec = Base.invokelatest(m.RunRecord)
+        Base.invokelatest(m.modelRun, mod; record=rec)
+        rows = Base.invokelatest(m.typeSummary, mod, isI, rec)
+        b = last(readlog(m, "bankRunBalance1.csv", BALANCE_COLS))
+        ρ = b.failType == "liquidity" ? 0.0 : b.promises > 0 ? b.assetsT / b.promises : Inf
+        @test rec.endRho == ρ
+        cap = Base.invokelatest(m.currentCap, mod)
+        stay = [a.banked for a in mod.agtList]
+        d = [a.deposit for a in mod.agtList]
+        recov(x) = ρ >= 1.0 ? R * x : max(ρ * R * x, min(x, cap))
+        loss = [stay[i] ? max(d[i] - recov(d[i]), 0.0) : 0.0 for i in eachindex(d)]
+        for (t, sel) in (("I", isI), ("C", .!isI))
+            @test only(rows[rows.type .== t, :lossStayers]) ≈ sum(loss[sel]) atol=1e-9
+        end
+        b.solvent && @test all(rows.lossStayers .== 0.0)
+        (!b.solvent && sum(loss) > 0) && (nFailedWithLoss += 1)
+    end
+    @test nFailedWithLoss > 0                     # the check is not vacuous
+    mv = load_model(:Hv)                          # vault bank: no ρ, NaN
+    modv = build(mv, 1)
+    recv = Base.invokelatest(mv.RunRecord)
+    Base.invokelatest(mv.modelRun, modv; record=recv)
+    rowsv = Base.invokelatest(mv.typeSummary, modv, [a.individualism < 0.5 for a in modv.agtList], recv)
+    @test all(isnan, rowsv.lossStayers)
+end
+
+# ---------------------------------------------------------------- I
+@testset "I. uniform θ noise (THETA_NOISE_DIST)" begin
+    m = load_model(:I)
+    @test m.SWITCH_DEFAULTS.THETA_NOISE_DIST == "normal"
+    # the window: Chapter 1's U[est ± w], w = (1 − ω)·ε_x + ω·ε_y, truncated to [0, 1]
+    setsw!(m; THETA_NOISE_DIST="uniform")
+    for (x, y, ω, ex, ey) in ((0.5, 0.6, 0.3, 0.1, 0.2), (0.02, 0.6, 0.0, 0.1, 0.1), (1.05, 0.9, 0.5, 0.1, 0.05))
+        d = Base.invokelatest(m.thetaBelief, x, ex, y, ω, ey)
+        est, w = (1 - ω) * x + ω * y, (1 - ω) * ex + ω * ey
+        @test minimum(d) ≈ max(est - w, 0.0) && maximum(d) ≈ min(est + w, 1.0)
+        draws = rand(MersenneTwister(1), d, 5_000)
+        @test all(max(est - w, 0.0) .<= draws .<= min(est + w, 1.0))
+    end
+    @test Base.invokelatest(m.thetaBelief, 0.5, 0.1, nothing, 0.0, 0.1) == truncated(Uniform(0.4, 0.6), 0.0, 1.0)
+    @test Base.invokelatest(m.thetaNoiseVar, 0.3) ≈ 0.03
+    # the draws: same θ, |x − θ| ≤ ε, filling the interval; one draw per agent either way
+    for s2 in (11, 12, 13)
+        θu, xu = Base.invokelatest(m.episodeThetaDraws, s2, 4_000)
+        @test all(abs.(xu .- θu) .<= 0.10) && maximum(abs.(xu .- θu)) > 0.099
+        @test abs(std(xu .- θu) - 0.10 / sqrt(3)) < 0.003
+    end
+    mn = load_model(:In)
+    for s2 in (11, 12, 13)
+        θn, xn = Base.invokelatest(mn.episodeThetaDraws, s2, 4_000)
+        @test θn == first(Base.invokelatest(m.episodeThetaDraws, s2, 4_000))
+        @test maximum(abs.(xn .- θn)) > 0.25                 # normal: tails beyond 2.5 s.d.
+    end
+    @test Base.invokelatest(mn.thetaNoiseVar, 0.3) ≈ 0.09
+    # parsing
+    withenv("BANKRUN_THETA_NOISE_DIST" => "uniform") do
+        @test m.parseSwitchesFromEnv().THETA_NOISE_DIST == "uniform"
+    end
+    withenv("BANKRUN_THETA_NOISE_DIST" => "laplace") do
+        @test_throws ErrorException m.parseSwitchesFromEnv()
+    end
 end

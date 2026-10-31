@@ -124,8 +124,12 @@ TYPES_FIELDS = ["n", "nExog", "nEndog", "depTotal", "depExog", "depEndog", "paid
                 # Added 2026-10-20 (insured = deposit <= insuranceCap); blank for
                 # runs written before then.
                 "nInsured", "nEndogInsured", "depUninsured", "depStayersUninsured",
-                "nStayersUninsured"]
+                "nStayersUninsured",
+                # Added 2026-10-31: stayers' exact shortfall at par, fire-sale bank
+                # (NaN on the vault bank; blank for runs written before then).
+                "lossStayers"]
 TYPES_FIELDS_V1 = 11   # width of the 2026-10-15 rows (without the insured columns)
+TYPES_FIELDS_V2 = 16   # width of the 2026-10-20 rows (without lossStayers)
 TYPES_HEADER = ["task_id", "key", "armTag", "reserveRatio", "depQuantile", "sigma", "k", "p",
                 "mu", "lambdaI", "lambdaC", "type"] + TYPES_FIELDS
 
@@ -534,7 +538,8 @@ def consolidate(arm_dir, manifest_path, out_path):
                     for row in csv.reader(fh):
                         if not row:
                             continue
-                        if len(row) not in (2 + TYPES_FIELDS_V1, 2 + len(TYPES_FIELDS)):
+                        if len(row) not in (2 + TYPES_FIELDS_V1, 2 + TYPES_FIELDS_V2,
+                                            2 + len(TYPES_FIELDS)):
                             types_dropped["width"] += 1
                             continue
                         if row[0] not in params:

@@ -46,6 +46,14 @@ and <arm_dir>/consolidated_types.csv and reports, by mu x lambda gap
                                type, or when nExogInsured exists (then used).
                                Adding nExogInsured (or nStayersUninsured) to
                                typeSummary() would make LOSS exact everywhere.
+             If lossStayers is present and not NaN (functions4.jl typeSummary,
+             2026-10-31: the fire-sale bank's stayers' exact shortfall at par, each
+             balance recovering R if solvent, else max(rho R, the insured share)):
+               loss_exact      (depEndog - paidEndog + lossStayers) / (depTotal - depExog),
+                               failed runs: the pilot's loss_share, EXACT. On the
+                               fire-sale bank the bounds above assume stayers recover
+                               only the cap (L = 0) and so overstate the loss; read
+                               loss_exact there.
   4. INSURED endogenous withdrawal rate among insured (nEndogInsured / nInsured) and
              uninsured ((nEndog - nEndogInsured) / (n - nInsured)) agents, by type,
              when nInsured and nEndogInsured exist. The denominators include the
@@ -142,6 +150,8 @@ def add_stats(typ):
                 # more uninsured stayers -> more of their deposits covered up to the cap
                 t["loss_lo"] = (wd_loss + (t.depStayersUninsured - t.insuranceCap * m_hi).clip(lower=0)) / den
                 t["loss_hi"] = (wd_loss + (t.depStayersUninsured - t.insuranceCap * m_lo).clip(lower=0)) / den
+        if "lossStayers" in t and t.lossStayers.notna().any():
+            t["loss_exact"] = (t.depEndog - t.paidEndog + t.lossStayers) / (t.depTotal - t.depExog)
         if "depUninsured" in t:
             t["unins_share"] = t.depUninsured / t.depTotal
         if all(c in t for c in INSURED_COLS):
@@ -244,6 +254,8 @@ def main(argv=None):
         specs += [("loss_lo", "failed"), ("loss_hi", "failed")]
     elif "unins_exposure" in t:
         print("\ninsuranceCap absent or NaN (adaptive scheme) — loss bounds skipped")
+    if "loss_exact" in t:
+        specs += [("loss_exact", "failed")]
     if "unins_share" in t:
         specs += [("unins_share", "all")]
     titles = {"wd_rate": "1. WHO: endogenous withdrawal rate nEndog/(n-nExog)",
@@ -253,6 +265,7 @@ def main(argv=None):
               "unins_exposure": "3. LOSS: uninsured exposure of stayers, depStayersUninsured/depTotal",
               "loss_lo": "3. LOSS: share of non-exogenous deposits lost (pilot definition), LOWER bound",
               "loss_hi": "3. LOSS: share of non-exogenous deposits lost (pilot definition), UPPER bound",
+              "loss_exact": "3. LOSS: share of non-exogenous deposits lost, EXACT (fire-sale bank)",
               "unins_share": "4. INSURED: uninsured deposit share depUninsured/depTotal"}
     tabs = []
     for col, sub in specs:

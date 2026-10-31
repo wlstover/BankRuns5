@@ -180,6 +180,15 @@ def run_full(d):
     check("nExogInsured present: loss_lo = loss_hi = (45 - 22.5)/80",
           close(c.loss_lo, 22.5 / 80) and close(c.loss_hi, 22.5 / 80))
 
+    # lossStayers (2026-10-31, fire-sale bank): the exact loss share; absent if all NaN
+    typ3 = typ.assign(lossStayers=3.0)
+    t3 = W.add_stats(typ3)
+    want = (t3.depEndog - t3.paidEndog + 3.0) / (t3.depTotal - t3.depExog)
+    check("lossStayers present: loss_exact = (depEndog - paidEndog + lossStayers) / (depTotal - depExog)",
+          "loss_exact" in t3 and all(abs(t3.loss_exact - want).fillna(0) < 1e-12))
+    check("lossStayers all NaN (vault bank): no loss_exact",
+          "loss_exact" not in W.add_stats(typ.assign(lossStayers=float("nan"))))
+
     print("E  INSURED and first quarter")
     c = row(W.ic_contrast(t, "wd_rate_insured", "failed"), mu=0.5, reserveRatio=0.1)
     check("run A insured rate I = C = 0.25", close(c.I, 0.25) and close(c.C, 0.25))

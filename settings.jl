@@ -43,6 +43,10 @@ const SWITCH_DEFAULTS = (
     RETURN_LO        = 0.9,          # firesale: gross return of the long asset at θ = 0
     RETURN_HI        = 1.3,          # firesale: gross return at θ = 1
     THETA_NOISE      = 0.10,         # PRIVATE_SIGNAL = theta: s.d. of x_i = θ + s·Z_i
+    # The noise law (2026-10-31, rung 2, docs/rung2_nest.md): normal = the above;
+    # uniform = Chapter 1's x_i = θ + e_i, e_i ~ U[−s, s], with THETA_NOISE read as
+    # the half-width ε_x and THETA_PUBLIC_NOISE as ε_y, and the θ window uniform.
+    THETA_NOISE_DIST = "normal",
     # Public signal of θ (2026-10-22): Chapter 1's y, blended with x_i by the
     # cultural weight, est_i = (1 − ω)·x_i + ω·y, and its subjective window.
     THETA_PUBLIC       = "none",     # none; stale = y fixed at THETA_PUBLIC_LEVEL whatever θ is (Ch 1); tracks = y = θ + THETA_PUBLIC_GAP
@@ -123,6 +127,7 @@ const PAYOFF_CHOICES      = ("full", "recovery")
 const BALANCE_CHOICES     = ("vault", "firesale")
 const FUNDAMENTAL_CHOICES = ("none", "theta")
 const THETA_PUBLIC_CHOICES = ("none", "stale", "tracks")
+const THETA_NOISE_DIST_CHOICES = ("normal", "uniform")
 const LAMBDA_SCOPE_CHOICES = ("count", "theta", "both")
 const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
@@ -257,6 +262,7 @@ function parseSwitchesFromEnv()
           RETURN_LO        = envFloat("BANKRUN_RETURN_LO", D.RETURN_LO, 0.0, 100.0),
           RETURN_HI        = envFloat("BANKRUN_RETURN_HI", D.RETURN_HI, 0.0, 100.0),
           THETA_NOISE      = envFloat("BANKRUN_THETA_NOISE", D.THETA_NOISE, 0.0, 100.0; loOpen=true),
+          THETA_NOISE_DIST = envChoice("BANKRUN_THETA_NOISE_DIST", D.THETA_NOISE_DIST, THETA_NOISE_DIST_CHOICES),
           THETA_PUBLIC       = envChoice("BANKRUN_THETA_PUBLIC", D.THETA_PUBLIC, THETA_PUBLIC_CHOICES),
           THETA_PUBLIC_LEVEL = envFloat("BANKRUN_THETA_PUBLIC_LEVEL", D.THETA_PUBLIC_LEVEL, 0.0, 1.0),
           THETA_PUBLIC_GAP   = envFloat("BANKRUN_THETA_PUBLIC_GAP", D.THETA_PUBLIC_GAP, -1.0, 1.0),

@@ -21,7 +21,7 @@ import pandas as pd
 
 TYPES = ["key", "type", "n", "nExog", "nEndog", "depTotal", "depExog", "depEndog", "paidExog",
          "paidEndog", "depStayers", "posSumEndog", "nFirstQuarter", "nInsured", "nEndogInsured",
-         "depUninsured", "depStayersUninsured", "nStayersUninsured"]
+         "depUninsured", "depStayersUninsured", "nStayersUninsured", "lossStayers"]
 BALANCE = ["key", "theta", "returnTheta", "vaultInit", "illiquidInit", "vaultFinal",
            "illiquidFinal", "assetsT", "promises", "solvent", "failType",
            "largestShare", "largestToCapacity", "largestWithdrew"]
