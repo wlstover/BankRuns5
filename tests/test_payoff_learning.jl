@@ -35,6 +35,8 @@ const GRIP, MEMORY, R = 0.5, 0.2, 1.1
 # bankRunEpisodes columns: key type episode seed2 theta failed n nExog nEndog depTotal
 # depEndog lambdaMean lambdaSd weightMean weightSd msexMean mseyMean
 const C_EPISODE, C_LAMBDA, C_WEIGHT, C_MSEX = 3, 12, 14, 16
+# bankRunEpisodes columns 19-20 (late 2026-10-30): learnedMean learnedSd, the learned weight w* alone
+const C_LEARNED, C_LEARNED_SD = 19, 20
 # bankRunBalance columns: key theta returnTheta vaultInit illiquidInit vaultFinal
 # illiquidFinal assetsT promises solvent failType ...
 const B_ASSETS, B_PROMISES, B_FAILTYPE = 8, 9, 11
@@ -174,4 +176,11 @@ end
     @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_THETA_PUBLIC" => "none")))
     @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_LAMBDA_SCOPE" => "count")))
     @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_LEARN" => "none")))
+end
+
+@testset "E. the learned-weight columns: weight = (1 − κ)·λ + κ·ω* by type" begin
+    @test all(isnan, ep0[:, C_LEARNED]) && all(isnan, ep0[:, C_LEARNED_SD])     # no learning
+    @test all(isapprox.(epk[:, C_WEIGHT], (1 - GRIP) .* epk[:, C_LAMBDA] .+ GRIP .* epk[:, C_LEARNED]; atol=1e-12))
+    @test epk[epk[:, C_EPISODE] .== 1, C_LEARNED] == epk[epk[:, C_EPISODE] .== 1, C_LAMBDA]     # ω* starts at λ
+    @test !any(isnan, epk[:, C_LEARNED_SD])
 end

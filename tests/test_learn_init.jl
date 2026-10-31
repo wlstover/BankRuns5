@@ -29,6 +29,8 @@ const GRIP, MEMORY = 0.5, 0.2
 # bankRunEpisodes columns: key type episode seed2 theta failed n nExog nEndog depTotal
 # depEndog lambdaMean lambdaSd weightMean weightSd msexMean mseyMean nJoined
 const C_EPISODE, C_WEIGHT = 3, 14
+# bankRunEpisodes columns 19-20 (late 2026-10-30): learnedMean learnedSd, the learned weight w* alone
+const C_LEARNED, C_LEARNED_SD = 19, 20
 
 const STAMP = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?"
 outputs(dir) = Dict(f => replace(read(joinpath(dir, f), String), STAMP => "T")
@@ -79,6 +81,8 @@ eps = Dict(k => episodes(d) for (k, (_, d)) in arms)
             r = ep[endswith.(ep[:, 1], runkey(row[:seed1], row[:seed2])) .& (ep[:, C_EPISODE] .== 1), :]
             for (t, sel) in (("I", isI), ("C", .!isI))
                 @test only(r[r[:, 2] .== t, C_WEIGHT]) ≈ mean(w[sel])
+                @test only(r[r[:, 2] .== t, C_LEARNED]) ≈ mean(u[sel])
+                @test only(r[r[:, 2] .== t, C_LEARNED_SD]) ≈ std(u[sel])
             end
         end
     end

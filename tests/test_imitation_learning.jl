@@ -34,6 +34,8 @@ const GRIP, MEMORY, R = 0.5, 0.2, 1.1
 # bankRunEpisodes columns: key type episode seed2 theta failed n nExog nEndog depTotal
 # depEndog lambdaMean lambdaSd weightMean weightSd msexMean mseyMean
 const C_EPISODE, C_LAMBDA, C_WEIGHT, C_MSEX = 3, 12, 14, 16
+# bankRunEpisodes columns 19-20 (late 2026-10-30): learnedMean learnedSd, the learned weight w* alone
+const C_LEARNED, C_LEARNED_SD = 19, 20
 
 const STAMP = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?"
 outputs(dir) = Dict(f => replace(read(joinpath(dir, f), String), STAMP => "T")
@@ -187,5 +189,14 @@ end
         @test parse_with(base).LEARN == rule
         @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_THETA_PUBLIC" => "none")))
         @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_LAMBDA_SCOPE" => "count")))
+    end
+end
+
+@testset "E. the learned-weight columns: weight = (1 − κ)·λ + κ·ω* by type" begin
+    @test all(isnan, ep0[:, C_LEARNED]) && all(isnan, ep0[:, C_LEARNED_SD])     # no learning
+    for rule in ("imitate", "payoff+imitate")
+        @test all(isapprox.(eps[rule][:, C_WEIGHT], (1 - GRIP) .* eps[rule][:, C_LAMBDA] .+ GRIP .* eps[rule][:, C_LEARNED]; atol=1e-12))
+        @test eps[rule][eps[rule][:, C_EPISODE] .== 1, C_LEARNED] == eps[rule][eps[rule][:, C_EPISODE] .== 1, C_LAMBDA]     # ω* starts at λ
+        @test !any(isnan, eps[rule][:, C_LEARNED_SD])
     end
 end

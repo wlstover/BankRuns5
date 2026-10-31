@@ -17,6 +17,8 @@ the consolidator as run_all.sh does.
   i  fire-sale arm: bankRunBalanceParams matches, balance rows gathered, exit 0
   j  bankRunBalanceParams disagrees with the manifest (d 0.5 vs 0.25): exit 1
   k  manifest says firesale, no bankRunBalanceParams: exit 1
+  l  bankRunEpisodes rows of three generations in one file (before nJoined, before
+     learnedMean/Sd, current): all kept, padded with 0 and NaN (late 2026-10-30)
 
 Run:  python3 tests/test_consolidate.py
 """
@@ -105,6 +107,8 @@ def build(d, switches=None, with_switch_cols=True, manifest=True, extra=None):
     if "private" in x:
         write_rows(os.path.join(t, "bankRunPrivateParams1.csv"),
                    [[k] + x["private"] + [2] for k in KEYS])
+    if "episodes" in x:
+        write_rows(os.path.join(t, "bankRunEpisodes1.csv"), x["episodes"])
     if "balance_params" in x:
         write_rows(os.path.join(t, "bankRunBalanceParams1.csv"),
                    [[k] + x["balance_params"] for k in KEYS])
@@ -223,6 +227,28 @@ def main():
     d, rc, out = case("k", switches=FIRE_SW)
     check("exit 1", rc == 1)
     check("names the file", "no bankRunBalanceParams*.csv" in out, out[-400:])
+
+    print("l  episode rows of three generations")
+    # key type + episode seed2 theta failed n nExog nEndog depTotal depEndog lambdaMean
+    # lambdaSd weightMean weightSd msexMean mseyMean | nJoined | learnedMean learnedSd
+    core = [1, 2, 0.4, "false", 50, 1, 2, 100.0, 3.0, 0.1, 0.06, 0.2, 0.05, "NaN", "NaN"]
+    eps = [[KEYS[0], "I"] + core,                                  # before nJoined
+           [KEYS[0], "C"] + core + [4],                            # before learnedMean/Sd
+           [KEYS[1], "I"] + core + [5, 0.3, 0.07]]                 # current
+    d, rc, out = case("l", extra={"episodes": eps})
+    check("exit 0", rc == 0, out[-400:])
+    check("episodes rows 3", count(out, "episodes rows:") == 3, out[-800:])
+    check("episodes dropped 0/0", count(out, "episodes rows dropped (width/key):") == (0, 0))
+    with open(os.path.join(d, "consolidated_episodes.csv"), newline="") as fh:
+        er = {(r["key"], r["type"]): r for r in csv.DictReader(fh)}
+    check("old row: nJoined 0, learned NaN",
+          er[(KEYS[0], "I")]["nJoined"] == "0" and er[(KEYS[0], "I")]["learnedMean"] == "NaN"
+          and er[(KEYS[0], "I")]["learnedSd"] == "NaN")
+    check("10-30 row: nJoined kept, learned NaN",
+          er[(KEYS[0], "C")]["nJoined"] == "4" and er[(KEYS[0], "C")]["learnedSd"] == "NaN")
+    check("current row kept as written",
+          er[(KEYS[1], "I")]["nJoined"] == "5" and er[(KEYS[1], "I")]["learnedMean"] == "0.3"
+          and er[(KEYS[1], "I")]["learnedSd"] == "0.07")
 
     BASE.cleanup()
     print(f"\n{_passed} passed, {_failed} failed")

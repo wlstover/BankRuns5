@@ -12,6 +12,12 @@ By episode (and pooled over episodes 2+, row "2+"), for each arm:
            control (10-30). Any two arms pair, so --control lrn-y50-pay against pay-q90
            gives the effect of coverage on what Rule B learns.
   mu       the share of type I (10-30; fixed unless BANKRUN_LEARN=type / payoff+type)
+  sI, sC   within-type dispersion (10-30), and their paired differences. The SD of
+           the learned weight w* alone (learnedSd) where the episode files carry it
+           (written from late 10-30, learning arms only); else the SD of the theta
+           weight used (weightSd), which is (1 - kappa) lambda + kappa w* and so mixes
+           in lambda's spread. Each arm's header names the measure; the paired
+           difference is printed only when arm and control use the same one.
   fail     P(fail), and its paired difference from the control
   gap      the I - C endogenous withdrawal share of deposits, and its paired difference
 
@@ -43,12 +49,19 @@ def load(arm: Path) -> pd.DataFrame:
     ep = ep.join(seeds_of(ep["key"]).rename(columns={"seed2": "runSeed2"}))
     ep["failed"] = ep["failed"].astype(str).str.lower() == "true"
     ep["wd"] = ep["depEndog"] / ep["depTotal"]
+    learned = "learnedSd" in ep and ep["learnedSd"].notna().any()
     w = ep.pivot_table(index=PAIR + ["failed"], columns="type",
-                       values=["weightMean", "wd", "n"]).reset_index()
+                       values=["weightMean", "weightSd", "wd", "n"]
+                       + (["learnedSd"] if learned else [])).reset_index()
     w.columns = [a if not b else f"{a}_{b}" for a, b in w.columns]
+    if learned:
+        w["weightSd_I"], w["weightSd_C"] = w["learnedSd_I"], w["learnedSd_C"]
     w["gap"] = w["wd_I"] - w["wd_C"]
     w["mu"] = w["n_I"] / (w["n_I"] + w["n_C"])       # share of type I (moves under L3b)
-    return w.rename(columns={"weightMean_I": "wI", "weightMean_C": "wC"})
+    w = w.rename(columns={"weightMean_I": "wI", "weightMean_C": "wC",
+                          "weightSd_I": "sI", "weightSd_C": "sC"})
+    w.attrs["s"] = "SD of w*" if learned else "SD of weight"
+    return w
 
 
 def paired(g: pd.DataFrame, col: str) -> tuple[float, float]:
@@ -65,15 +78,17 @@ def main() -> int:
     ap.add_argument("arms", nargs="+", type=Path)
     a = ap.parse_args()
 
-    cols = ["failed", "gap", "wI", "wC", "mu"]
+    cols = ["failed", "gap", "wI", "wC", "mu", "sI", "sC"]
     ctrl = load(a.control)
     for arm in [a.control] + a.arms:
         d = load(arm)
         m = d.merge(ctrl[PAIR + cols], on=PAIR, suffixes=("", "_ctrl"))
         print(f"\n{arm.name}: {d['runSeed2'].nunique()} runs, paired with {a.control.name} "
-              f"on {len(m)} of {len(d)} run-episodes")
+              f"on {len(m)} of {len(d)} run-episodes; s = {d.attrs['s']}")
+        same = d.attrs["s"] == ctrl.attrs["s"]
         print(f"  {'ep':>3}  {'wI':>6} {'wC':>6}  {'d wI (se)':>15} {'d wC (se)':>15}  "
-              f"{'fail':>6} {'d fail (se)':>15}  {'gap I-C':>8} {'d gap (se)':>16}  {'mu':>5} {'d mu (se)':>15}")
+              f"{'fail':>6} {'d fail (se)':>15}  {'gap I-C':>8} {'d gap (se)':>16}  {'mu':>5} {'d mu (se)':>15}  "
+              f"{'sI':>6} {'sC':>6}  {'d sI (se)':>15} {'d sC (se)':>15}")
         rows = list(m.groupby("episode")) + [("2+", m[m["episode"] >= 2])]
         for e, g in rows:
             dI, dIse = paired(g, "wI")
@@ -81,10 +96,14 @@ def main() -> int:
             df, dse = paired(g, "failed")
             dg, gse = paired(g, "gap")
             dm, mse = paired(g, "mu")
+            dsI, sIse = paired(g, "sI") if same else (np.nan,) * 2
+            dsC, sCse = paired(g, "sC") if same else (np.nan,) * 2
             print(f"  {e:>3}  {g['wI'].mean():6.3f} {g['wC'].mean():6.3f}  "
                   f"{dI:+7.3f} ({dIse:.3f}) {dC:+7.3f} ({dCse:.3f})  {g['failed'].mean():6.3f} "
                   f"{df:+7.3f} ({dse:.3f})  {g['gap'].mean():+8.3f} {dg:+8.3f} ({gse:.3f})  "
-                  f"{g['mu'].mean():5.3f} {dm:+7.3f} ({mse:.3f})")
+                  f"{g['mu'].mean():5.3f} {dm:+7.3f} ({mse:.3f})  "
+                  f"{g['sI'].mean():6.3f} {g['sC'].mean():6.3f}  "
+                  f"{dsI:+7.3f} ({sIse:.3f}) {dsC:+7.3f} ({sCse:.3f})")
     return 0
 
 

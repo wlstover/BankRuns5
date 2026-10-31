@@ -1818,7 +1818,9 @@ end
 
 """One row per type for episode `e`: θ, whether the bank failed, withdrawals by
 type, cultural λ by type, and the θ weight used and the squared errors entering
-the episode (with learning; else the cultural θ weight and NaN)."""
+the episode (with learning; else the cultural θ weight and NaN). learnedMean /
+learnedSd (2026-10-30): the learned weight ω* alone, mean and SD by type (NaN
+without learning), since weightSd mixes λ and ω*."""
 function episodeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord, e::Integer, failed::Bool,
                      learn=nothing)
     ts = typeSummary(mod, isI, rec)
@@ -1830,6 +1832,10 @@ function episodeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord, e::I
     rmse = learn !== nothing && switchValue(:LEARN) == "precision"
     mx = rmse ? learn.msex : nanv
     my = rmse ? learn.msey : nanv
+    # ω* by rule: Rule A's precision share (it never touches `learned`; episode 1 runs
+    # on λ, before any update, as Rule B's ω* starts there), else `learned`
+    ωs = learn === nothing ? nanv :
+         !rmse ? learn.learned : e == 1 ? λ : @.(learn.msex / (learn.msex + learn.msey))
     # key, type first: the per-type layout consolidate_results.py reads (DOCK_FILES)
     return DataFrame(key=ts.key, type=ts.type, episode=e, seed2=mod.seed2,
                      theta=episodeTheta(mod.seed2), failed=failed,
@@ -1842,7 +1848,9 @@ function episodeRows(mod::Model, isI::AbstractVector{Bool}, rec::RunRecord, e::I
                      msexMean=[meanOrNaN(mx[sel[t]]) for t in ts.type],
                      mseyMean=[meanOrNaN(my[sel[t]]) for t in ts.type],
                      # L3b: agents of this type that switched into it after episode e − 1
-                     nJoined=[learn === nothing ? 0 : count(learn.switched[sel[t]]) for t in ts.type])
+                     nJoined=[learn === nothing ? 0 : count(learn.switched[sel[t]]) for t in ts.type],
+                     learnedMean=[meanOrNaN(ωs[sel[t]]) for t in ts.type],
+                     learnedSd=[sdOrNaN(ωs[sel[t]]) for t in ts.type])
 end
 
 writeEpisode(mod::Model, isI, rec::RunRecord, e::Integer, failed::Bool, learn=nothing) =

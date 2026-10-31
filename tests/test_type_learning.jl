@@ -37,6 +37,8 @@ const RATE = 0.5                     # high, so a few episodes show switches
 # bankRunEpisodes columns: key type episode seed2 theta failed n nExog nEndog depTotal
 # depEndog lambdaMean lambdaSd weightMean weightSd msexMean mseyMean nJoined
 const C_EPISODE, C_N, C_LAMBDA, C_WEIGHT, C_MSEX, C_JOINED = 3, 7, 12, 14, 16, 18
+# bankRunEpisodes columns 19-20 (late 2026-10-30): learnedMean learnedSd, the learned weight w* alone
+const C_LEARNED, C_LEARNED_SD = 19, 20
 
 const STAMP = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?"
 outputs(dir) = Dict(f => replace(read(joinpath(dir, f), String), STAMP => "T")
@@ -226,4 +228,13 @@ end
     @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_LEARN" => "payoff", "BANKRUN_LEARN_GRIP" => "0.5",
                                                             "BANKRUN_LEARN_TYPE_RATE" => "0.1")))
     @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_LEARN_TYPE_RATE" => "1.5")))
+end
+
+@testset "E. the learned-weight columns: weight = (1 − κ)·λ + κ·ω* by type" begin
+    @test all(isnan, ep0[:, C_LEARNED]) && all(isnan, ep0[:, C_LEARNED_SD])     # no learning
+    for (rule, k) in (("type", 0.0), ("payoff+type", GRIP), ("payoff", GRIP))
+        @test all(isapprox.(eps[rule][:, C_WEIGHT], (1 - k) .* eps[rule][:, C_LAMBDA] .+ k .* eps[rule][:, C_LEARNED]; atol=1e-12))
+        @test eps[rule][eps[rule][:, C_EPISODE] .== 1, C_LEARNED] == eps[rule][eps[rule][:, C_EPISODE] .== 1, C_LAMBDA]     # ω* starts at λ
+        @test !any(isnan, eps[rule][:, C_LEARNED_SD])
+    end
 end

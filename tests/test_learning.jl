@@ -31,6 +31,8 @@ const E = 4
 # bankRunEpisodes columns: key type episode seed2 theta failed n nExog nEndog depTotal
 # depEndog lambdaMean lambdaSd weightMean weightSd msexMean mseyMean
 const C_EPISODE, C_LAMBDA, C_WEIGHT, C_MSEX = 3, 12, 14, 16
+# bankRunEpisodes columns 19-20 (late 2026-10-30): learnedMean learnedSd, the learned weight w* alone
+const C_LEARNED, C_LEARNED_SD = 19, 20
 
 const STAMP = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?"
 outputs(dir) = Dict(f => replace(read(joinpath(dir, f), String), STAMP => "T")
@@ -124,4 +126,11 @@ end
     @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_LAMBDA_SCOPE" => "count")))
     @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_LEARN" => "none")))
     @test_throws ErrorException parse_with(merge(base, Dict("BANKRUN_LEARN_GRIP" => "1.5")))
+end
+
+@testset "E. the learned-weight columns: weight = (1 − κ)·λ + κ·ω* by type" begin
+    @test all(isnan, ep0[:, C_LEARNED]) && all(isnan, ep0[:, C_LEARNED_SD])     # no learning
+    @test all(isapprox.(epk[:, C_WEIGHT], (1 - 0.5) .* epk[:, C_LAMBDA] .+ 0.5 .* epk[:, C_LEARNED]; atol=1e-12))
+    @test epk[epk[:, C_EPISODE] .== 1, C_LEARNED] == epk[epk[:, C_EPISODE] .== 1, C_LAMBDA]     # ω* starts at λ
+    @test !any(isnan, epk[:, C_LEARNED_SD])
 end

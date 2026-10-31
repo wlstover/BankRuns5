@@ -179,7 +179,10 @@ DOCK_FILES = {
                   # L3b (BANKRUN_LEARN=type, 2026-10-30): agents of the type that switched
                   # into it after the previous episode (0 otherwise; files written before
                   # 2026-10-30 lack the column and are read with 0)
-                  "nJoined"]),
+                  "nJoined",
+                  # the learned weight w* alone, mean and SD by type (late 2026-10-30;
+                  # NaN without learning; older files are read with NaN)
+                  "learnedMean", "learnedSd"]),
     "partial": ("bankRunPartial", False,
                 ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
                  "largestFracWithdrawn"]),
@@ -552,8 +555,10 @@ def consolidate(arm_dir, manifest_path, out_path):
                         for row in csv.reader(fh):
                             if not row:
                                 continue
-                            if n == "episodes" and len(row) == width - 1:
+                            if n == "episodes" and len(row) == width - 3:
                                 row = row + ["0"]                 # before nJoined (2026-10-30)
+                            if n == "episodes" and len(row) == width - 2:
+                                row = row + ["NaN", "NaN"]        # before learnedMean/Sd (late 2026-10-30)
                             if len(row) != width:
                                 dock_dropped[n]["width"] += 1
                                 continue
