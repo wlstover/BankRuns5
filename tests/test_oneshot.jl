@@ -15,6 +15,13 @@
 #      only, in the sub-simulations (stayerPayoff), the realised value (stayValue)
 #      and lossStayers.
 #   D. Refused combinations and parsing.
+#   E. LIQUIDITY = unlimited: raiseCash borrows against the long asset at the fire-sale
+#      rate (the long position goes negative) and pays the deposit; inside capacity
+#      it equals the limited bank. In modelRun on a bank that has liquidity failures
+#      when limited: none, every withdrawal paid in full, borrowing happens, and a
+#      bank that borrowed is insolvent in period 2.
+#   F. SHOCK_COUNT: exactly n agents in the shock (min(n, N)); n equal to the drawn
+#      count reproduces the default run exactly.
 ################################################################################
 
 using Test
@@ -56,6 +63,9 @@ const NEST = (BALANCE="firesale", PAYOFF="recovery", STAY_RETURN=1.1, FUNDAMENTA
               TIEBREAK="strict", TIMING="oneshot", HEADCOUNT_BELIEF="prior", FAIL_PAYOFF="insurance")
 const ONESHOT_COLS = [:key, :agent, :individualism, :x, :est, :withdrew, :wdProb, :stayProb]
 const ENDOG_COLS = [:key, :agent, :withdraw, :deposit, :tick, :vault, :wdProb, :stayProb]
+const BALANCE_COLS = [:key, :theta, :returnTheta, :vaultInit, :illiquidInit, :vaultFinal, :illiquidFinal,
+                      :assetsT, :promises, :solvent, :failType, :largestShare, :largestToCapacity,
+                      :largestWithdrew]
 
 # ---------------------------------------------------------------- A
 @testset "A. TIMING = oneshot" begin
@@ -148,6 +158,7 @@ end
     m = load_model(:D)
     D = m.SWITCH_DEFAULTS
     @test D.TIMING == "sequential" && D.HEADCOUNT_BELIEF == "blend" && D.FAIL_PAYOFF == "recovery"
+    @test D.LIQUIDITY == "limited" && D.SHOCK_COUNT == -1
     err(; kw...) = m.switchComboError(merge(D, (; kw...)))
     FS = (BALANCE="firesale", PAYOFF="recovery", FRESH_CLONE=true)
     @test err(; FS..., TIMING="oneshot") === nothing
@@ -156,6 +167,16 @@ end
     @test err(; FS..., FAIL_PAYOFF="insurance") === nothing
     @test err(FAIL_PAYOFF="insurance") !== nothing                 # needs the fire-sale bank
     @test err(HEADCOUNT_BELIEF="prior") === nothing
+    @test err(; FS..., LIQUIDITY="unlimited") === nothing
+    @test err(LIQUIDITY="unlimited") !== nothing                   # needs the fire-sale bank
+    withenv("BANKRUN_LIQUIDITY" => "unlimited", "BANKRUN_SHOCK_COUNT" => "10",
+            "BANKRUN_BALANCE" => "firesale", "BANKRUN_PAYOFF" => "recovery", "BANKRUN_FRESH_CLONE" => "true") do
+        sw = m.parseSwitchesFromEnv()
+        @test sw.LIQUIDITY == "unlimited" && sw.SHOCK_COUNT == 10
+    end
+    withenv("BANKRUN_SHOCK_COUNT" => "-2") do
+        @test_throws ErrorException m.parseSwitchesFromEnv()
+    end
     withenv("BANKRUN_TIMING" => "oneshot", "BANKRUN_HEADCOUNT_BELIEF" => "prior",
             "BANKRUN_BALANCE" => "firesale", "BANKRUN_PAYOFF" => "recovery",
             "BANKRUN_FAIL_PAYOFF" => "insurance") do
@@ -168,4 +189,62 @@ end
     mm = load_model(:Dm)                                            # refused inside modelRun too
     setsw!(mm; FAIL_PAYOFF="insurance")
     @test_throws ErrorException Base.invokelatest(() -> mm.modelRun(build(mm, 1)))
+end
+
+# ---------------------------------------------------------------- E
+@testset "E. LIQUIDITY = unlimited" begin
+    m = load_model(:E)
+    rc(args...) = Base.invokelatest(m.raiseCash, args...)
+    # limited (the default): capacity (1 − d)·illiquid = 1 < need 4, so it sells everything
+    @test rc(1.0, 2.0, 5.0, 0.5) == (2.0, 0.0)
+    @test rc(1.0, 0.0, 5.0, 0.5) == (1.0, 0.0)                    # nothing to sell
+    setsw!(m; LIQUIDITY="unlimited")
+    @test rc(1.0, 2.0, 5.0, 0.5) == (5.0, -6.0)                   # borrows 8 units of the long asset's value
+    @test rc(6.0, 2.0, 5.0, 0.5) == (6.0, 2.0)                    # paid from cash: unchanged
+    @test rc(1.0, 10.0, 5.0, 0.5) == (5.0, 2.0)                   # inside capacity: as limited
+    # modelRun on the fragile bank (capacity 0.05 + 0.4·1.01 = 0.45)
+    FRAG = (FIRE_DISCOUNT=0.6, EQUITY=0.06)
+    ml = load_model(:El); setsw!(ml; NEST..., FRAG..., LOG="full")
+    mu = load_model(:Eu); setsw!(mu; NEST..., FRAG..., LIQUIDITY="unlimited", LOG="full")
+    nLiq, nBorrow = 0, 0
+    for s in 1:30
+        mod = build(ml, s; reserve=0.05, sigma=0.0)
+        Base.invokelatest(ml.modelRun, mod; record=Base.invokelatest(ml.RunRecord))
+        bal = readlog(ml, "bankRunBalance1.csv", BALANCE_COLS)
+        nLiq += count(bal.failType[bal.key .== mod.key] .== "liquidity")
+
+        mod = build(mu, s; reserve=0.05, sigma=0.0)
+        rec = Base.invokelatest(mu.RunRecord)
+        Base.invokelatest(mu.modelRun, mod; record=rec)
+        bal = readlog(mu, "bankRunBalance1.csv", BALANCE_COLS)
+        b = bal[bal.key .== mod.key, :][1, :]
+        @test b.failType != "liquidity"
+        @test all(rec.paid .≈ [mod.agtList[i].deposit for i in rec.order])   # every runner paid in full
+        @test b.vaultFinal >= -1e-9
+        @test b.assetsT ≈ max(b.vaultFinal, 0.0) + b.illiquidFinal * b.returnTheta
+        if b.illiquidFinal < 0.0
+            nBorrow += 1
+            @test !b.solvent                                      # a bank that borrowed cannot repay
+        end
+    end
+    @test nLiq > 0                                                # limited: the bank does fail in period 1
+    @test nBorrow > 0                                             # unlimited: borrowing happens
+end
+
+# ---------------------------------------------------------------- F
+@testset "F. SHOCK_COUNT" begin
+    m0 = load_model(:F0); setsw!(m0; NEST...)
+    mk = load_model(:Fk); setsw!(mk; NEST...)
+    run(mm, s) = (rec = Base.invokelatest(mm.RunRecord);
+                  Base.invokelatest(mm.modelRun, build(mm, s; reserve=0.10, sigma=0.0); record=rec); rec)
+    for s in 1:8
+        rec0 = run(m0, s)
+        setsw!(mk; SHOCK_COUNT=rec0.nExog)                        # the drawn count: the default run exactly
+        rec = run(mk, s)
+        @test rec.order == rec0.order && rec.paid == rec0.paid && rec.nTicks == rec0.nTicks
+        setsw!(mk; SHOCK_COUNT=7)
+        @test run(mk, s).nExog == 7
+    end
+    setsw!(mk; SHOCK_COUNT=0);    @test run(mk, 1).nExog == 0
+    setsw!(mk; SHOCK_COUNT=1000); @test run(mk, 1).nExog == 60    # capped at N
 end

@@ -232,8 +232,13 @@ end
 # One pure function, used by withdraw() and by both sub-simulations, so all three
 # do the same arithmetic. With nothing to sell (the vault bank, illiquid = 0) it
 # returns its inputs, so the default model is unchanged bit for bit.
+# LIQUIDITY = unlimited (2026-10-31, rung 2): the bank borrows against the long
+# asset at the same rate, so the long position may go negative and the deposit is
+# always paid (no period-1 failure; the debt is settled at R(θ) in period 2).
 function raiseCash(vault::Float64, illiquid::Float64, dep::Float64, d::Float64)
-    (dep > vault && illiquid > 0.0) || return (vault, illiquid)
+    dep > vault || return (vault, illiquid)
+    switchValue(:LIQUIDITY) == "unlimited" && return (dep, illiquid - (dep - vault) / (1.0 - d))
+    illiquid > 0.0 || return (vault, illiquid)
     need = dep - vault                   # vault >= 0 here: it goes negative only once illiquid is 0
     capacity = (1.0 - d) * illiquid
     capacity >= need && return (dep, max(illiquid - need / (1.0 - d), 0.0))
@@ -335,6 +340,10 @@ end
 function exogWithdrawals(mod::Model; record=nothing)
     # get the number of agents that will withdraw
     numWithdrawals=rand(mod.exogProb,1)[1]
+    # SHOCK_COUNT >= 0 (2026-10-31, rung 2): exactly that many. The draw is still
+    # made, so a count equal to the drawn one reproduces the default run exactly.
+    shockCount = switchValue(:SHOCK_COUNT)
+    shockCount >= 0 && (numWithdrawals = min(shockCount, length(mod.agtList)))
     # get the list of agents that will withdraw
     withdrawList=sample(mod.agtList,numWithdrawals,replace=false)
     # set the banked status to false
@@ -970,7 +979,8 @@ function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
                                  FUNDAMENTAL=fundamental, PRIVATE_SIGNAL=privateSignal,
                                  RETURN_LO=returnLo, RETURN_HI=returnHi, THETA_PUBLIC=thetaPublic,
                                  WITHDRAW=switchValue(:WITHDRAW), CARA=caraGamma,
-                                 TIMING=switchValue(:TIMING), FAIL_PAYOFF=switchValue(:FAIL_PAYOFF)))
+                                 TIMING=switchValue(:TIMING), FAIL_PAYOFF=switchValue(:FAIL_PAYOFF),
+                                 LIQUIDITY=switchValue(:LIQUIDITY)))
     comboErr === nothing || error(comboErr)
     # Insurance under partial withdrawals is a cumulative quantile cap
     # (afterOwnWithdrawal). The adaptive scheme's cap, the largest deposit

@@ -30,9 +30,9 @@ ladder (F10) then starts from this nest and relaxes one assumption at a time.
 | Public signal | y, stale level; δ = y − θ varies | `THETA_PUBLIC=stale`, `THETA_PUBLIC_LEVEL` = y; `THETA_PUBLIC_NOISE` read as ε_y under uniform |
 | Blend | θ̂_i = ω_J·y + (1 − ω_J)·x_i | λ on the θ blend (`LAMBDA_SCOPE=theta`); λ_I, λ_C as ω_I, ω_C (degenerate Beta, or report the type means) |
 | Belief about θ | θ \| θ̂ ~ U[θ̂ ± w_J], w_J = (1 − ω_J)ε_x + ω_J ε_y | `thetaBelief` already has this window; uniform replaces the truncated normal (truncated to [0, 1]) |
-| Impatient share | η (the solver's eta) | the exogenous shock, as a share of N |
+| Impatient share | η (the solver's eta) | the exogenous shock, as a share of N; **new** `SHOCK_COUNT` = n fixes it at n/N (the default draws a truncated Geometric(0.1) count per run, mean ≈ 9, P(0) = 0.1) |
 | Depositors | identical, risk neutral, all or nothing | σ = 0 (`LogNormal(μ, 0)` gives equal deposits; checked), `CARA=0`, `WITHDRAW=all`, `DEPOSIT_CAP=0` |
-| Bank | Rochet–Vives: pays every runner, fails in period 2 | `BALANCE=firesale`, `PAYOFF=recovery`; d small enough that no liquidity failure occurs in the nest's cells (checked per cell) |
+| Bank | Rochet–Vives: pays every runner, fails in period 2 | `BALANCE=firesale`, `PAYOFF=recovery`, **new** `LIQUIDITY=unlimited` (the bank borrows against the long asset at the fire-sale rate); nest bank r 0.01 / e 0.06 / d 0.10 (build step 3a) |
 | Payoffs | v = R − 1 if the bank survives, −(1 − L) if it fails | `STAY_RETURN` = R; see open item 2 for L |
 | Population | continuum, shares μ, 1 − μ | N agents, μ; the network is irrelevant once open item 1 is settled |
 
@@ -85,17 +85,35 @@ bridge (F8) passes this A*(θ) to the solver in place of A1, and θ_L, θ_H foll
    way), `thetaBelief(...; uniform)` = U[est ± w] truncated to [0, 1], Rule A's prior
    MSE s²/3 under uniform (`thetaNoiseVar`). tests/test_balance_sheet.jl I.
 2. ~~`TIMING=oneshot`~~ and 3. ~~`HEADCOUNT_BELIEF=prior`, `FAIL_PAYOFF=insurance`~~
-   **BUILT 2026-10-31, uncommitted until the full suite passes** (tests/test_oneshot.jl
-   A–D pass; the full suite was not run that night). One-shot writes `bankRunOneShot`
+   **BUILT 2026-10-31, committed fcb9605** (tests/test_oneshot.jl A–D; full suite
+   32 pass / 0 fail). One-shot writes `bankRunOneShot`
    (agent, λ, x, est, withdrew, wdProb, stayProb), consolidated as `oneshot`.
    Interior L (open item 3) not built.
-3a. **The nest's bank (open, 2026-10-31).** The reference bank cannot be the nest:
-   period-1 capacity r + (1 − d)(1 − r + e) = 0.45 at r 0.05, d 0.6, e 0.06, so a run
-   past 45% is a liquidity failure, which Chapter 1 rules out. The nest needs
-   capacity ≥ 1 and an interior A*(θ) (runs must cost something). Checked (R_s 1.1,
-   R(θ) 1.0–1.4): r 0.05 / e 0.06 / d 0.05 → capacity 1.009, A* = 1 above θ_L 0.10
-   (degenerate); r 0.10 / e 0.06 / d 0.08 → 0.983, A*(0.3/0.5/0.7) 0.83/0.89/0.92;
-   r 0.20 / e 0.06 / d 0.15 → 0.93, A* 0.58/0.69/0.74. Next: raise e until
-   capacity ≥ 1 at d ≈ 0.08–0.15 and check A* stays interior.
+3a. **The nest's bank (decided 2026-10-31, Walter).** The target "capacity ≥ 1 with an
+   interior A*(θ)" is infeasible on the fire-sale bank. Per unit of deposits, in the
+   selling region (A > r) the period-2 margin is
+   S(A) = (ℓ − (A − r)/(1 − d))·R(θ) − R_s(1 − A), ℓ = 1 − r + e: linear in A, with
+   S(1) = (capacity − 1)·R(θ)/(1 − d). Capacity ≥ 1 ⇒ S(1) ≥ 0 ⇒ a run never sinks a
+   solvent bank (A* = 1). Capacity < 1 ⇒ S(capacity) = −R_s(1 − capacity) < 0 ⇒
+   A*(θ) < capacity: the bank is insolvent before it is illiquid, so period-1
+   rationing bites only in failure states. No interior bank has an upper-dominance
+   region θ_H (a full run always fails it). The sub-simulations also put the focal
+   agent last in the queue, so under rationing it expects 0, not Chapter 1's
+   footnote share K/A.
+   Decision: the nest pays every runner (`LIQUIDITY=unlimited`, Chapter 1's main
+   text); the rationed bank is a later rung on the F10 ladder. Nest bank r 0.01 /
+   e 0.06 / d 0.10 (R_s 1.1, R(θ) 1.0–1.4): A*(0.2/0.3/0.5/0.7/0.9) =
+   0.46/0.61/0.74/0.80/0.84, θ_L ≈ 0.08; A* passes through μ and 1 − μ, so the
+   partial-run plateaus are testable. (The reference bank r 0.05 / d 0.6 has
+   A* ≤ 0.20 under unlimited liquidity.)
+3b. ~~`LIQUIDITY=unlimited`~~, ~~`SHOCK_COUNT`~~ **BUILT 2026-10-31** (raiseCash
+   borrows; refused off the fire-sale bank. The shock size is still drawn, so a
+   fixed count equal to the drawn one reproduces the default run).
+   tests/test_oneshot.jl E–F.
 4. F9 cutoff estimator (LOG=full on small arms), F8 bridge (A*(θ) above into the
-   solver), a nest arm file, then the comparison.
+   solver), a nest arm file, then the comparison. F8 reports two solver numbers per
+   cell (Walter, 2026-10-31): (a) Chapter 1's equilibrium cutoffs, and (b) the cutoff
+   of a Chapter 1 agent holding the ABM's belief law (the head-count drawn from the
+   prior, independent of θ). Agreement with (b) is the identity test of the
+   mechanics; (a) − (b) is the belief law's gap, a level-k vs equilibrium contrast
+   (Kneeland 2016).

@@ -122,6 +122,17 @@ const SWITCH_DEFAULTS = (
     # FAIL_PAYOFF (fire-sale bank): recovery = a stayer in a failed bank gets max(ρR,
     # its insured share) (the model); insurance = its insured share only (Chapter 1's L).
     FAIL_PAYOFF      = "recovery",
+    # LIQUIDITY (fire-sale bank; 2026-10-31, rung 2, the user): limited = the bank pays
+    # from cash and fire sales and fails in period 1 once both are gone (the model);
+    # unlimited = it borrows against the long asset at the fire-sale rate (the long
+    # position may go negative), so every runner is paid and the bank can fail only in
+    # period 2 (Chapter 1's main text, Rochet-Vives full payment).
+    LIQUIDITY        = "limited",
+    # SHOCK_COUNT (2026-10-31, rung 2): -1 = the exogenous shock's size is drawn from
+    # the row's distribution (the model); n >= 0 = exactly n agents (min(n, N)), so the
+    # impatient share eta is fixed. The draw is still made, so a fixed count equal to the
+    # drawn one reproduces the default run exactly.
+    SHOCK_COUNT      = -1,
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -143,6 +154,7 @@ const THETA_NOISE_DIST_CHOICES = ("normal", "uniform")
 const TIMING_CHOICES           = ("sequential", "oneshot")
 const HEADCOUNT_BELIEF_CHOICES = ("blend", "prior")
 const FAIL_PAYOFF_CHOICES      = ("recovery", "insurance")
+const LIQUIDITY_CHOICES        = ("limited", "unlimited")
 const LAMBDA_SCOPE_CHOICES = ("count", "theta", "both")
 const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
@@ -219,6 +231,8 @@ function switchComboError(sw)
     end
     hasproperty(sw, :FAIL_PAYOFF) && sw.FAIL_PAYOFF == "insurance" && sw.BALANCE != "firesale" &&
         return "BANKRUN_FAIL_PAYOFF=insurance needs BANKRUN_BALANCE=firesale"
+    hasproperty(sw, :LIQUIDITY) && sw.LIQUIDITY == "unlimited" && sw.BALANCE != "firesale" &&
+        return "BANKRUN_LIQUIDITY=unlimited needs BANKRUN_BALANCE=firesale"
     return nothing
 end
 
@@ -310,6 +324,8 @@ function parseSwitchesFromEnv()
           TIMING           = envChoice("BANKRUN_TIMING", D.TIMING, TIMING_CHOICES),
           HEADCOUNT_BELIEF = envChoice("BANKRUN_HEADCOUNT_BELIEF", D.HEADCOUNT_BELIEF, HEADCOUNT_BELIEF_CHOICES),
           FAIL_PAYOFF      = envChoice("BANKRUN_FAIL_PAYOFF", D.FAIL_PAYOFF, FAIL_PAYOFF_CHOICES),
+          LIQUIDITY        = envChoice("BANKRUN_LIQUIDITY", D.LIQUIDITY, LIQUIDITY_CHOICES),
+          SHOCK_COUNT      = envInt("BANKRUN_SHOCK_COUNT", D.SHOCK_COUNT, -1, 10^7),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)
