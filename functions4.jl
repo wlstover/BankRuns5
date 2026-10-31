@@ -369,7 +369,9 @@ function stayerPayoff(vault::Float64, illiquid::Float64, Rθ::Float64, promises:
                       dep::Float64, cap::Float64, R::Float64)
     promises <= 0.0 && return R * dep
     rho = (max(vault, 0.0) + illiquid * Rθ) / promises
-    return rho >= 1.0 ? R * dep : max(rho * R * dep, min(dep, cap))
+    rho >= 1.0 && return R * dep
+    # FAIL_PAYOFF = insurance (2026-10-31, rung 2): the insured share only, Chapter 1's L
+    return switchValue(:FAIL_PAYOFF) == "insurance" ? min(dep, cap) : max(rho * R * dep, min(dep, cap))
 end
 
 # The insurance cap a withdrawal from `mod` would face now (withdraw()'s rule).
@@ -967,7 +969,8 @@ function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
                                  FRESH_CLONE=freshClone, PAYOFF=payoffMode, BALANCE=balanceMode,
                                  FUNDAMENTAL=fundamental, PRIVATE_SIGNAL=privateSignal,
                                  RETURN_LO=returnLo, RETURN_HI=returnHi, THETA_PUBLIC=thetaPublic,
-                                 WITHDRAW=switchValue(:WITHDRAW), CARA=caraGamma))
+                                 WITHDRAW=switchValue(:WITHDRAW), CARA=caraGamma,
+                                 TIMING=switchValue(:TIMING), FAIL_PAYOFF=switchValue(:FAIL_PAYOFF)))
     comboErr === nothing || error(comboErr)
     # Insurance under partial withdrawals is a cumulative quantile cap
     # (afterOwnWithdrawal). The adaptive scheme's cap, the largest deposit
@@ -1111,6 +1114,15 @@ function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
                   DataFrame(key=mod.key, partialSteps=partialSteps), writeheader=false, append=true)
     end
 
+    # TIMING = oneshot (2026-10-31, rung 2): decisions in tick 1 only, all against the
+    # post-shock state (withdrawals are held in `pending` until every agent has
+    # decided, so neither the bank nor the neighbours move within the tick), then
+    # executed in the tick's order. HEADCOUNT_BELIEF = prior: head-count weight 0.
+    oneShot = switchValue(:TIMING) == "oneshot"
+    headPrior = switchValue(:HEADCOUNT_BELIEF) == "prior"
+    pending = Tuple{Agent,Float64}[]
+    oneShotRows = oneShot ? DataFrame(key=String[], agent=Int[], individualism=Float64[], x=Float64[],
+                                      est=Float64[], withdrew=Bool[], wdProb=Float64[], stayProb=Float64[]) : nothing
     # now, whenever an agent withdraws, we reset a state variable since this means all other agents will
     # re-examing their decision to bank
     halt::Bool=false
@@ -1175,7 +1187,7 @@ function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
             additionalWithdrawals = anticipatedWithdrawals(agt, priorDraws, neighbourEstimate, publicPoint,
                                                            alreadyOut, nAgents, t;
                                                            pubAlpha=pubAlpha, weightPhi=weightPhi,
-                                                           λ=λcountOf(agt))
+                                                           λ=headPrior ? 0.0 : λcountOf(agt))
             # Fire-sale bank: the long asset's return in each draw, from the
             # agent's belief about θ (its prior, its posterior given x_i, or
             # Chapter 1's blend of x_i and y). ω decays with φ as the
@@ -1244,7 +1256,13 @@ function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
                 push!(record.nbShare, neighbourEstimate / nAgents)
                 push!(record.nbWithdrew, withdrew)
             end
-            if withdrew
+            if oneShot
+                xi = thetaSignal === nothing ? NaN : thetaSignal[agt.idx]
+                push!(oneShotRows, (mod.key, agt.idx, agt.individualism, xi,
+                                    yNow === nothing ? xi : (1.0 - ωθ) * xi + ωθ * yNow,
+                                    withdrew, probFullDepositWD, probFullDepositStay))
+                withdrew && push!(pending, (agt, frac))
+            elseif withdrew
                 amount = frac * agt.deposit
                 paid = frac == 1.0 ? withdraw(mod, agt) : withdrawPart!(mod, agt, amount)
                 frac < 1.0 && (nPartialEvents += 1)
@@ -1256,13 +1274,28 @@ function modelRun(mod::Model; record=nothing, thetaWeight=nothing)
                     tick=t,vault=mod.theBank.vault,wdProb=probFullDepositWD,stayProb=probFullDepositStay)
                 CSV.write(dataDir*"/"*"bankRunEndogenous"*string(workerCore)*".csv",reportRow,writeheader=false,append=true)
             end
-            withdrew && (halt = false)
+            withdrew && !oneShot && (halt = false)
 
             if failedNow()
                 # if the bank is bankrupt, we need to stop the simulation
                 runState=true
                 break
             end
+        end
+        if oneShot
+            # the held withdrawals, in the tick's order; then no further tick
+            for (agt, frac) in pending
+                amount = frac * agt.deposit
+                paid = withdraw(mod, agt)
+                record === nothing || record!(record, agt.idx, paid, t, amount)
+                if failedNow()
+                    runState = true
+                    break
+                end
+            end
+            CSV.write(dataDir*"/"*"bankRunOneShot"*string(workerCore)*".csv", oneShotRows,
+                      writeheader=false, append=true)
+            halt = true
         end
     end
     # Fire-sale bank: once the cascade has stopped without a liquidity failure,
@@ -1744,6 +1777,7 @@ end
 """Per unit of deposit, what staying to the end paid each agent, given the end-of-run
 ratio ρ of assets to promises, the deposits, the insurance cap and R."""
 stayValue(rho::Float64, deps::Vector{Float64}, cap::Float64, R::Float64) =
+    switchValue(:FAIL_PAYOFF) == "insurance" ? [rho >= 1.0 ? R : min(d, cap) / d for d in deps] :
     [rho >= 1.0 ? R : max(rho * R, min(d, cap) / d) for d in deps]
 
 """Rule B after an episode with private signals x, public signal y and stay values."""

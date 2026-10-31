@@ -110,6 +110,18 @@ const SWITCH_DEFAULTS = (
     # cultural λ (the model); uniform = an independent U(0, 1) draw per agent, fixed for
     # the population (stream off seed1), so episode 1 already differs from no learning.
     LEARN_INIT       = "culture",
+    # The nested one-shot limit (2026-10-31, rung 2, docs/rung2_nest.md; the user).
+    # TIMING: sequential = the ticks (the model); oneshot = every agent still banking
+    # decides once, in tick 1, against the same post-shock state, and the withdrawals
+    # are executed afterwards in the tick's shuffled order. No reconsideration.
+    TIMING           = "sequential",
+    # HEADCOUNT_BELIEF: blend = the prior draws blended with the neighbour (and
+    # announced) count by the head-count weight (the model); prior = the prior draws
+    # only, so the network carries nothing Chapter 1's agents lack.
+    HEADCOUNT_BELIEF = "blend",
+    # FAIL_PAYOFF (fire-sale bank): recovery = a stayer in a failed bank gets max(ρR,
+    # its insured share) (the model); insurance = its insured share only (Chapter 1's L).
+    FAIL_PAYOFF      = "recovery",
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -128,6 +140,9 @@ const BALANCE_CHOICES     = ("vault", "firesale")
 const FUNDAMENTAL_CHOICES = ("none", "theta")
 const THETA_PUBLIC_CHOICES = ("none", "stale", "tracks")
 const THETA_NOISE_DIST_CHOICES = ("normal", "uniform")
+const TIMING_CHOICES           = ("sequential", "oneshot")
+const HEADCOUNT_BELIEF_CHOICES = ("blend", "prior")
+const FAIL_PAYOFF_CHOICES      = ("recovery", "insurance")
 const LAMBDA_SCOPE_CHOICES = ("count", "theta", "both")
 const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
@@ -195,6 +210,15 @@ function switchComboError(sw)
     hasproperty(sw, :LEARN_INIT) && sw.LEARN_INIT != "culture" &&
         !(sw.LEARN in ("payoff", "imitate", "payoff+imitate", "payoff+type")) &&
         return "BANKRUN_LEARN_INIT=$(sw.LEARN_INIT) needs a rule that moves ω* (payoff, imitate, payoff+imitate, payoff+type)"
+    # Rung 2's nest (2026-10-31): one decision per agent, all or nothing, risk neutral.
+    if hasproperty(sw, :TIMING) && sw.TIMING == "oneshot"
+        hasproperty(sw, :WITHDRAW) && sw.WITHDRAW == "partial" &&
+            return "BANKRUN_TIMING=oneshot is not built for BANKRUN_WITHDRAW=partial"
+        hasproperty(sw, :CARA) && sw.CARA > 0.0 &&
+            return "BANKRUN_TIMING=oneshot is not built for BANKRUN_CARA > 0"
+    end
+    hasproperty(sw, :FAIL_PAYOFF) && sw.FAIL_PAYOFF == "insurance" && sw.BALANCE != "firesale" &&
+        return "BANKRUN_FAIL_PAYOFF=insurance needs BANKRUN_BALANCE=firesale"
     return nothing
 end
 
@@ -283,6 +307,9 @@ function parseSwitchesFromEnv()
           LEARN_MEMORY     = envFloat("BANKRUN_LEARN_MEMORY", D.LEARN_MEMORY, 0.0, 1.0; loOpen=true),
           LEARN_TYPE_RATE  = envFloat("BANKRUN_LEARN_TYPE_RATE", D.LEARN_TYPE_RATE, 0.0, 1.0),
           LEARN_INIT       = envChoice("BANKRUN_LEARN_INIT", D.LEARN_INIT, LEARN_INIT_CHOICES),
+          TIMING           = envChoice("BANKRUN_TIMING", D.TIMING, TIMING_CHOICES),
+          HEADCOUNT_BELIEF = envChoice("BANKRUN_HEADCOUNT_BELIEF", D.HEADCOUNT_BELIEF, HEADCOUNT_BELIEF_CHOICES),
+          FAIL_PAYOFF      = envChoice("BANKRUN_FAIL_PAYOFF", D.FAIL_PAYOFF, FAIL_PAYOFF_CHOICES),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)

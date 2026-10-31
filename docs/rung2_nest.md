@@ -84,8 +84,18 @@ bridge (F8) passes this A*(θ) to the solver in place of A1, and θ_L, θ_H foll
    `thetaNoiseDraw` (modelRun and `episodeThetaDraws`, one draw per agent either
    way), `thetaBelief(...; uniform)` = U[est ± w] truncated to [0, 1], Rule A's prior
    MSE s²/3 under uniform (`thetaNoiseVar`). tests/test_balance_sheet.jl I.
-2. `TIMING=oneshot` in `modelRun`, tests: one tick, every non-exogenous agent decides
-   once against the same frozen state; the default path byte-identical.
-3. Open items 1, 2 (and 3 if interior L is wanted) as switches.
+2. ~~`TIMING=oneshot`~~ and 3. ~~`HEADCOUNT_BELIEF=prior`, `FAIL_PAYOFF=insurance`~~
+   **BUILT 2026-10-31, uncommitted until the full suite passes** (tests/test_oneshot.jl
+   A–D pass; the full suite was not run that night). One-shot writes `bankRunOneShot`
+   (agent, λ, x, est, withdrew, wdProb, stayProb), consolidated as `oneshot`.
+   Interior L (open item 3) not built.
+3a. **The nest's bank (open, 2026-10-31).** The reference bank cannot be the nest:
+   period-1 capacity r + (1 − d)(1 − r + e) = 0.45 at r 0.05, d 0.6, e 0.06, so a run
+   past 45% is a liquidity failure, which Chapter 1 rules out. The nest needs
+   capacity ≥ 1 and an interior A*(θ) (runs must cost something). Checked (R_s 1.1,
+   R(θ) 1.0–1.4): r 0.05 / e 0.06 / d 0.05 → capacity 1.009, A* = 1 above θ_L 0.10
+   (degenerate); r 0.10 / e 0.06 / d 0.08 → 0.983, A*(0.3/0.5/0.7) 0.83/0.89/0.92;
+   r 0.20 / e 0.06 / d 0.15 → 0.93, A* 0.58/0.69/0.74. Next: raise e until
+   capacity ≥ 1 at d ≈ 0.08–0.15 and check A* stays interior.
 4. F9 cutoff estimator (LOG=full on small arms), F8 bridge (A*(θ) above into the
    solver), a nest arm file, then the comparison.

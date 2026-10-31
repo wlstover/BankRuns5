@@ -187,6 +187,10 @@ DOCK_FILES = {
                   # the learned weight w* alone, mean and SD by type (late 2026-10-30;
                   # NaN without learning; older files are read with NaN)
                   "learnedMean", "learnedSd"]),
+    # TIMING = oneshot (2026-10-31, rung 2): one row per agent's decision, with its
+    # private signal x and blended estimate est (rung 2's empirical cutoffs, F9).
+    "oneshot": ("bankRunOneShot", False,
+                ["agent", "individualism", "x", "est", "withdrew", "wdProb", "stayProb"]),
     "partial": ("bankRunPartial", False,
                 ["nAnyOut", "nStillIn", "nPartialEvents", "nBigDecisions", "withdrawnShare",
                  "largestFracWithdrawn"]),
