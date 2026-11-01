@@ -65,10 +65,16 @@ class Nest:
 
 
 def a_star(n: Nest, theta):
-    """Largest withdrawn share the nest bank survives at theta (A >= r)."""
+    """Largest withdrawn share the nest bank survives at theta (A >= r). Defined for
+    any theta, since Chapter 1's solver integrates windows past [0, 1]: where
+    R(theta)/(1 - d) <= R_s a withdrawal no longer hurts solvency, but capacity < 1
+    puts S < 0 at both ends of [r, 1], so the bank fails at every A (A* = -1)."""
     R = n.R_lo + (n.R_hi - n.R_lo) * np.asarray(theta, dtype=float)
     ell = 1.0 - n.r + n.e
-    return (ell * R - n.R_s + n.r * R / (1.0 - n.d)) / (R / (1.0 - n.d) - n.R_s)
+    den = R / (1.0 - n.d) - n.R_s
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = (ell * R - n.R_s + n.r * R / (1.0 - n.d)) / den
+    return np.where(den > 0.0, np.maximum(out, -1.0), -1.0)
 
 
 def prior_withdrawn(n: Nest):
@@ -136,6 +142,48 @@ def cutoffs_b(n: Nest, omega: float):
     return t_inf, x_of(n, t_inf, omega), t_D, x_of(n, t_D, omega)
 
 
+def _br(S, p, J, tI, tC, lo=-0.6, hi=1.6, n=2201):
+    """Type J's best-response threshold to others at (tI, tC): the largest zero
+    crossing of G_J over own t; FULL (always run) if G_J < 0 throughout, NONE (never)
+    if G_J > 0 throughout (k_rationing_check.py br_thresholds, with the corners)."""
+    ts = np.linspace(lo, hi, n)
+    g = np.array([S.G(p, J, t, tI, tC, m=401) for t in ts])
+    if (g < 0).all():
+        return FULL
+    if (g > 0).all():
+        return NONE
+    idx = np.where(np.sign(g[1:]) * np.sign(g[:-1]) < 0)[0]
+    if len(idx) == 0:
+        return float("nan")
+    a, b = ts[idx[-1]], ts[idx[-1] + 1]
+    ga = np.sign(S.G(p, J, a, tI, tC, m=801))
+    for _ in range(40):
+        m = 0.5 * (a + b)
+        if np.sign(S.G(p, J, m, tI, tC, m=801)) == ga:
+            a = m
+        else:
+            b = m
+    return 0.5 * (a + b)
+
+
+FULL, NONE = 5.0, -5.0     # thresholds standing for "always run" / "never run"
+
+
+def br_iterate(S, p, t0, n=200, tol=1e-7):
+    """Iterate the best-response map from (t0, t0). With global strategic
+    complementarity (Ch 1) the map is monotone, so from NONE ("nobody runs") it
+    climbs to the smallest equilibrium and from FULL to the largest (Tarski)."""
+    tI = tC = t0
+    for _ in range(n):
+        nI, nC = _br(S, p, "I", tI, tC), _br(S, p, "C", tI, tC)
+        if np.isnan(nI) or np.isnan(nC):
+            return float("nan"), float("nan"), False
+        if max(abs(nI - tI), abs(nC - tC)) < tol:
+            return nI, nC, True
+        tI, tC = nI, nC
+    return tI, tC, False
+
+
 def solver_equilibria(n: Nest, mu, om_I, om_C, sims: Path):
     """(a): Chapter 1's threshold equilibria with the nest bank's A*(theta)."""
     sys.path.insert(0, str(sims))
@@ -149,6 +197,23 @@ def solver_equilibria(n: Nest, mu, om_I, om_C, sims: Path):
                         threshold_I=S.best_response_is_threshold(p, "I", tI, tC),
                         threshold_C=S.best_response_is_threshold(p, "C", tI, tC),
                         plateau=S.plateau(p, tI, tC)))
+    return out
+
+
+def solver_extremes(n: Nest, mu, om_I, om_C, sims: Path):
+    """(a) by best-response iteration: smallest and largest equilibrium thresholds."""
+    sys.path.insert(0, str(sims))
+    import ch1_eta_solver as S                        # noqa: E402
+    S.A_star = lambda p, theta: np.minimum(a_star(n, theta), 1.0)
+    p = S.Params(eta=n.shock / n.N, mu=mu, omega_I=om_I, omega_C=om_C, y=n.y,
+                 eps_x=n.eps_x, eps_y=n.eps_y, R=n.R_s, L=0.0)
+    out = {}
+    for tag, t0 in (("lo", NONE), ("hi", FULL)):
+        tI, tC, ok = br_iterate(S, p, t0)
+        corner = lambda t: "full" if t == FULL else "none" if t == NONE else ""
+        out[tag] = dict(c_I=float("nan") if corner(tI) else S.cutoff(p, "I", tI),
+                        c_C=float("nan") if corner(tC) else S.cutoff(p, "C", tC),
+                        corner_I=corner(tI), corner_C=corner(tC), converged=ok)
     return out
 
 
@@ -175,10 +240,16 @@ def main():
       b = {om: cutoffs_b(n, om) for om in sorted({o for pr in pairs for o in pr})}
       for (lI, lC), mu in itertools.product(pairs, mus):
         eqs = [] if args.no_equilibria else solver_equilibria(n, mu, lI, lC, sims)
+        ext = {} if args.no_equilibria else solver_extremes(n, mu, lI, lC, sims)
         for J, om in (("I", lI), ("C", lC)):
             t_inf, c_inf, t_D, c_D = b[om]
             base = dict(y=yv, mu=mu, lambdaI=lI, lambdaC=lC, type=J, omega=om,
                         t_b_inf=t_inf, c_b_inf=c_inf, t_b_D=t_D, c_b_D=c_D, n_eq=len(eqs))
+            for tag in ("lo", "hi"):
+                e = ext.get(tag, {})
+                base |= {f"c_a_{tag}": e.get(f"c_{J}", float("nan")),
+                         f"corner_a_{tag}": e.get(f"corner_{J}", ""),
+                         f"converged_a_{tag}": e.get("converged", "")}
             if not eqs:
                 rows.append(base | dict(eq=-1, t_a=float("nan"), c_a=float("nan")))
             for k, q in enumerate(eqs):
@@ -193,13 +264,15 @@ def main():
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
         w.writerows(rows)
-    print(f"{'y':>4} {'lamI/lamC':>9} {'mu':>5} {'type':>4} {'c_b_inf':>8} {'c_b_D':>8} {'n_eq':>4}  c_a (each equilibrium)")
+    print(f"{'y':>4} {'lamI/lamC':>9} {'mu':>5} {'type':>4} {'c_b_inf':>8} {'c_b_D':>8} "
+          f"{'a_lo':>8} {'a_hi':>8} {'n_eq':>4}  c_a (grid search)")
     for yv, (lI, lC), mu in itertools.product(args.y, pairs, mus):
         for J in ("I", "C"):
             rr = [r for r in rows if r["y"] == yv and r["mu"] == mu and r["lambdaI"] == lI and r["type"] == J]
             ca = " ".join(f"{r['c_a']:.4f}" for r in rr if r["eq"] >= 0)
+            ex = lambda tag: rr[0][f"corner_a_{tag}"] or f"{rr[0][f'c_a_{tag}']:.4f}"
             print(f"{yv:4.1f} {lI:.1f}/{lC:.1f}  {mu:5.2f} {J:>4} {rr[0]['c_b_inf']:8.4f} {rr[0]['c_b_D']:8.4f} "
-                  f"{rr[0]['n_eq']:4d}  {ca}")
+                  f"{ex('lo'):>8} {ex('hi'):>8} {rr[0]['n_eq']:4d}  {ca}")
     if args.curve:
         with open(args.curve, "w", newline="") as f:
             w = csv.writer(f)

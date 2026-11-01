@@ -131,9 +131,23 @@ bridge (F8) passes this A*(θ) to the solver in place of A1, and θ_L, θ_H foll
    cells; the low one equals (b) where the other type never runs (μ = 0: c_I 0.0352
    vs 0.0359) and moves away from it as μ rises (λ 0.1/0.9, y 0.5: c_I 0.139 / 0.170 /
    0.228 / 0.421 at μ 0 / 0.25 / 0.5 / 0.75); the high one sits at c ≈ 0.45–0.49.
-   ⚠️ The solver found no equilibrium at μ = 1 for λ 0.1/0.9 and 0.2/0.8 (two
-   search cells dropped, "no crossing found"): a solver search issue to look at
-   before (a) is reported there. F8 reports two solver numbers per
+   **(a) by best-response iteration (2026-10-31)** from "nobody runs" and "everyone
+   runs" on the solver's own G: under global complementarity these reach the smallest
+   and largest equilibria. The largest is the full run in every cell: the nest bank
+   has no upper dominance (A* ≤ 0.88 at any θ), so a full run is an equilibrium at
+   every θ, and the grid's interior high equilibria (c ≈ 0.45–0.49) are middle ones.
+   The grid's "no equilibrium" cells (y 0.5 at μ 1 for λ 0.1/0.9, 0.2/0.8; y 0.2 in
+   14 of 15 cells) are a **unique full-run equilibrium**: the marginal agent's
+   Laplacian belief about its own type's share cannot reach P(survive) = 1/R when
+   A* ≤ 0.88 (y 0.2: the collectivists' est is pinned near y, so they all run and
+   max_t G_I = −0.776; y 0.5, μ 1: −0.206). There (a) − (b) is total: everyone runs
+   at every θ in Chapter 1's equilibrium, interior cutoffs under the belief law.
+   In five cells (y 0.5; μ 0.5/0.75 at λ 0.1/0.9 and 0.2/0.8; μ 1 at 0.3/0.5) the
+   iteration hovers within solver resolution (θ̂ within ≈ 0.003 of the grid's low
+   equilibrium; ×1/(1 − ω) in x) without meeting 1e-7.
+   **Open (Walter):** Chapter 1's A1 (and k_rationing_check K2) assume upper
+   dominance ("above θ_H the asset is fully liquid"). The ABM bank could mimic it
+   with a θ-dependent fire-sale discount, d(θ) → 0 above θ_H. F8 reports two solver numbers per
    cell (Walter, 2026-10-31): (a) Chapter 1's equilibrium cutoffs, and (b) the cutoff
    of a Chapter 1 agent holding the ABM's belief law (the head-count drawn from the
    prior, independent of θ). Agreement with (b) is the identity test of the

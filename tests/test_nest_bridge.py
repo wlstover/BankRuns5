@@ -8,8 +8,10 @@
   E  F9 end to end on synthetic decisions drawn from (b_D): truth PASSES, a rule
      shifted by 0.02 in x FAILS (two-sided: a stuck PASS would look like docking)
   F  (a) with the nest bank: where the other type never runs (mu = 0), Chapter 1's
-     low equilibrium for type I is (b)'s cutoff (needs bank_runs_theory; skipped
-     with a message if it is not there)
+     low equilibrium for type I is (b)'s cutoff; best-response iteration from
+     "nobody runs" reaches it and from "everyone runs" stays at the full run (no
+     upper dominance); at y 0.2, mu 0.5 it unravels to the full run (needs
+     bank_runs_theory; skipped with a message if it is not there)
 
 Run:  python3 tests/test_nest_bridge.py
 """
@@ -75,9 +77,16 @@ def main():
     got = NB.a_star(n, [0.2, 0.3, 0.5, 0.7, 0.9])
     check("A* at 0.2/0.3/0.5/0.7/0.9 = 0.460/0.612/0.743/0.801/0.835 (decided 10-31)",
           np.allclose(got, [0.460, 0.612, 0.743, 0.801, 0.835], atol=6e-4), got)
-    check("A* increasing in theta", np.all(np.diff(NB.a_star(n, np.linspace(0, 1, 101))) > 0))
+    a01 = NB.a_star(n, np.linspace(0, 1, 101))
+    live = a01[:-1] > -1.0                      # -1 = fails at every A (theta near 0)
+    check("A* increasing in theta where the bank can survive some A",
+          np.all(np.diff(a01)[live] > 0) and np.all(np.diff(a01) >= 0))
     check("no theta saves a bank past its liquidation value",
           np.isinf(NB.theta_needed(n, np.array([0.999]))).all())
+    wide = NB.a_star(n, np.linspace(-0.5, 1.5, 4001))
+    check("A* nondecreasing past [0, 1] too (the solver integrates there)", np.all(np.diff(wide) >= -1e-12))
+    check("A* below capacity everywhere (no upper dominance)",
+          wide.max() < n.r + (1 - n.d) * (1 - n.r + n.e))
 
     print("=== B. p_solvent closed form vs brute force ===")
     for est, om in ((0.15, 0.1), (0.05, 0.2), (0.17, 0.9), (0.03, 0.5), (0.95, 0.3), (0.2, 0.3)):
@@ -127,6 +136,14 @@ def main():
         c_b = NB.cutoffs_b(n, 0.3)[3]
         lowI = min(q["c_I"] for q in eqs) if eqs else float("nan")
         check(f"low equilibrium c_I {lowI:.4f} = (b) {c_b:.4f} within 0.002", abs(lowI - c_b) < 0.002)
+        ext = NB.solver_extremes(n, 0.0, 0.3, 0.5, sims)
+        check(f"iteration from nobody runs: c_I {ext['lo']['c_I']:.4f} = grid's low equilibrium",
+              ext["lo"]["converged"] and abs(ext["lo"]["c_I"] - lowI) < 0.002)
+        check("iteration from everyone runs stays at the full run",
+              ext["hi"]["corner_I"] == "full" and ext["hi"]["corner_C"] == "full")
+        un = NB.solver_extremes(replace(n, y=0.2), 0.5, 0.2, 0.8, sims)
+        check("y 0.2, mu 0.5, lambda 0.2/0.8: the smallest equilibrium is the full run",
+              un["lo"]["corner_I"] == "full" and un["lo"]["corner_C"] == "full")
 
     print(f"\n{_passed} PASS / {_failed} FAIL")
     return 1 if _failed else 0
