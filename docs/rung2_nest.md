@@ -110,8 +110,30 @@ bridge (F8) passes this A*(θ) to the solver in place of A1, and θ_L, θ_H foll
    borrows; refused off the fire-sale bank. The shock size is still drawn, so a
    fixed count equal to the drawn one reproduces the default run).
    tests/test_oneshot.jl E–F.
-4. F9 cutoff estimator (LOG=full on small arms), F8 bridge (A*(θ) above into the
-   solver), a nest arm file, then the comparison. F8 reports two solver numbers per
+3c. ~~`LAMBDA_DIST=point`~~ **BUILT 2026-10-31, 7632d04** (every agent at its type's
+   mean λ after the Beta draws; refused with type learning). tests/test_oneshot.jl G.
+4. **F8 `scripts/nest_bridge.py`, F9 `scripts/nest_cutoffs.py`, `arms/rung2_nest.tsv`
+   (2026-10-31).** (b) is exact: for a head-count draw m the bank survives iff
+   θ ≥ θ_A(m), R(θ_A) = R_s(1 − m)/(ℓ + (r − m)/(1 − d)), so P(solvent | est) is a sum
+   over the prior of the truncated-uniform tail; (b_D) adds the strict rule at depth D,
+   P(Bin(D, p) < D/R). (a) patches the solver's A1 with the nest bank's A*(θ). F9: the
+   best-separating split in x per type, run-clustered bootstrap CI; where (b) puts
+   the cutoff outside the signals, the withdrawal count against (b_D)'s.
+   tests/test_nest_bridge.py (in run_tests.sh).
+   **Grid fixed before the runs (Walter):** the 15 reference cells at y 0.5 and
+   y 0.2 (arms nest-y50, nest-y20), 250 runs, depth 1,000. At y 0.5 the
+   collectivists' (b) cutoffs lie outside the signals (x −2.75 / −1.12 / −0.15 for
+   ω 0.9 / 0.8 / 0.5), so their test there is "no withdrawals"; y 0.2 brings every
+   cutoff inside (ω 0.9 barely, x −0.049).
+   **Predictions (F8, before the runs).** (b) in x, y 0.5: I 0.139 / 0.094 / 0.036
+   (λ_I 0.1 / 0.2 / 0.3); y 0.2: I 0.172 / 0.169 / 0.164, C −0.049 / 0.076 / 0.150
+   (λ_C 0.9 / 0.8 / 0.5); b_D − b_∞ < 0.001. (a): two threshold equilibria in most
+   cells; the low one equals (b) where the other type never runs (μ = 0: c_I 0.0352
+   vs 0.0359) and moves away from it as μ rises (λ 0.1/0.9, y 0.5: c_I 0.139 / 0.170 /
+   0.228 / 0.421 at μ 0 / 0.25 / 0.5 / 0.75); the high one sits at c ≈ 0.45–0.49.
+   ⚠️ The solver found no equilibrium at μ = 1 for λ 0.1/0.9 and 0.2/0.8 (two
+   search cells dropped, "no crossing found"): a solver search issue to look at
+   before (a) is reported there. F8 reports two solver numbers per
    cell (Walter, 2026-10-31): (a) Chapter 1's equilibrium cutoffs, and (b) the cutoff
    of a Chapter 1 agent holding the ABM's belief law (the head-count drawn from the
    prior, independent of θ). Agreement with (b) is the identity test of the

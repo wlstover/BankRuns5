@@ -1,0 +1,20 @@
+# Rung 2: the nested one-shot limit (2026-10-31; docs/rung2_nest.md; the user).
+# The ABM configured as Chapter 1's game: one simultaneous decision (TIMING=oneshot),
+# head-count belief from the prior only, failed-bank stayers get L = 0 (insurance
+# q 0), every runner paid (LIQUIDITY=unlimited), equal deposits (sigma 0), risk
+# neutral, all or nothing, strict tie-break, uniform noise (eps_x = eps_y = 0.10,
+# half-widths), point-mass lambda (Ch 1's omega_I, omega_C), a fixed shock of 10 of
+# N 1,000 (eta 0.01). Nest bank r 0.01 / e 0.06 / d 0.10, R_s 1.1, R(theta) 1.0-1.4.
+# Grid and tolerance fixed BEFORE the runs (Walter, 2026-10-31): the 15 reference
+# cells (mu 0/0.25/0.5/0.75/1 x lambda pairs 0.1/0.9, 0.2/0.8, 0.3/0.5) at two stale
+# levels, y 0.5 and y 0.2 (at 0.5 the collectivists' (b) cutoffs lie outside the
+# signals, so y 0.2 is what tests them); 250 runs per cell; depth 1,000.
+# Criterion (Rahmandad-Sterman 2008): each type's (b_D) cutoff inside the ABM's
+# run-clustered 95% interval, every cell; where (b) puts it outside the signals, the
+# type's withdrawal count against (b_D)'s.
+# Fire: scripts/run_arms.sh arms/rung2_nest.tsv --dry-run, then without.
+# Read: python3 scripts/nest_bridge.py   (once; writes outputs/analysis/nest_bridge.csv)
+#       python3 scripts/nest_cutoffs.py outputs/nest-y50 --y 0.5
+#       python3 scripts/nest_cutoffs.py outputs/nest-y20 --y 0.2
+nest-y50	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_LIQUIDITY=unlimited BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.10 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_FAIL_PAYOFF=insurance BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE_DIST=uniform BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_THETA_PUBLIC=stale BANKRUN_LAMBDA_SCOPE=theta BANKRUN_LAMBDA_DIST=point BANKRUN_TIMING=oneshot BANKRUN_HEADCOUNT_BELIEF=prior BANKRUN_TIEBREAK=strict BANKRUN_SHOCK_COUNT=10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC_LEVEL=0.5	--grid reference --sigma 0 --reserve 0.01 --depq 0 --concurrency 15 --mem 20G --time 0-06:00:00
+nest-y20	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_LIQUIDITY=unlimited BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.10 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_FAIL_PAYOFF=insurance BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE_DIST=uniform BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_THETA_PUBLIC=stale BANKRUN_LAMBDA_SCOPE=theta BANKRUN_LAMBDA_DIST=point BANKRUN_TIMING=oneshot BANKRUN_HEADCOUNT_BELIEF=prior BANKRUN_TIEBREAK=strict BANKRUN_SHOCK_COUNT=10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC_LEVEL=0.2	--grid reference --sigma 0 --reserve 0.01 --depq 0 --concurrency 15 --mem 20G --time 0-06:00:00
