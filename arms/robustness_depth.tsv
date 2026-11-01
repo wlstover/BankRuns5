@@ -1,0 +1,9 @@
+# MC depth robustness (2026-11-01; the user). Rung 2 showed depth moves decision cutoffs (nest,
+# C ω 0.8, y 0.2: b_D 0.0699 at depth 100 vs 0.0756 at 1,000), and every reference-bank arm runs at
+# run_all.sh's default depth 100 (lowered from 1,000 on 2026-08-13). This arm is r1k-stale-y50
+# (arms/rung1_cap.tsv) verbatim at --depth 1000, paired run for run with c1101-r1k-stale-y50 by common
+# seeding: read with scripts/pilot_paired.py --control outputs/c1101-r1k-stale-y50.
+# HOLD: not to be fired before the 11-05 committee draft (the user). ~10x the compute of depth 100;
+# time limit raised accordingly.
+# tag	switches	run_all.sh flags
+c1101-r1k-stale-y50-d1000	BANKRUN_FRESH_CLONE=true BANKRUN_LOG=summary BANKRUN_BALANCE=firesale BANKRUN_PAYOFF=recovery BANKRUN_FUNDAMENTAL=theta BANKRUN_FIRE_DISCOUNT=0.6 BANKRUN_EQUITY=0.06 BANKRUN_RETURN_LO=1.0 BANKRUN_RETURN_HI=1.4 BANKRUN_STAY_RETURN=1.1 BANKRUN_PRIVATE_SIGNAL=theta BANKRUN_THETA_NOISE=0.10 BANKRUN_THETA_PUBLIC_NOISE=0.10 BANKRUN_SEEDING=common BANKRUN_N_INIT=25 BANKRUN_THETA_PUBLIC=stale BANKRUN_THETA_PUBLIC_LEVEL=0.5 BANKRUN_LAMBDA_SCOPE=both BANKRUN_WITHDRAW=partial BANKRUN_CARA=0.1 BANKRUN_DEPOSIT_CAP=0.01	--grid reference --sigma 2.5 --reserve 0.05 --depth 1000 --concurrency 20 --mem 20G --time 3-00:00:00
