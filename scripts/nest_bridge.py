@@ -225,6 +225,8 @@ def main():
     ap.add_argument("--curve", default=None, help="also write the (b_D) P(withdraw | x) curves here")
     ap.add_argument("--no-equilibria", action="store_true", help="(b) only (fast)")
     ap.add_argument("--y", type=float, nargs="+", default=[0.5, 0.2], help="stale public levels")
+    ap.add_argument("--depth", type=int, default=Nest.depth,
+                    help="Monte Carlo depth D for (b_D); nest_cutoffs.py recomputes (b_D) at the arm's own depth")
     args = ap.parse_args()
     sims = Path(args.theory_sims)
     if not args.no_equilibria and not (sims / "ch1_eta_solver.py").exists():
@@ -236,14 +238,14 @@ def main():
           + "/".join(f"{a:.3f}" for a in a_star(Nest(), [0.1, 0.2, 0.3, 0.5, 0.7, 0.9])))
     rows = []
     for yv in args.y:
-      n = replace(Nest(), y=yv)
+      n = replace(Nest(), y=yv, depth=args.depth)
       b = {om: cutoffs_b(n, om) for om in sorted({o for pr in pairs for o in pr})}
       for (lI, lC), mu in itertools.product(pairs, mus):
         eqs = [] if args.no_equilibria else solver_equilibria(n, mu, lI, lC, sims)
         ext = {} if args.no_equilibria else solver_extremes(n, mu, lI, lC, sims)
         for J, om in (("I", lI), ("C", lC)):
             t_inf, c_inf, t_D, c_D = b[om]
-            base = dict(y=yv, mu=mu, lambdaI=lI, lambdaC=lC, type=J, omega=om,
+            base = dict(y=yv, depth=args.depth, mu=mu, lambdaI=lI, lambdaC=lC, type=J, omega=om,
                         t_b_inf=t_inf, c_b_inf=c_inf, t_b_D=t_D, c_b_D=c_D, n_eq=len(eqs))
             for tag in ("lo", "hi"):
                 e = ext.get(tag, {})
@@ -278,7 +280,7 @@ def main():
             w = csv.writer(f)
             w.writerow(["y", "omega", "x", "est", "p_solvent", "p_withdraw_D"])
             for yv in args.y:
-                n = replace(Nest(), y=yv)
+                n = replace(Nest(), y=yv, depth=args.depth)
                 for om in sorted({o for pr in pairs for o in pr}):
                     t_D = cutoffs_b(n, om)[2]
                     for est in np.linspace(t_D - 0.03, t_D + 0.03, 121):

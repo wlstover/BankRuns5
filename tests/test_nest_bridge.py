@@ -114,17 +114,21 @@ def main():
         subprocess.run([sys.executable, str(ROOT / "scripts" / "nest_bridge.py"), "--no-equilibria",
                         "--y", "0.2", "-o", bridge], check=True, capture_output=True)
         n2 = replace(n, y=0.2)
-        for shift, want in ((0.0, "PASS"), (0.02, "FAIL")):
-            arm = os.path.join(td, f"arm{shift}")
+        # (shift, depth the decisions are drawn at, verdict): nest_cutoffs.py reads the depth
+        # from the arm's manifest.csv, so an arm run at D 100 is scored against (b_D) at 100
+        for shift, depth, want in ((0.0, n.depth, "PASS"), (0.02, n.depth, "FAIL"), (0.0, 100, "PASS")):
+            arm = os.path.join(td, f"arm{shift}-{depth}")
             os.makedirs(arm)
-            synthetic(n2, cells, shift, 40, 150, rng).to_csv(os.path.join(arm, "consolidated_oneshot.csv"),
-                                                             index=False)
-            out = os.path.join(td, f"res{shift}.csv")
+            synthetic(replace(n2, depth=depth), cells, shift, 40, 150, rng).to_csv(
+                os.path.join(arm, "consolidated_oneshot.csv"), index=False)
+            pd.DataFrame({"task_id": [1, 2], "mc_depth": [depth, depth]}).to_csv(
+                os.path.join(arm, "manifest.csv"), index=False)
+            out = os.path.join(td, f"res{shift}-{depth}.csv")
             subprocess.run([sys.executable, str(ROOT / "scripts" / "nest_cutoffs.py"), arm, "--y", "0.2",
                             "--bridge", bridge, "--boot", "200", "-o", out], check=True, capture_output=True)
             res = pd.read_csv(out)
             cut = res[res.test == "cutoff"]
-            check(f"shift {shift}: every identified cutoff is {want} ({len(cut)} of {len(res)} rows)",
+            check(f"shift {shift}, D {depth}: every identified cutoff is {want} ({len(cut)} of {len(res)} rows)",
                   len(cut) >= 3 and (cut.verdict == want).all(), res[["type", "lambdaI", "verdict"]].values)
 
     print("=== F. (a) with the nest bank, mu = 0 ===")

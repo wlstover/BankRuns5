@@ -9,7 +9,9 @@ reports per cell (mu, lambda pair) and type:
             (x below) from stayers (x above), the midpoint of the best gap;
   CI        its 95% interval from a bootstrap over runs (keys), so draws that share a
             run's theta stay together (run-clustered);
-  c_b_D     F8 (b) at the ABM's Monte Carlo depth, c_b_inf the noise-free limit,
+  c_b_D     F8 (b) at the arm's Monte Carlo depth (mc_depth in its manifest.csv,
+            recomputed here; the bridge CSV's c_b_D is at nest_bridge.py's --depth),
+            c_b_inf the noise-free limit,
             c_a   Chapter 1's equilibrium cutoff(s);
   verdict   PASS if c_b_D lies inside the CI (the criterion fixed 2026-10-31,
             Rahmandad-Sterman 2008).
@@ -66,6 +68,17 @@ def cluster_boot(groups, stat, B, rng):
     return np.nanpercentile(vals, 2.5), np.nanpercentile(vals, 97.5)
 
 
+def arm_depth(arm):
+    """The arm's Monte Carlo depth: mc_depth in its manifest.csv, one value for the arm."""
+    man = arm / "manifest.csv"
+    if not man.exists():
+        sys.exit(f"{man} not found: pass --depth")
+    d = pd.read_csv(man).mc_depth.dropna().unique()
+    if len(d) != 1:
+        sys.exit(f"{man}: mc_depth is not one value ({list(d)}): pass --depth")
+    return int(d[0])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("arm", help="arm output directory holding consolidated_oneshot.csv")
@@ -74,14 +87,19 @@ def main():
     ap.add_argument("--boot", type=int, default=500)
     ap.add_argument("--seed", type=int, default=20261031)
     ap.add_argument("-o", "--out", default=None, help="CSV of the per cell x type results")
+    ap.add_argument("--depth", type=int, default=None,
+                    help="override the Monte Carlo depth read from the arm's manifest.csv")
     args = ap.parse_args()
     arm = Path(args.arm)
+    depth = args.depth if args.depth is not None else arm_depth(arm)
     os_ = pd.read_csv(arm / "consolidated_oneshot.csv")
     br = pd.read_csv(args.bridge)
     br = br[np.isclose(br.y, args.y)]
     if br.empty:
         sys.exit(f"no bridge rows at y = {args.y}: rerun nest_bridge.py with --y {args.y}")
-    n = replace(NB.Nest(), y=args.y)
+    n = replace(NB.Nest(), y=args.y, depth=depth)
+    print(f"Monte Carlo depth D = {depth}")
+    b_D = {}
     rng = np.random.default_rng(args.seed)
     rows = []
     for (mu, lI, lC), cell in os_.groupby(["mu", "lambdaI", "lambdaC"]):
@@ -95,7 +113,9 @@ def main():
                       & (br.type == J)]
             if pred.empty:
                 sys.exit(f"no bridge row for mu {mu}, lambda {lI}/{lC}, type {J}: rerun nest_bridge.py")
-            c_D, c_inf = float(pred.c_b_D.iloc[0]), float(pred.c_b_inf.iloc[0])
+            if om not in b_D:
+                b_D[om] = NB.cutoffs_b(n, om)[3]
+            c_D, c_inf = b_D[om], float(pred.c_b_inf.iloc[0])
             c_a = " ".join(f"{v:.4f}" for v in pred.c_a.dropna())
             x, wd = d.x.to_numpy(float), d.withdrew.astype(bool).to_numpy()
             groups = [(g.x.to_numpy(float), g.withdrew.astype(bool).to_numpy()) for _, g in d.groupby("key")]
