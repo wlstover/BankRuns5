@@ -3,7 +3,10 @@
 Rung 2 of the docking ladder (Axtell et al. 1996): configure the ABM so that it is
 Chapter 1's game, and check that it reproduces the numbers of Chapter 1's solver
 (`bank_runs_theory/sims/ch1_eta_solver.py`). Rung 1 (pilot_map F11) established
-relational equivalence (signs); rung 2 asks for numerical identity. The relaxation
+relational equivalence (signs); rung 2 asks for quantitative agreement in the nest (renamed
+2026-11-01, the user: Axtell et al.'s "numerical identity" is not expected of stochastic models;
+the criterion is Rahmandad & Sterman 2008's, the solver's value inside the ABM's 95% interval).
+The relaxation
 ladder (F10) then starts from this nest and relaxes one assumption at a time.
 
 ## Decisions (Walter, 2026-10-31)
