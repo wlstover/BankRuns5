@@ -22,6 +22,8 @@
 #      bank that borrowed is insolvent in period 2.
 #   F. SHOCK_COUNT: exactly n agents in the shock (min(n, N)); n equal to the drawn
 #      count reproduces the default run exactly.
+#   G. LAMBDA_DIST = point: modelGenTyped gives every agent its type's mean λ, with
+#      the same types and deposits as the Beta draws; refused with type learning.
 ################################################################################
 
 using Test
@@ -158,7 +160,7 @@ end
     m = load_model(:D)
     D = m.SWITCH_DEFAULTS
     @test D.TIMING == "sequential" && D.HEADCOUNT_BELIEF == "blend" && D.FAIL_PAYOFF == "recovery"
-    @test D.LIQUIDITY == "limited" && D.SHOCK_COUNT == -1
+    @test D.LIQUIDITY == "limited" && D.SHOCK_COUNT == -1 && D.LAMBDA_DIST == "beta"
     err(; kw...) = m.switchComboError(merge(D, (; kw...)))
     FS = (BALANCE="firesale", PAYOFF="recovery", FRESH_CLONE=true)
     @test err(; FS..., TIMING="oneshot") === nothing
@@ -247,4 +249,39 @@ end
     end
     setsw!(mk; SHOCK_COUNT=0);    @test run(mk, 1).nExog == 0
     setsw!(mk; SHOCK_COUNT=1000); @test run(mk, 1).nExog == 60    # capped at N
+end
+
+# ---------------------------------------------------------------- G
+@testset "G. LAMBDA_DIST = point" begin
+    function load_gen(name)
+        m = Module(name)
+        Core.eval(m, :(using CSV, DataFrames, Distributions, Distributed, Graphs, LinearAlgebra, Random, StatsBase))
+        for f in ("settings.jl", "objects.jl", "warmup.jl", "functions4.jl")
+            Base.include(m, joinpath(ROOT, f))
+        end
+        Core.eval(m, :(dataDir = $(mktempdir()); workerCore = 1; depth = 30; LOG = "summary"))
+        return m
+    end
+    gen(m, mu) = Base.invokelatest(m.modelGenTyped, "k1", 11, 12, 300, 0.1,
+                                   newman_watts_strogatz(300, 6, 0.05; seed=3), LogNormal(1.0, 0.0),
+                                   0.01, 0.0, truncated(Geometric(0.1), 0, 300), 0.1, mu, 0.2, 0.8)
+    mb = load_gen(:Gb); setsw!(mb; BALANCE="firesale")
+    mp = load_gen(:Gp); setsw!(mp; BALANCE="firesale", LAMBDA_DIST="point")
+    for mu in (0.0, 0.25, 0.5, 1.0)
+        (a, isIa), (b, isIb) = gen(mb, mu), gen(mp, mu)
+        λa = [x.individualism for x in a.agtList]; λb = [x.individualism for x in b.agtList]
+        @test isIa == isIb                                         # same types
+        @test [x.deposit for x in a.agtList] == [x.deposit for x in b.agtList]
+        @test λb == [i ? 0.2 : 0.8 for i in isIb]                  # exactly the type means
+        @test length(unique(λa)) > 2                               # the Beta draws do vary
+    end
+    D = mb.SWITCH_DEFAULTS
+    err(; kw...) = mb.switchComboError(merge(D, (; kw...)))
+    @test err(LAMBDA_DIST="point") === nothing
+    @test err(LAMBDA_DIST="point", LEARN="type") !== nothing
+    @test err(LAMBDA_DIST="point", LEARN="payoff+type") !== nothing
+    @test err(LAMBDA_DIST="point", LEARN="none") === nothing
+    withenv("BANKRUN_LAMBDA_DIST" => "point") do
+        @test mb.parseSwitchesFromEnv().LAMBDA_DIST == "point"
+    end
 end

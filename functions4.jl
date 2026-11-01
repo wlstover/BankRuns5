@@ -88,6 +88,9 @@ function modelGenTyped(key::String,
     distI = typeLambdaDist(lambdaI)
     distC = typeLambdaDist(lambdaC)
     agentLambdas = [isI[i] ? rand(distI) : rand(distC) for i in 1:agtCnt]
+    # LAMBDA_DIST = point (2026-10-31, rung 2): every agent at its type's mean
+    switchValue(:LAMBDA_DIST) == "point" &&
+        (agentLambdas = [isI[i] ? lambdaI : lambdaC for i in 1:agtCnt])
     agentTypes   = [isI[i] ? "I" : "C"                 for i in 1:agtCnt]
 
     # ---- Deposits ----

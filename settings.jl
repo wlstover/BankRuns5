@@ -133,6 +133,10 @@ const SWITCH_DEFAULTS = (
     # impatient share eta is fixed. The draw is still made, so a fixed count equal to the
     # drawn one reproduces the default run exactly.
     SHOCK_COUNT      = -1,
+    # LAMBDA_DIST (2026-10-31, rung 2, the user): beta = each agent draws λ from its
+    # type's Beta (mean λ_J, concentration LAMBDA_CONC; the model); point = every agent
+    # holds its type's mean exactly (Chapter 1's ω_I, ω_C). The draws are still made.
+    LAMBDA_DIST      = "beta",
     # Output (2026-10-15): "full" writes the per-agent and per-decision logs;
     # "summary" keeps run-level results and the per-type summary only (replay a
     # run with scripts/replay_run.jl to regenerate its full logs).
@@ -155,6 +159,7 @@ const TIMING_CHOICES           = ("sequential", "oneshot")
 const HEADCOUNT_BELIEF_CHOICES = ("blend", "prior")
 const FAIL_PAYOFF_CHOICES      = ("recovery", "insurance")
 const LIQUIDITY_CHOICES        = ("limited", "unlimited")
+const LAMBDA_DIST_CHOICES      = ("beta", "point")
 const LAMBDA_SCOPE_CHOICES = ("count", "theta", "both")
 const SEEDING_CHOICES      = ("task", "common")
 const N_INIT_CHOICES       = (1, 5, 25)
@@ -233,6 +238,9 @@ function switchComboError(sw)
         return "BANKRUN_FAIL_PAYOFF=insurance needs BANKRUN_BALANCE=firesale"
     hasproperty(sw, :LIQUIDITY) && sw.LIQUIDITY == "unlimited" && sw.BALANCE != "firesale" &&
         return "BANKRUN_LIQUIDITY=unlimited needs BANKRUN_BALANCE=firesale"
+    hasproperty(sw, :LAMBDA_DIST) && sw.LAMBDA_DIST == "point" && hasproperty(sw, :LEARN) &&
+        occursin("type", sw.LEARN) &&
+        return "BANKRUN_LAMBDA_DIST=point is not built for type learning (BANKRUN_LEARN=$(sw.LEARN))"
     return nothing
 end
 
@@ -326,6 +334,7 @@ function parseSwitchesFromEnv()
           FAIL_PAYOFF      = envChoice("BANKRUN_FAIL_PAYOFF", D.FAIL_PAYOFF, FAIL_PAYOFF_CHOICES),
           LIQUIDITY        = envChoice("BANKRUN_LIQUIDITY", D.LIQUIDITY, LIQUIDITY_CHOICES),
           SHOCK_COUNT      = envInt("BANKRUN_SHOCK_COUNT", D.SHOCK_COUNT, -1, 10^7),
+          LAMBDA_DIST      = envChoice("BANKRUN_LAMBDA_DIST", D.LAMBDA_DIST, LAMBDA_DIST_CHOICES),
           LOG              = envChoice("BANKRUN_LOG",      D.LOG,      LOG_CHOICES))
     msg = switchComboError(sw)
     msg === nothing || error(msg)
